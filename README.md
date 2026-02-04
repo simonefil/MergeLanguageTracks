@@ -4,9 +4,9 @@ Script per unire tracce audio e sottotitoli da MKV in lingue diverse.
 
 ## A cosa serve?
 
-Hai presente quando scarichi una serie in inglese con audio lossless perfetto, ma poi vuoi anche l'italiano? E magari la versione italiana ha un encode video peggiore, ma l'audio è buono?
+Consente di combinare tracce audio e sottotitoli da file MKV di release diverse, utile quando si dispone di una versione con video di qualità superiore ma si desidera integrare l'audio o i sottotitoli da un'altra versione.
 
-Questo script ti permette di prendere le tracce audio/sub da una versione e aggiungerle all'altra, automaticamente per tutta la stagione, con sync automatico se i file hanno tagli diversi.
+Lo script elabora automaticamente intere stagioni, abbinando gli episodi corrispondenti e applicando la sincronizzazione automatica per compensare eventuali differenze di montaggio tra le release.
 
 ## Casi d'uso tipici
 
