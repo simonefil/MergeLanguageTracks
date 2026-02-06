@@ -1,12 +1,12 @@
-# MergeLanguageTracks.ps1
+# MergeLanguageTracks
 
-Script per unire tracce audio e sottotitoli da MKV in lingue diverse.
+Applicazione console cross-platform per unire tracce audio e sottotitoli da MKV in lingue diverse.
 
 ## A cosa serve?
 
-Consente di combinare tracce audio e sottotitoli da file MKV di release diverse, utile quando si dispone di una versione con video di qualità superiore ma si desidera integrare l'audio o i sottotitoli da un'altra versione.
+Consente di combinare tracce audio e sottotitoli da file MKV di release diverse, utile quando si dispone di una versione con video di qualita' superiore ma si desidera integrare l'audio o i sottotitoli da un'altra versione.
 
-Lo script elabora automaticamente intere stagioni, abbinando gli episodi corrispondenti e applicando la sincronizzazione automatica per compensare eventuali differenze di montaggio tra le release.
+L'applicazione elabora automaticamente intere stagioni, abbinando gli episodi corrispondenti e applicando la sincronizzazione automatica per compensare eventuali differenze di montaggio tra le release.
 
 ## Casi d'uso tipici
 
@@ -14,24 +14,24 @@ Lo script elabora automaticamente intere stagioni, abbinando gli episodi corrisp
 
 Hai una release US/UK con video ottimo e vuoi aggiungere l'audio italiano da una release ITA.
 
-```powershell
-.\MergeLanguageTracks.ps1 -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -as
+```bash
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -as
 ```
 
 **2. Aggiungere solo sottotitoli**
 
-La release che hai non ha sub italiani, ma un'altra versione sì.
+La release che hai non ha sub italiani, ma un'altra versione si'.
 
-```powershell
-.\MergeLanguageTracks.ps1 -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -so -d "D:\Output" -as
+```bash
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -so -d "D:\Output" -as
 ```
 
 **3. Sostituire una traccia lossy con una lossless**
 
-Il file ha già l'italiano ma è un AC3 lossy. Hai trovato una release con DTS-HD MA italiano e vuoi sostituirlo.
+Il file ha gia' l'italiano ma e' un AC3 lossy. Hai trovato una release con DTS-HD MA italiano e vuoi sostituirlo.
 
-```powershell
-.\MergeLanguageTracks.ps1 -s "D:\Serie" -l "D:\Serie.ITA.HDMA" -t ita -ac "DTS-HD MA" -ksa eng,jpn -d "D:\Output" -as
+```bash
+MergeLanguageTracks -s "D:\Serie" -l "D:\Serie.ITA.HDMA" -t ita -ac "DTS-HD MA" -ksa eng,jpn -d "D:\Output" -as
 ```
 
 Con **-ksa eng,jpn** mantieni solo inglese e giapponese dal sorgente, buttando via l'italiano lossy. Con **-ac "DTS-HD MA"** prendi solo la traccia lossless dalla release italiana.
@@ -40,42 +40,50 @@ Con **-ksa eng,jpn** mantieni solo inglese e giapponese dal sorgente, buttando v
 
 Il file lingua ha sia AC3 che E-AC-3 italiano, tu vuoi solo l'E-AC-3.
 
-```powershell
-.\MergeLanguageTracks.ps1 -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3" -d "D:\Output" -as
+```bash
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3" -d "D:\Output" -as
 ```
 
 **5. Film multilingua da release diverse**
 
 Parti dal Blu-ray US (miglior encode) e aggiungi audio da release europee per creare un remux multilingua.
 
-```powershell
+```bash
 # Aggiungi italiano dalla release ITA
-.\MergeLanguageTracks.ps1 -s "D:\Film.US" -l "D:\Film.ITA" -t ita -d "D:\Temp1" -as
+MergeLanguageTracks -s "D:\Film.US" -l "D:\Film.ITA" -t ita -d "D:\Temp1" -as
 
 # Aggiungi francese dalla release FRA
-.\MergeLanguageTracks.ps1 -s "D:\Temp1" -l "D:\Film.FRA" -t fra -d "D:\Temp2" -as
+MergeLanguageTracks -s "D:\Temp1" -l "D:\Film.FRA" -t fra -d "D:\Temp2" -as
 
 # Aggiungi tedesco dalla release GER
-.\MergeLanguageTracks.ps1 -s "D:\Temp2" -l "D:\Film.GER" -t ger -d "D:\Output" -as
+MergeLanguageTracks -s "D:\Temp2" -l "D:\Film.GER" -t ger -d "D:\Output" -as
 ```
 
-**6. Dry run per vedere cosa farebbe**
+**6. Solo audio senza sottotitoli**
+
+Vuoi importare solo le tracce audio, ignorando i sottotitoli.
+
+```bash
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ao -d "D:\Output" -as
+```
+
+**7. Dry run per vedere cosa farebbe**
 
 Prima di lanciare su 50 episodi, controlla che faccia quello che vuoi.
 
-```powershell
-.\MergeLanguageTracks.ps1 -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -as -DryRun
+```bash
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -as -DryRun
 ```
 
 ## Come funziona AutoSync
 
-Spesso le release in lingue diverse hanno tagli differenti: intro più lunghe, scene tagliate, crediti diversi. Se fai un merge diretto, l'audio va fuori sync.
+Spesso le release in lingue diverse hanno tagli differenti: intro piu' lunghe, scene tagliate, crediti diversi. Se fai un merge diretto, l'audio va fuori sync.
 
 AutoSync risolve questo problema analizzando l'audio dei due file e calcolando automaticamente il delay necessario.
 
-**Il principio è semplice:**
+**Il principio e' semplice:**
 
-Anche se il doppiaggio è in lingue diverse, la colonna sonora di sottofondo (musica, effetti, esplosioni, silenzi) è identica. Lo script confronta questi "marker" audio per trovare l'offset corretto.
+Anche se il doppiaggio e' in lingue diverse, la colonna sonora di sottofondo (musica, effetti, esplosioni, silenzi) e' identica. L'applicazione confronta questi "marker" audio per trovare l'offset corretto.
 
 **Come funziona tecnicamente:**
 
@@ -84,15 +92,15 @@ Anche se il doppiaggio è in lingue diverse, la colonna sonora di sottofondo (mu
    - Inizi e fine dei silenzi (es. pause tra scene)
    - Picchi di volume improvvisi (esplosioni, colpi, musica che parte)
 3. Confronta i pattern tra sorgente e lingua
-4. Cerca l'offset che fa combaciare più marker possibili
+4. Cerca l'offset che fa combaciare piu' marker possibili
 5. Usa 3 fasi di ricerca per precisione al millisecondo:
    - Fase 1: ricerca grossolana (-60s a +60s, step 500ms)
-   - Fase 2: ricerca fine (±2s dal risultato, step 10ms)
-   - Fase 3: ricerca ultra-fine (±100ms, step 1ms)
+   - Fase 2: ricerca fine (+/-2s dal risultato, step 10ms)
+   - Fase 3: ricerca ultra-fine (+/-100ms, step 1ms)
 
 **Funziona anche per i sottotitoli!**
 
-Se importi solo sub (**-so**), lo script usa comunque l'audio per calcolare il sync. Prende una traccia audio qualsiasi dal file sorgente e una dal file lingua, le confronta, e applica il delay calcolato ai sottotitoli.
+Se importi solo sub (**-so**), l'applicazione usa comunque l'audio per calcolare il sync. Prende una traccia audio qualsiasi dal file sorgente e una dal file lingua, le confronta, e applica il delay calcolato ai sottotitoli.
 
 Non importa che lingua sia l'audio usato per il confronto: la musica e gli effetti sono sempre gli stessi.
 
@@ -107,9 +115,9 @@ In questi casi vedrai un warning "Low confidence" e conviene verificare manualme
 
 ## Codec Audio
 
-Quando specifichi **-ac** per filtrare i codec, il matching è **ESATTO**, non parziale.
+Quando specifichi **-ac** per filtrare i codec, il matching e' **ESATTO**, non parziale.
 
-**Perché è importante:**
+**Perche' e' importante:**
 
 Se un file ha sia DTS (core) che DTS-HD MA, e tu scrivi **-ac "DTS"**, prende SOLO il DTS core, non il DTS-HD. Se vuoi il DTS-HD Master Audio, devi scrivere **-ac "DTS-HDMA"**.
 
@@ -138,12 +146,12 @@ Se un file ha sia DTS (core) che DTS-HD MA, e tu scrivi **-ac "DTS"**, prende SO
 
 - **AAC** - Comune su streaming e webrip
 - **MP3** - Ormai raro
-- **Opus** - Usato in WebM, ottima qualità a bitrate basso
+- **Opus** - Usato in WebM, ottima qualita' a bitrate basso
 - **Vorbis** - Ogg Vorbis
 
 ## Codici Lingua
 
-I codici lingua sono ISO 639-2 (3 lettere). I più comuni:
+I codici lingua sono ISO 639-2 (3 lettere). I piu' comuni:
 
 - **ita** - Italiano
 - **eng** - Inglese
@@ -157,7 +165,7 @@ I codici lingua sono ISO 639-2 (3 lettere). I più comuni:
 - **kor** - Coreano
 - **und** - Undefined (lingua non specificata)
 
-Se sbagli un codice, lo script ti suggerisce quello corretto:
+Se sbagli un codice, l'applicazione ti suggerisce quello corretto:
 
 ```
 Errore: lingua 'italian' non riconosciuta.
@@ -166,8 +174,29 @@ Forse intendevi: ita?
 
 ## Requisiti
 
-- [MKVToolNix](https://mkvtoolnix.download/) installato (mkvmerge e mkvextract devono essere nel PATH)
+- [MKVToolNix](https://mkvtoolnix.download/) installato (mkvmerge deve essere nel PATH)
 - ffmpeg per AutoSync - se non lo hai, viene scaricato automaticamente nella cartella **tools/**
+
+**Piattaforme supportate:**
+
+- Windows (x64)
+- Linux (x64)
+- macOS (x64, ARM64)
+
+## Build
+
+Richiede .NET 8.0 SDK.
+
+```bash
+# Build per la piattaforma corrente
+dotnet build -c Release
+
+# Publish come eseguibile standalone
+dotnet publish -c Release -r win-x64 --self-contained true
+dotnet publish -c Release -r linux-x64 --self-contained true
+dotnet publish -c Release -r osx-x64 --self-contained true
+dotnet publish -c Release -r osx-arm64 --self-contained true
+```
 
 ## Riferimento Parametri
 
@@ -200,6 +229,7 @@ Forse intendevi: ita?
 |-----------|-------|-------------|
 | -AudioCodec | -ac | Importa solo tracce audio con questo codec |
 | -SubOnly | -so | Importa solo sottotitoli, ignora l'audio |
+| -AudioOnly | -ao | Importa solo audio, ignora i sottotitoli |
 | -KeepSourceAudioLangs | -ksa | Lingue audio da MANTENERE nel sorgente (le altre vengono rimosse) |
 | -KeepSourceSubtitleLangs | -kss | Lingue sub da MANTENERE nel sorgente |
 
@@ -212,7 +242,7 @@ Forse intendevi: ita?
 
 ### Pattern Regex Comuni
 
-Lo script usa i gruppi catturati dalla regex per abbinare i file. Ogni gruppo tra parentesi viene concatenato per creare l'ID univoco dell'episodio.
+L'applicazione usa i gruppi catturati dalla regex per abbinare i file. Ogni gruppo tra parentesi viene concatenato per creare l'ID univoco dell'episodio.
 
 | Formato | Esempio File | Pattern |
 |---------|--------------|---------|
@@ -233,7 +263,6 @@ Lo script usa i gruppi catturati dalla regex per abbinare i file. Ogni gruppo tr
 | -DryRun | -dry, -n | Mostra cosa farebbe senza eseguire |
 | -Help | -h | Mostra l'help integrato |
 | -MkvMergePath | -mkv | Percorso custom di mkvmerge |
-| -MkvExtractPath | -mkvx | Percorso custom di mkvextract |
 | -ToolsFolder | -tools | Cartella per ffmpeg scaricato |
 
 **Note:**
