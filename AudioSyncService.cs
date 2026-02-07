@@ -181,21 +181,23 @@ namespace MergeLanguageTracks
             string analysisFilters = "silencedetect=noise=-35dB:d=0.3,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-";
 
             // Costruzione argomenti producer (estrazione audio a PCM raw 8kHz mono)
+            // -nostdin impedisce a ffmpeg di aprire /dev/tty per input tastiera,
+            // evitando corruzione delle impostazioni terminale su Linux
             string sourceProducerArgs = "";
             if (syncTrackIndex >= 0)
             {
                 // Usa traccia specifica come riferimento
-                sourceProducerArgs = "-hide_banner -hwaccel auto -threads 0 -i \"" + sourceVideo + "\" -map 0:" + syncTrackIndex + " -t 300 -ac 1 -ar 8000 -f s16le -";
+                sourceProducerArgs = "-nostdin -hide_banner -hwaccel auto -threads 0 -i \"" + sourceVideo + "\" -map 0:" + syncTrackIndex + " -t 300 -ac 1 -ar 8000 -f s16le -";
             }
             else
             {
                 // Usa prima traccia audio disponibile
-                sourceProducerArgs = "-hide_banner -hwaccel auto -threads 0 -i \"" + sourceVideo + "\" -vn -t 300 -ac 1 -ar 8000 -f s16le -";
+                sourceProducerArgs = "-nostdin -hide_banner -hwaccel auto -threads 0 -i \"" + sourceVideo + "\" -vn -t 300 -ac 1 -ar 8000 -f s16le -";
             }
-            string langProducerArgs = "-hide_banner -hwaccel auto -threads 0 -i \"" + languageFile + "\" -vn -t 300 -ac 1 -ar 8000 -f s16le -";
+            string langProducerArgs = "-nostdin -hide_banner -hwaccel auto -threads 0 -i \"" + languageFile + "\" -vn -t 300 -ac 1 -ar 8000 -f s16le -";
 
             // Argomenti consumer (analisi da input PCM raw)
-            string consumerArgs = "-hide_banner -threads 0 -f s16le -ar 8000 -ac 1 -i - -af \"" + analysisFilters + "\" -f null -";
+            string consumerArgs = "-nostdin -hide_banner -threads 0 -f s16le -ar 8000 -ac 1 -i - -af \"" + analysisFilters + "\" -f null -";
 
             // Esegue entrambe le analisi pipe in parallelo
             string sourceOutput = "";
