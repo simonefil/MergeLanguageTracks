@@ -75,6 +75,14 @@ Prima di lanciare su 50 episodi, controlla che faccia quello che vuoi.
 MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -as -DryRun
 ```
 
+**8. Elaborare file MP4 e AVI oltre a MKV**
+
+L'output e' sempre MKV, ma i file sorgente possono avere estensioni diverse.
+
+```bash
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ext mkv,mp4,avi -d "D:\Output" -as
+```
+
 ## Come funziona AutoSync
 
 Spesso le release in lingue diverse hanno tagli differenti: intro piu' lunghe, scene tagliate, crediti diversi. Se fai un merge diretto, l'audio va fuori sync.
@@ -87,7 +95,7 @@ Anche se il doppiaggio e' in lingue diverse, la colonna sonora di sottofondo (mu
 
 **Come funziona tecnicamente:**
 
-1. Estrae i primi 5 minuti di audio da entrambi i file
+1. Estrae i primi 5 minuti di audio da entrambi i file (configurabile con **-at**)
 2. Analizza l'audio cercando:
    - Inizi e fine dei silenzi (es. pause tra scene)
    - Picchi di volume improvvisi (esplosioni, colpi, musica che parte)
@@ -222,6 +230,7 @@ dotnet publish -c Release -r osx-arm64 --self-contained true
 | -AutoSync | -as | Calcola automaticamente il delay |
 | -AudioDelay | -ad | Delay manuale in ms per l'audio (sommato ad AutoSync se attivo) |
 | -SubtitleDelay | -sd | Delay manuale in ms per i sottotitoli |
+| -AnalysisTime | -at | Durata analisi audio in secondi (default: 300 = 5 min) |
 
 ### Filtri
 
@@ -239,6 +248,7 @@ dotnet publish -c Release -r osx-arm64 --self-contained true
 |-----------|-------|-------------|
 | -MatchPattern | -m | Regex per matching episodi. Default: S([0-9]+)E([0-9]+) |
 | -Recursive | -r | Cerca nelle sottocartelle (default: true) |
+| -FileExtensions | -ext | Estensioni file da cercare (default: mkv). Separa con virgola: mkv,mp4,avi |
 
 ### Pattern Regex Comuni
 

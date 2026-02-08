@@ -34,6 +34,7 @@ OPZIONI SYNC:
   -as, -AutoSync                 Abilita sync automatico (audio fingerprinting)
   -ad, -AudioDelay <ms>          Delay manuale audio in ms (sommato ad auto se -as)
   -sd, -SubtitleDelay <ms>       Delay manuale sottotitoli in ms
+  -at, -AnalysisTime <sec>       Durata analisi audio in secondi (default: 300 = 5 min)
 
 OPZIONI FILTRO:
   -ac, -AudioCodec <codec>       Importa solo audio con codec specifico (es: E-AC-3, DTS)
@@ -45,6 +46,7 @@ OPZIONI FILTRO:
 OPZIONI MATCHING:
   -m,  -MatchPattern <regex>     Pattern per matching episodi (default: S(\d+)E(\d+))
   -r,  -Recursive                Cerca ricorsivamente nelle sottocartelle (default: true)
+  -ext, -FileExtensions <list>   Estensioni file da cercare (default: mkv). Separa con virgola: mkv,mp4,avi
 
 OPZIONI TOOL:
   -mkv,  -MkvMergePath <path>    Percorso mkvmerge (default: cerca in PATH)
@@ -114,6 +116,9 @@ ESEMPI:
   # Pattern custom (1x01 invece di S01E01)
   MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -m ""(\d+)x(\d+)"" -d ""D:\Out""
 
+  # Cerca anche file MP4 e AVI oltre a MKV
+  MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -ext mkv,mp4,avi -d ""D:\Out"" -as
+
 CODICI LINGUA (ISO 639-2):
   Comuni: ita, eng, jpn, ger/deu, fra/fre, spa, por, rus, chi/zho, kor
   Altri:  ara, hin, pol, tur, nld/dut, swe, nor, dan, fin, hun, ces/cze
@@ -124,9 +129,9 @@ REQUISITI:
   - ffmpeg per AutoSync (scaricato automaticamente se mancante)
 
 NOTE:
-  AutoSync analizza i primi 5 min di audio, rileva silenzi e picchi di volume,
-  e trova l'offset ottimale. Funziona anche con lingue diverse perche' musica,
-  effetti sonori e silenzi sono identici tra versioni doppiate.
+  AutoSync analizza i primi 5 min di audio (configurabile con -at), rileva silenzi
+  e picchi di volume, e trova l'offset ottimale. Funziona anche con lingue diverse
+  perche' musica, effetti sonori e silenzi sono identici tra versioni doppiate.
   Precisione: ~1ms (ricerca in 3 fasi: 500ms -> 10ms -> 1ms)
 ";
             Console.WriteLine(helpText);
@@ -263,20 +268,26 @@ NOTE:
         }
 
         /// <summary>
-        /// Raccoglie ricorsivamente tutti i file MKV da una directory, opzionalmente cercando nelle sottocartelle.
+        /// Raccoglie ricorsivamente tutti i file video da una directory, opzionalmente cercando nelle sottocartelle.
         /// </summary>
         /// <param name="folder">La cartella root da cercare.</param>
+        /// <param name="extensions">Lista di estensioni da cercare (senza punto).</param>
         /// <param name="recursive">Se includere le sottodirectory.</param>
-        /// <returns>Una lista di percorsi completi ai file MKV.</returns>
-        private static List<string> FindMkvFiles(string folder, bool recursive)
+        /// <returns>Una lista di percorsi completi ai file trovati.</returns>
+        private static List<string> FindVideoFiles(string folder, List<string> extensions, bool recursive)
         {
             List<string> files = new List<string>();
             SearchOption searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
 
-            string[] found = Directory.GetFiles(folder, "*.mkv", searchOption);
-            for (int i = 0; i < found.Length; i++)
+            // Cerca per ogni estensione
+            for (int e = 0; e < extensions.Count; e++)
             {
-                files.Add(found[i]);
+                string pattern = "*." + extensions[e];
+                string[] found = Directory.GetFiles(folder, pattern, searchOption);
+                for (int i = 0; i < found.Length; i++)
+                {
+                    files.Add(found[i]);
+                }
             }
 
             return files;
@@ -433,6 +444,7 @@ NOTE:
             ConsoleHelper.WritePlain("  Cartella lingua:     " + opts.LanguageFolder);
             ConsoleHelper.WritePlain("  Lingua target:       " + string.Join(", ", opts.TargetLanguage));
             ConsoleHelper.WritePlain("  Pattern matching:    " + opts.MatchPattern);
+            ConsoleHelper.WritePlain("  Estensioni file:     " + string.Join(", ", opts.FileExtensions));
             ConsoleHelper.WritePlain("  Modalita' output:    " + opts.OutputMode);
 
             if (string.Equals(opts.OutputMode, "Destination", StringComparison.OrdinalIgnoreCase))
@@ -583,7 +595,7 @@ NOTE:
             {
                 ConsoleHelper.WriteCyan("\n  [AUTO-SYNC] Modalita': Audio fingerprinting (silenzi + picchi)");
 
-                int autoOffset = syncService.ComputeAutoSyncOffset(sourceFilePath, languageFilePath, sourceTracks, opts.TargetLanguage, service.IsLanguageInList);
+                int autoOffset = syncService.ComputeAutoSyncOffset(sourceFilePath, languageFilePath, sourceTracks, opts.TargetLanguage, service.IsLanguageInList, opts.AnalysisTime);
 
                 if (autoOffset != int.MinValue)
                 {
@@ -853,13 +865,14 @@ NOTE:
             bool filterSourceAudio = (opts.KeepSourceAudioLangs.Count > 0);
             bool filterSourceSubs = (opts.KeepSourceSubtitleLangs.Count > 0);
 
-            // Trova tutti i file MKV sorgente
-            List<string> sourceFiles = FindMkvFiles(opts.SourceFolder, opts.Recursive);
-            ConsoleHelper.WriteGreen("Trovati " + sourceFiles.Count + " file MKV sorgente\n");
+            // Trova tutti i file sorgente
+            string extList = string.Join(", ", opts.FileExtensions);
+            List<string> sourceFiles = FindVideoFiles(opts.SourceFolder, opts.FileExtensions, opts.Recursive);
+            ConsoleHelper.WriteGreen("Trovati " + sourceFiles.Count + " file sorgente (" + extList + ")\n");
 
             // Costruisci indice file lingua
             ConsoleHelper.WriteYellow("Indicizzazione cartella lingua...");
-            List<string> languageFiles = FindMkvFiles(opts.LanguageFolder, opts.Recursive);
+            List<string> languageFiles = FindVideoFiles(opts.LanguageFolder, opts.FileExtensions, opts.Recursive);
             Dictionary<string, string> languageIndex = new Dictionary<string, string>();
 
             for (int i = 0; i < languageFiles.Count; i++)

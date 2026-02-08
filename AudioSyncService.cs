@@ -130,8 +130,9 @@ namespace MergeLanguageTracks
         /// <param name="sourceTracks">Lista tracce dall'MKV sorgente.</param>
         /// <param name="targetLanguages">Codici lingua target in importazione.</param>
         /// <param name="isLanguageInList">Funzione per verificare se una traccia corrisponde a lingue nella lista.</param>
+        /// <param name="analysisDuration">Durata in secondi dell'audio da analizzare. Default: 300 (5 minuti).</param>
         /// <returns>Offset calcolato in millisecondi, o int.MinValue in caso di fallimento.</returns>
-        public int ComputeAutoSyncOffset(string sourceVideo, string languageFile, List<TrackInfo> sourceTracks, List<string> targetLanguages, Func<TrackInfo, List<string>, bool> isLanguageInList)
+        public int ComputeAutoSyncOffset(string sourceVideo, string languageFile, List<TrackInfo> sourceTracks, List<string> targetLanguages, Func<TrackInfo, List<string>, bool> isLanguageInList, int analysisDuration = 300)
         {
             int resultOffset = int.MinValue;
 
@@ -175,7 +176,11 @@ namespace MergeLanguageTracks
                 }
             }
 
-            ConsoleHelper.WriteDarkGray("  Estrazione e analisi audio via pipe (5 min, 8kHz mono)...");
+            // Calcola durata in minuti per il messaggio log
+            int durationMinutes = analysisDuration / 60;
+            int durationSeconds = analysisDuration % 60;
+            string durationText = (durationSeconds == 0) ? durationMinutes + " min" : durationMinutes + " min " + durationSeconds + "s";
+            ConsoleHelper.WriteDarkGray("  Estrazione e analisi audio via pipe (" + durationText + ", 8kHz mono)...");
 
             // Approccio pipe: producer estrae a PCM raw, consumer analizza
             string analysisFilters = "silencedetect=noise=-35dB:d=0.3,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-";
@@ -187,14 +192,14 @@ namespace MergeLanguageTracks
             if (syncTrackIndex >= 0)
             {
                 // Usa traccia specifica come riferimento
-                sourceProducerArgs = "-nostdin -hide_banner -hwaccel auto -threads 0 -i \"" + sourceVideo + "\" -map 0:" + syncTrackIndex + " -t 300 -ac 1 -ar 8000 -f s16le -";
+                sourceProducerArgs = "-nostdin -hide_banner -hwaccel auto -threads 0 -i \"" + sourceVideo + "\" -map 0:" + syncTrackIndex + " -t " + analysisDuration + " -ac 1 -ar 8000 -f s16le -";
             }
             else
             {
                 // Usa prima traccia audio disponibile
-                sourceProducerArgs = "-nostdin -hide_banner -hwaccel auto -threads 0 -i \"" + sourceVideo + "\" -vn -t 300 -ac 1 -ar 8000 -f s16le -";
+                sourceProducerArgs = "-nostdin -hide_banner -hwaccel auto -threads 0 -i \"" + sourceVideo + "\" -vn -t " + analysisDuration + " -ac 1 -ar 8000 -f s16le -";
             }
-            string langProducerArgs = "-nostdin -hide_banner -hwaccel auto -threads 0 -i \"" + languageFile + "\" -vn -t 300 -ac 1 -ar 8000 -f s16le -";
+            string langProducerArgs = "-nostdin -hide_banner -hwaccel auto -threads 0 -i \"" + languageFile + "\" -vn -t " + analysisDuration + " -ac 1 -ar 8000 -f s16le -";
 
             // Argomenti consumer (analisi da input PCM raw)
             string consumerArgs = "-nostdin -hide_banner -threads 0 -f s16le -ar 8000 -ac 1 -i - -af \"" + analysisFilters + "\" -f null -";

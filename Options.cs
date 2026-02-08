@@ -57,6 +57,11 @@ namespace MergeLanguageTracks
         public bool AutoSync { get; set; }
 
         /// <summary>
+        /// Durata in secondi dell'audio da analizzare per auto-sync (-at). Default: 300 (5 minuti).
+        /// </summary>
+        public int AnalysisTime { get; set; }
+
+        /// <summary>
         /// Stringa filtro codec audio (-ac). Solo le tracce con questo codec verranno importate.
         /// </summary>
         public string AudioCodec { get; set; }
@@ -101,6 +106,11 @@ namespace MergeLanguageTracks
         /// </summary>
         public bool DryRun { get; set; }
 
+        /// <summary>
+        /// Lista di estensioni file da cercare (-ext). Default: mkv.
+        /// </summary>
+        public List<string> FileExtensions { get; set; }
+
         #endregion
 
         #region Costruttore
@@ -120,6 +130,7 @@ namespace MergeLanguageTracks
             this.AudioDelay = 0;
             this.SubtitleDelay = 0;
             this.AutoSync = false;
+            this.AnalysisTime = 300;
             this.AudioCodec = "";
             this.SubOnly = false;
             this.AudioOnly = false;
@@ -129,6 +140,7 @@ namespace MergeLanguageTracks
             this.ToolsFolder = "";
             this.Recursive = true;
             this.DryRun = false;
+            this.FileExtensions = new List<string> { "mkv" };
         }
 
         #endregion
@@ -244,6 +256,14 @@ namespace MergeLanguageTracks
                     int.TryParse(value, out int delay);
                     options.SubtitleDelay = delay;
                 }
+                else if (key == "at" || key == "analysistime")
+                {
+                    int.TryParse(value, out int time);
+                    if (time > 0)
+                    {
+                        options.AnalysisTime = time;
+                    }
+                }
                 else if (key == "ac" || key == "audiocodec")
                 {
                     options.AudioCodec = value;
@@ -279,6 +299,20 @@ namespace MergeLanguageTracks
                 else if (key == "tools" || key == "toolsfolder")
                 {
                     options.ToolsFolder = value;
+                }
+                else if (key == "ext" || key == "fileextensions")
+                {
+                    // Sostituisce il default con le estensioni specificate
+                    options.FileExtensions.Clear();
+                    string[] exts = value.Split(',');
+                    foreach (string ext in exts)
+                    {
+                        string trimmed = ext.Trim().TrimStart('.');
+                        if (trimmed.Length > 0)
+                        {
+                            options.FileExtensions.Add(trimmed);
+                        }
+                    }
                 }
 
                 // Avanza oltre la coppia chiave-valore
