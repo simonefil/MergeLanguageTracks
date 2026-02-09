@@ -121,6 +121,42 @@ Non importa che lingua sia l'audio usato per il confronto: la musica e gli effet
 
 In questi casi vedrai un warning "Low confidence" e conviene verificare manualmente o usare delay manuale.
 
+## Report Dettagliato
+
+A fine elaborazione viene mostrato un report con 3 tabelle:
+
+```
+========================================
+  Report Dettagliato
+========================================
+
+SOURCE FILES:
+  Episode     Audio               Subtitles           Size
+  ----------------------------------------------------------------
+  01_05       eng,jpn             eng                 4.2 GB
+  01_06       eng,jpn             eng                 4.1 GB
+
+LANGUAGE FILES:
+  Episode     Audio               Subtitles           Size
+  ----------------------------------------------------------------
+  01_05       ita                 ita                 2.1 GB
+  01_06       ita                 ita                 2.0 GB
+
+RESULT FILES:
+  Episode     Audio          Subtitles      Size      Delay       FFmpeg    AutoSync  Merge
+  --------------------------------------------------------------------------------------------
+  01_05       eng,jpn,ita    eng,ita        4.3 GB    +150ms      6850ms    45ms      12500ms
+  01_06       eng,jpn,ita    eng,ita        4.2 GB    +145ms      6920ms    42ms      11800ms
+```
+
+**Colonne Result Files:**
+- **Delay**: offset applicato alle tracce importate
+- **FFmpeg**: tempo di estrazione/analisi audio (I/O bound)
+- **AutoSync**: tempo di calcolo offset (CPU bound)
+- **Merge**: tempo di esecuzione mkvmerge
+
+In modalita' dry run, Size e Merge mostrano "N/A" perche' il merge non viene eseguito.
+
 ## Codec Audio
 
 Quando specifichi **-ac** per filtrare i codec, il matching e' **ESATTO**, non parziale.

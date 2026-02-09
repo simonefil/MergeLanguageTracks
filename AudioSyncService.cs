@@ -46,6 +46,16 @@ namespace MergeLanguageTracks
         /// </summary>
         private double _ultraFineScore;
 
+        /// <summary>
+        /// Tempo di esecuzione ffmpeg in millisecondi.
+        /// </summary>
+        private long _ffmpegTimeMs;
+
+        /// <summary>
+        /// Tempo di esecuzione calcolo auto-sync in millisecondi.
+        /// </summary>
+        private long _autoSyncTimeMs;
+
         #endregion
 
         #region Regex statiche pre-compilate
@@ -99,6 +109,16 @@ namespace MergeLanguageTracks
         /// </summary>
         public double UltraFineScore { get { return this._ultraFineScore; } }
 
+        /// <summary>
+        /// Ottiene il tempo di esecuzione ffmpeg in millisecondi.
+        /// </summary>
+        public long FfmpegTimeMs { get { return this._ffmpegTimeMs; } }
+
+        /// <summary>
+        /// Ottiene il tempo di esecuzione calcolo auto-sync in millisecondi.
+        /// </summary>
+        public long AutoSyncTimeMs { get { return this._autoSyncTimeMs; } }
+
         #endregion
 
         #region Costruttore
@@ -116,6 +136,8 @@ namespace MergeLanguageTracks
             this._fineScore = 0.0;
             this._ultraFineOffset = 0;
             this._ultraFineScore = 0.0;
+            this._ffmpegTimeMs = 0;
+            this._autoSyncTimeMs = 0;
         }
 
         #endregion
@@ -217,11 +239,17 @@ namespace MergeLanguageTracks
             // Thread per analisi lingua
             Thread langThread = new Thread(() => { langOutput = this.RunPipedProcess(this._ffmpegPath, langProducerArgsCopy, this._ffmpegPath, consumerArgsCopy); });
 
-            // Avvia e attende completamento
+            // Avvia e attende completamento, misurando il tempo FFmpeg
+            Stopwatch ffmpegStopwatch = new Stopwatch();
+            ffmpegStopwatch.Start();
+
             sourceThread.Start();
             langThread.Start();
             sourceThread.Join();
             langThread.Join();
+
+            ffmpegStopwatch.Stop();
+            this._ffmpegTimeMs = ffmpegStopwatch.ElapsedMilliseconds;
 
             // Verifica output valido
             if (sourceOutput.Length == 0 || langOutput.Length == 0)
@@ -229,6 +257,10 @@ namespace MergeLanguageTracks
                 ConsoleHelper.WriteWarning("  Impossibile analizzare audio");
                 return resultOffset;
             }
+
+            // Avvia misurazione tempo AutoSync (parsing + calcolo offset)
+            Stopwatch autoSyncStopwatch = new Stopwatch();
+            autoSyncStopwatch.Start();
 
             ConsoleHelper.WriteDarkGray("  Analisi pattern audio...");
 
@@ -344,6 +376,8 @@ namespace MergeLanguageTracks
             // Verifica marker sufficienti
             if (sourceMarkers.Count < 5 || langMarkers.Count < 5)
             {
+                autoSyncStopwatch.Stop();
+                this._autoSyncTimeMs = autoSyncStopwatch.ElapsedMilliseconds;
                 ConsoleHelper.WriteWarning("  Marker audio insufficienti per sync affidabile");
                 return resultOffset;
             }
@@ -354,6 +388,10 @@ namespace MergeLanguageTracks
             double[] sourceTimesArray = sourceMarkers.ToArray();
             double[] langTimesArray = langMarkers.ToArray();
             this.FindBestOffset(sourceTimesArray, langTimesArray);
+
+            // Ferma misurazione tempo AutoSync
+            autoSyncStopwatch.Stop();
+            this._autoSyncTimeMs = autoSyncStopwatch.ElapsedMilliseconds;
 
             // Log risultati fasi
             ConsoleHelper.WriteDarkGray("  Risultato grossolano: " + this._coarseOffset + "ms (" + this._coarseScore + " match)");
