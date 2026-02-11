@@ -23,39 +23,39 @@ Unisce tracce audio e sottotitoli da file MKV in lingue diverse.
 Supporta sincronizzazione automatica tramite audio fingerprinting.
 
 OPZIONI OBBLIGATORIE:
-  -s,  -SourceFolder <path>      Cartella con i file MKV sorgente
-  -l,  -LanguageFolder <path>    Cartella con i file MKV nella lingua da importare
-  -t,  -TargetLanguage <code>    Codice/i lingua ISO 639-2 (es: ita, eng  oppure: eng,ita)
+  -s,   --source <path>          Cartella con i file MKV sorgente
+  -l,   --language <path>        Cartella con i file MKV nella lingua da importare
+  -t,   --target-language <code> Codice/i lingua ISO 639-2 (es: ita, eng  oppure: eng,ita)
 
-OPZIONI OUTPUT:
-  -d,  -DestinationFolder <path> Cartella di output (default: richiesta)
-  -o,  -OutputMode <mode>        ""Destination"" (default) o ""Overwrite""
+OPZIONI OUTPUT (mutuamente esclusive, una obbligatoria):
+  -d,   --destination <path>     Cartella di output
+  -o,   --overwrite              Sovrascrive i file sorgente
 
 OPZIONI SYNC:
-  -as, -AutoSync                 Abilita sync automatico (audio fingerprinting)
-  -ad, -AudioDelay <ms>          Delay manuale audio in ms (sommato ad auto se -as)
-  -sd, -SubtitleDelay <ms>       Delay manuale sottotitoli in ms
-  -at, -AnalysisTime <sec>       Durata analisi audio in secondi (default: 300 = 5 min)
+  -as,  --auto-sync              Abilita sync automatico (audio fingerprinting)
+  -ad,  --audio-delay <ms>       Delay manuale audio in ms (sommato ad auto se -as)
+  -sd,  --subtitle-delay <ms>    Delay manuale sottotitoli in ms
+  -at,  --analysis-time <sec>    Durata analisi audio in secondi (default: 300 = 5 min)
 
 OPZIONI FILTRO:
-  -ac, -AudioCodec <codec>       Importa solo audio con codec specifico (es: E-AC-3, DTS)
-  -so, -SubOnly                  Importa solo sottotitoli (ignora audio)
-  -ao, -AudioOnly                Importa solo audio (ignora sottotitoli)
-  -ksa, -KeepSourceAudioLangs    Lingue audio da mantenere nel sorgente (es: eng,jpn)
-  -kss, -KeepSourceSubtitleLangs Lingue sub da mantenere nel sorgente
+  -ac,  --audio-codec <codec>    Importa solo audio con codec specifico (es: E-AC-3, DTS)
+  -so,  --sub-only               Importa solo sottotitoli (ignora audio)
+  -ao,  --audio-only             Importa solo audio (ignora sottotitoli)
+  -ksa, --keep-source-audio      Lingue audio da mantenere nel sorgente (es: eng,jpn)
+  -kss, --keep-source-subs       Lingue sub da mantenere nel sorgente
 
 OPZIONI MATCHING:
-  -m,  -MatchPattern <regex>     Pattern per matching episodi (default: S(\d+)E(\d+))
-  -r,  -Recursive                Cerca ricorsivamente nelle sottocartelle (default: true)
-  -ext, -FileExtensions <list>   Estensioni file da cercare (default: mkv). Separa con virgola: mkv,mp4,avi
+  -m,   --match-pattern <regex>  Pattern per matching episodi (default: S(\d+)E(\d+))
+  -r,   --recursive              Cerca ricorsivamente nelle sottocartelle (default: true)
+  -ext, --extensions <list>      Estensioni file da cercare (default: mkv). Separa con virgola: mkv,mp4,avi
 
 OPZIONI TOOL:
-  -mkv,  -MkvMergePath <path>    Percorso mkvmerge (default: cerca in PATH)
-  -tools, -ToolsFolder <path>    Cartella per tool scaricati (ffmpeg)
+  -mkv,   --mkvmerge-path <path> Percorso mkvmerge (default: cerca in PATH)
+  -tools, --tools-folder <path>  Cartella per tool scaricati (ffmpeg)
 
 ALTRE OPZIONI:
-  -DryRun, -dry, -n              Mostra cosa verrebbe fatto senza eseguire
-  -h, -Help                      Mostra questo messaggio
+  -n,   --dry-run                Mostra cosa verrebbe fatto senza eseguire
+  -h,   --help                   Mostra questo messaggio
 
 CODEC AUDIO (per -ac):
   Dolby:
@@ -100,7 +100,7 @@ ESEMPI:
   MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -d ""D:\Out"" -as
 
   # Dry run (mostra cosa farebbe senza eseguire)
-  MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -d ""D:\Out"" -as -DryRun
+  MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -d ""D:\Out"" -as -n
 
   # Solo audio E-AC-3 italiano
   MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -ac ""E-AC-3"" -d ""D:\Out"" -as
@@ -108,8 +108,8 @@ ESEMPI:
   # Solo sottotitoli (no audio)
   MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -so -d ""D:\Out"" -as
 
-  # Sostituisci traccia ita esistente (rimuovi vecchia, aggiungi nuova)
-  MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -ksa eng -d ""D:\Out"" -as
+  # Sovrascrive i file sorgente (no cartella destinazione)
+  MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -o -as
 
   # Mantieni solo eng/jpn audio e eng sub dal sorgente
   MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -ksa eng,jpn -kss eng -d ""D:\Out""
@@ -307,7 +307,7 @@ NOTE:
             if (opts.SourceFolder.Length == 0 || opts.LanguageFolder.Length == 0 || opts.TargetLanguage.Count == 0)
             {
                 ConsoleHelper.WriteRed("Errore: parametri obbligatori mancanti.");
-                ConsoleHelper.WriteYellow("Uso: MergeLanguageTracks -s <source> -l <lang> -t <lingua> -d <dest> [-as] [-DryRun]");
+                ConsoleHelper.WriteYellow("Uso: MergeLanguageTracks -s <source> -l <lang> -t <lingua> [-d <dest> | -o] [-as] [-n]");
                 ConsoleHelper.WriteDarkGray("     Usa -h per vedere tutte le opzioni.");
                 valid = false;
                 return valid;
@@ -401,18 +401,18 @@ NOTE:
                 return valid;
             }
 
-            // Valida modalita' output
-            if (!string.Equals(opts.OutputMode, "Destination", StringComparison.OrdinalIgnoreCase) && !string.Equals(opts.OutputMode, "Overwrite", StringComparison.OrdinalIgnoreCase))
+            // Valida modalita' output: -o e -d sono mutuamente esclusive
+            if (opts.Overwrite && opts.DestinationFolder.Length > 0)
             {
-                ConsoleHelper.WriteRed("Errore: OutputMode deve essere 'Destination' o 'Overwrite'.");
+                ConsoleHelper.WriteRed("Errore: -o (--overwrite) e -d (--destination) non possono essere usati insieme.");
                 valid = false;
                 return valid;
             }
 
-            // Valida requisito cartella destinazione
-            if (string.Equals(opts.OutputMode, "Destination", StringComparison.OrdinalIgnoreCase) && opts.DestinationFolder.Length == 0)
+            // Almeno uno tra -o e -d deve essere specificato
+            if (!opts.Overwrite && opts.DestinationFolder.Length == 0)
             {
-                ConsoleHelper.WriteRed("Errore: DestinationFolder e' obbligatorio quando OutputMode e' 'Destination'.");
+                ConsoleHelper.WriteRed("Errore: specificare -d <cartella> oppure -o per sovrascrivere i sorgente.");
                 valid = false;
                 return valid;
             }
@@ -446,10 +446,13 @@ NOTE:
             ConsoleHelper.WritePlain("  Lingua target:       " + string.Join(", ", opts.TargetLanguage));
             ConsoleHelper.WritePlain("  Pattern matching:    " + opts.MatchPattern);
             ConsoleHelper.WritePlain("  Estensioni file:     " + string.Join(", ", opts.FileExtensions));
-            ConsoleHelper.WritePlain("  Modalita' output:    " + opts.OutputMode);
-
-            if (string.Equals(opts.OutputMode, "Destination", StringComparison.OrdinalIgnoreCase))
+            if (opts.Overwrite)
             {
+                ConsoleHelper.WritePlain("  Modalita' output:    Overwrite (sovrascrive sorgente)");
+            }
+            else
+            {
+                ConsoleHelper.WritePlain("  Modalita' output:    Destination");
                 ConsoleHelper.WritePlain("  Cartella output:     " + opts.DestinationFolder);
             }
 
@@ -865,7 +868,7 @@ NOTE:
             string tempOutput = "";
             string finalOutput = "";
 
-            if (string.Equals(opts.OutputMode, "Overwrite", StringComparison.OrdinalIgnoreCase))
+            if (opts.Overwrite)
             {
                 // Usa file temp, poi sostituisci originale
                 string sourceDir = Path.GetDirectoryName(sourceFilePath);
@@ -1024,7 +1027,7 @@ NOTE:
                     ConsoleHelper.WriteGreen("  [OK] Unione completata");
 
                     // Gestisci modalita' overwrite: sostituisci originale
-                    if (string.Equals(opts.OutputMode, "Overwrite", StringComparison.OrdinalIgnoreCase))
+                    if (opts.Overwrite)
                     {
                         File.Delete(sourceFilePath);
                         File.Move(tempOutput, finalOutput);
@@ -1114,7 +1117,7 @@ NOTE:
             }
 
             // Crea cartella destinazione se necessario
-            if (string.Equals(opts.OutputMode, "Destination", StringComparison.OrdinalIgnoreCase) && !Directory.Exists(opts.DestinationFolder))
+            if (!opts.Overwrite && !Directory.Exists(opts.DestinationFolder))
             {
                 ConsoleHelper.WriteYellow("Creazione cartella destinazione: " + opts.DestinationFolder);
                 Directory.CreateDirectory(opts.DestinationFolder);

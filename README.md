@@ -18,12 +18,12 @@ Hai una release US/UK con video ottimo e vuoi aggiungere l'audio italiano da una
 MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -as
 ```
 
-**2. Aggiungere solo sottotitoli**
+**2. Sovrascrivere i file sorgente**
 
-La release che hai non ha sub italiani, ma un'altra versione si'.
+Se non vuoi una cartella di output separata, usa **-o** per sovrascrivere direttamente i file sorgente. Utile quando hai gia' un backup o lavori su copie.
 
 ```bash
-MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -so -d "D:\Output" -as
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -o -as
 ```
 
 **3. Sostituire una traccia lossy con una lossless**
@@ -36,51 +36,54 @@ MergeLanguageTracks -s "D:\Serie" -l "D:\Serie.ITA.HDMA" -t ita -ac "DTS-HD MA" 
 
 Con **-ksa eng,jpn** mantieni solo inglese e giapponese dal sorgente, buttando via l'italiano lossy. Con **-ac "DTS-HD MA"** prendi solo la traccia lossless dalla release italiana.
 
-**4. Prendere solo un codec specifico**
+**4. Remux multilingua da release diverse**
 
-Il file lingua ha sia AC3 che E-AC-3 italiano, tu vuoi solo l'E-AC-3.
-
-```bash
-MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3" -d "D:\Output" -as
-```
-
-**5. Film multilingua da release diverse**
-
-Parti dal Blu-ray US (miglior encode) e aggiungi audio da release europee per creare un remux multilingua.
+Parti dal Blu-ray US (miglior encode) e aggiungi audio da release europee. Ogni passaggio prende come sorgente l'output del precedente.
 
 ```bash
-# Aggiungi italiano dalla release ITA
 MergeLanguageTracks -s "D:\Film.US" -l "D:\Film.ITA" -t ita -d "D:\Temp1" -as
-
-# Aggiungi francese dalla release FRA
 MergeLanguageTracks -s "D:\Temp1" -l "D:\Film.FRA" -t fra -d "D:\Temp2" -as
-
-# Aggiungi tedesco dalla release GER
 MergeLanguageTracks -s "D:\Temp2" -l "D:\Film.GER" -t ger -d "D:\Output" -as
 ```
 
-**6. Solo audio senza sottotitoli**
+**5. Anime con naming non standard**
 
-Vuoi importare solo le tracce audio, ignorando i sottotitoli.
+Molti fansub usano il formato "- 05" invece di S01E05. Con **-m** specifichi una regex custom per il matching. Qui prendi solo i sottotitoli perche' il fansub ha i sub migliori ma il video peggiore.
 
 ```bash
-MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ao -d "D:\Output" -as
+MergeLanguageTracks -s "D:\Anime.BD" -l "D:\Anime.Fansub" -t ita -m "- (\d+)" -so -d "D:\Output" -as
 ```
 
-**7. Dry run per vedere cosa farebbe**
+**6. Daily show con date nel nome file**
 
-Prima di lanciare su 50 episodi, controlla che faccia quello che vuoi.
+Per show con naming basato su date (es. Show.2024.03.15.mkv), il pattern cattura anno, mese e giorno come ID episodio.
 
 ```bash
-MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -as -DryRun
+MergeLanguageTracks -s "D:\Show.US" -l "D:\Show.ITA" -t ita -m "(\d{4})\.(\d{2})\.(\d{2})" -d "D:\Output"
 ```
 
-**8. Elaborare file MP4 e AVI oltre a MKV**
+**7. Filtrare sottotitoli dal sorgente**
 
-L'output e' sempre MKV, ma i file sorgente possono avere estensioni diverse.
+Il file sorgente ha 10 tracce sub in lingue che non ti servono. Con **-kss** tieni solo quelle che vuoi dal sorgente, mentre con **-t** importi quelle mancanti dalla release lingua.
 
 ```bash
-MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ext mkv,mp4,avi -d "D:\Output" -as
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -so -kss eng -d "D:\Output" -as
+```
+
+**8. Anime: tenere solo audio giapponese e importare eng+ita**
+
+Hai un BD giapponese con dual audio (jpn+eng) e molti sottotitoli. Vuoi tenere solo l'audio giapponese, scartare tutti i sub esistenti, e importare audio e sottotitoli inglesi e italiani da una release multilingua. Il trucco **-kss und** scarta tutti i sottotitoli dal sorgente perche' nessuna traccia ha lingua "und".
+
+```bash
+MergeLanguageTracks -s "D:\Anime.BD.JPN" -l "D:\Anime.ITA" -t eng,ita -ksa jpn -kss und -d "D:\Output" -as
+```
+
+**9. Dry run su configurazione complessa**
+
+Prima di lanciare un merge complesso su una stagione intera, verifica con **-n** che il matching funzioni e le tracce siano quelle giuste.
+
+```bash
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3" -ksa eng -kss eng -d "D:\Output" -as -at 600 -n
 ```
 
 ## Come funziona AutoSync
@@ -246,45 +249,45 @@ dotnet publish -c Release -r osx-arm64 --self-contained true
 
 ### Obbligatori
 
-| Parametro | Alias | Descrizione |
-|-----------|-------|-------------|
-| -SourceFolder | -s | Cartella con i file MKV sorgente |
-| -LanguageFolder | -l | Cartella con i file MKV da cui prendere le tracce |
-| -TargetLanguage | -t | Codice lingua delle tracce da importare (es: ita) |
+| Short | Long | Descrizione |
+|-------|------|-------------|
+| -s | --source | Cartella con i file MKV sorgente |
+| -l | --language | Cartella con i file MKV da cui prendere le tracce |
+| -t | --target-language | Codice lingua delle tracce da importare (es: ita) |
 
-### Output
+### Output (mutuamente esclusivi, uno obbligatorio)
 
-| Parametro | Alias | Descrizione |
-|-----------|-------|-------------|
-| -DestinationFolder | -d | Cartella dove salvare i file risultanti |
-| -OutputMode | -o | "Destination" (default) o "Overwrite" per sovrascrivere i sorgenti |
+| Short | Long | Descrizione |
+|-------|------|-------------|
+| -d | --destination | Cartella dove salvare i file risultanti |
+| -o | --overwrite | Sovrascrive i file sorgente (flag, nessun valore) |
 
 ### Sync
 
-| Parametro | Alias | Descrizione |
-|-----------|-------|-------------|
-| -AutoSync | -as | Calcola automaticamente il delay |
-| -AudioDelay | -ad | Delay manuale in ms per l'audio (sommato ad AutoSync se attivo) |
-| -SubtitleDelay | -sd | Delay manuale in ms per i sottotitoli |
-| -AnalysisTime | -at | Durata analisi audio in secondi (default: 300 = 5 min) |
+| Short | Long | Descrizione |
+|-------|------|-------------|
+| -as | --auto-sync | Calcola automaticamente il delay |
+| -ad | --audio-delay | Delay manuale in ms per l'audio (sommato ad auto-sync se attivo) |
+| -sd | --subtitle-delay | Delay manuale in ms per i sottotitoli |
+| -at | --analysis-time | Durata analisi audio in secondi (default: 300 = 5 min) |
 
 ### Filtri
 
-| Parametro | Alias | Descrizione |
-|-----------|-------|-------------|
-| -AudioCodec | -ac | Importa solo tracce audio con questo codec |
-| -SubOnly | -so | Importa solo sottotitoli, ignora l'audio |
-| -AudioOnly | -ao | Importa solo audio, ignora i sottotitoli |
-| -KeepSourceAudioLangs | -ksa | Lingue audio da MANTENERE nel sorgente (le altre vengono rimosse) |
-| -KeepSourceSubtitleLangs | -kss | Lingue sub da MANTENERE nel sorgente |
+| Short | Long | Descrizione |
+|-------|------|-------------|
+| -ac | --audio-codec | Importa solo tracce audio con questo codec |
+| -so | --sub-only | Importa solo sottotitoli, ignora l'audio |
+| -ao | --audio-only | Importa solo audio, ignora i sottotitoli |
+| -ksa | --keep-source-audio | Lingue audio da MANTENERE nel sorgente (le altre vengono rimosse) |
+| -kss | --keep-source-subs | Lingue sub da MANTENERE nel sorgente |
 
 ### Matching
 
-| Parametro | Alias | Descrizione |
-|-----------|-------|-------------|
-| -MatchPattern | -m | Regex per matching episodi. Default: S([0-9]+)E([0-9]+) |
-| -Recursive | -r | Cerca nelle sottocartelle (default: true) |
-| -FileExtensions | -ext | Estensioni file da cercare (default: mkv). Separa con virgola: mkv,mp4,avi |
+| Short | Long | Descrizione |
+|-------|------|-------------|
+| -m | --match-pattern | Regex per matching episodi. Default: S([0-9]+)E([0-9]+) |
+| -r | --recursive | Cerca nelle sottocartelle (default: true) |
+| -ext | --extensions | Estensioni file da cercare (default: mkv). Separa con virgola: mkv,mp4,avi |
 
 ### Pattern Regex Comuni
 
@@ -293,7 +296,6 @@ L'applicazione usa i gruppi catturati dalla regex per abbinare i file. Ogni grup
 | Formato | Esempio File | Pattern |
 |---------|--------------|---------|
 | Standard | Serie.S01E05.mkv | S([0-9]+)E([0-9]+) |
-| Case insensitive | serie.s01e05.mkv | [Ss]([0-9]+)[Ee]([0-9]+) |
 | Con punto | Serie.S01.E05.mkv | S([0-9]+)\.E([0-9]+) |
 | Formato 1x05 | Serie.1x05.mkv | ([0-9]+)x([0-9]+) |
 | Solo episodio | Anime - 05.mkv | - ([0-9]+) |
@@ -304,15 +306,16 @@ L'applicazione usa i gruppi catturati dalla regex per abbinare i file. Ogni grup
 
 ### Altro
 
-| Parametro | Alias | Descrizione |
-|-----------|-------|-------------|
-| -DryRun | -dry, -n | Mostra cosa farebbe senza eseguire |
-| -Help | -h | Mostra l'help integrato |
-| -MkvMergePath | -mkv | Percorso custom di mkvmerge |
-| -ToolsFolder | -tools | Cartella per ffmpeg scaricato |
+| Short | Long | Descrizione |
+|-------|------|-------------|
+| -n | --dry-run | Mostra cosa farebbe senza eseguire |
+| -h | --help | Mostra l'help integrato |
+| -mkv | --mkvmerge-path | Percorso custom di mkvmerge |
+| -tools | --tools-folder | Cartella per ffmpeg scaricato |
 
 **Note:**
 
 - Tutti i parametri sono case-insensitive
+- Supporta sia il formato short (-s) che long (--source)
 - Supporta path di rete UNC (\\\\server\\share\\...)
 - Il pattern di default S(\d+)E(\d+) matcha nomi tipo "Serie.S01E05.720p.mkv"
