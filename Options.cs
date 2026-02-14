@@ -62,9 +62,9 @@ namespace MergeLanguageTracks
         public int AnalysisTime { get; set; }
 
         /// <summary>
-        /// Stringa filtro codec audio (-ac, --audio-codec). Solo le tracce con questo codec verranno importate
+        /// Lista di codec audio da importare (-ac, --audio-codec). Solo le tracce con questi codec verranno importate
         /// </summary>
-        public string AudioCodec { get; set; }
+        public List<string> AudioCodec { get; set; }
 
         /// <summary>
         /// Importa solo sottotitoli, ignora tracce audio (-so, --sub-only)
@@ -80,6 +80,11 @@ namespace MergeLanguageTracks
         /// Lista di codici lingua da mantenere nelle tracce audio sorgente (-ksa, --keep-source-audio)
         /// </summary>
         public List<string> KeepSourceAudioLangs { get; set; }
+
+        /// <summary>
+        /// Lista di codec audio da mantenere nelle tracce sorgente (-ksac, --keep-source-audio-codec). Solo le tracce con questi codec verranno mantenute
+        /// </summary>
+        public List<string> KeepSourceAudioCodec { get; set; }
 
         /// <summary>
         /// Lista di codici lingua da mantenere nelle tracce sottotitoli sorgente (-kss, --keep-source-subs)
@@ -131,10 +136,11 @@ namespace MergeLanguageTracks
             this.SubtitleDelay = 0;
             this.AutoSync = false;
             this.AnalysisTime = 300;
-            this.AudioCodec = "";
+            this.AudioCodec = new List<string>();
             this.SubOnly = false;
             this.AudioOnly = false;
             this.KeepSourceAudioLangs = new List<string>();
+            this.KeepSourceAudioCodec = new List<string>();
             this.KeepSourceSubtitleLangs = new List<string>();
             this.MkvMergePath = "mkvmerge";
             this.ToolsFolder = "";
@@ -268,7 +274,15 @@ namespace MergeLanguageTracks
                 }
                 else if (key == "ac" || key == "audio-codec")
                 {
-                    options.AudioCodec = value;
+                    string[] codecs = value.Split(',');
+                    foreach (string codec in codecs)
+                    {
+                        string trimmed = codec.Trim();
+                        if (trimmed.Length > 0)
+                        {
+                            options.AudioCodec.Add(trimmed);
+                        }
+                    }
                 }
                 else if (key == "ksa" || key == "keep-source-audio")
                 {
@@ -279,6 +293,18 @@ namespace MergeLanguageTracks
                         if (trimmed.Length > 0)
                         {
                             options.KeepSourceAudioLangs.Add(trimmed);
+                        }
+                    }
+                }
+                else if (key == "ksac" || key == "keep-source-audio-codec")
+                {
+                    string[] codecs = value.Split(',');
+                    foreach (string codec in codecs)
+                    {
+                        string trimmed = codec.Trim();
+                        if (trimmed.Length > 0)
+                        {
+                            options.KeepSourceAudioCodec.Add(trimmed);
                         }
                     }
                 }

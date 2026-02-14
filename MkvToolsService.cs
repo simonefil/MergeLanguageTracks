@@ -247,13 +247,14 @@ namespace MergeLanguageTracks
         }
 
         /// <summary>
-        /// Ottiene gli ID traccia dal file sorgente da mantenere in base ai filtri lingua.
+        /// Ottiene gli ID traccia dal file sorgente da mantenere in base ai filtri lingua e codec
         /// </summary>
-        /// <param name="allTracks">Tutte le tracce dall'MKV sorgente.</param>
-        /// <param name="trackType">Tipo traccia: "audio" o "subtitles".</param>
-        /// <param name="keepLanguages">Lista di codici lingua da mantenere, o lista vuota per tutte.</param>
-        /// <returns>Lista di ID traccia da mantenere.</returns>
-        public List<int> GetSourceTrackIds(List<TrackInfo> allTracks, string trackType, List<string> keepLanguages)
+        /// <param name="allTracks">Tutte le tracce dall'MKV sorgente</param>
+        /// <param name="trackType">Tipo traccia: "audio" o "subtitles"</param>
+        /// <param name="keepLanguages">Lista di codici lingua da mantenere, o lista vuota per tutte</param>
+        /// <param name="codecPatterns">Array di pattern codec per filtro, o null per nessun filtro codec</param>
+        /// <returns>Lista di ID traccia da mantenere</returns>
+        public List<int> GetSourceTrackIds(List<TrackInfo> allTracks, string trackType, List<string> keepLanguages, string[] codecPatterns)
         {
             List<int> trackIds = new List<int>();
 
@@ -267,15 +268,19 @@ namespace MergeLanguageTracks
                     continue;
                 }
 
-                // Se nessun filtro specificato, mantiene tutte
-                if (keepLanguages.Count == 0)
+                // Filtro lingua: se specificato, mantiene solo le lingue nella lista
+                if (keepLanguages.Count > 0 && !this.IsLanguageInList(track, keepLanguages))
                 {
-                    trackIds.Add(track.Id);
+                    continue;
                 }
-                else if (this.IsLanguageInList(track, keepLanguages))
+
+                // Filtro codec: se specificato, mantiene solo le tracce con codec corrispondente
+                if (codecPatterns != null && !CodecMapping.MatchesCodec(track.Codec, codecPatterns))
                 {
-                    trackIds.Add(track.Id);
+                    continue;
                 }
+
+                trackIds.Add(track.Id);
             }
 
             return trackIds;

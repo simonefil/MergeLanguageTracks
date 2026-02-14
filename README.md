@@ -86,6 +86,30 @@ Prima di lanciare un merge complesso su una stagione intera, verifica con **-n**
 MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3" -ksa eng -kss eng -d "D:\Output" -as -at 600 -n
 ```
 
+**10. Tenere solo tracce DTS dal sorgente**
+
+Il file sorgente ha piu' tracce audio in codec diversi (AC3, DTS, TrueHD). Vuoi tenere solo le tracce DTS indipendentemente dalla lingua.
+
+```bash
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ksac DTS -d "D:\Output" -as
+```
+
+**11. Tenere solo audio inglese lossless dal sorgente**
+
+Combinando **-ksa** e **-ksac**, mantieni dal sorgente solo le tracce che soddisfano entrambi i criteri: lingua inglese E codec DTS-HD MA o TrueHD.
+
+```bash
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ksa eng -ksac "DTS-HDMA,TrueHD" -d "D:\Output" -as
+```
+
+**12. Importare piu' codec dal file lingua**
+
+Il file lingua ha sia E-AC-3 che DTS italiano. Vuoi importare entrambi.
+
+```bash
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3,DTS" -d "D:\Output" -as
+```
+
 ## Come funziona AutoSync
 
 Spesso le release in lingue diverse hanno tagli differenti: intro piu' lunghe, scene tagliate, crediti diversi. Se fai un merge diretto, l'audio va fuori sync.
@@ -162,11 +186,11 @@ In modalita' dry run, Size e Merge mostrano "N/A" perche' il merge non viene ese
 
 ## Codec Audio
 
-Quando specifichi **-ac** per filtrare i codec, il matching e' **ESATTO**, non parziale.
+Quando specifichi **-ac** o **-ksac** per filtrare i codec, il matching e' **ESATTO**, non parziale. Entrambi supportano valori multipli separati da virgola.
 
 **Perche' e' importante:**
 
-Se un file ha sia DTS (core) che DTS-HD MA, e tu scrivi **-ac "DTS"**, prende SOLO il DTS core, non il DTS-HD. Se vuoi il DTS-HD Master Audio, devi scrivere **-ac "DTS-HDMA"**.
+Se un file ha sia DTS (core) che DTS-HD MA, e tu scrivi **-ac "DTS"**, prende SOLO il DTS core, non il DTS-HD. Se vuoi il DTS-HD Master Audio, devi scrivere **-ac "DTS-HDMA"**. Se vuoi entrambi, scrivi **-ac "DTS,DTS-HDMA"**.
 
 **Dolby:**
 
@@ -275,10 +299,11 @@ dotnet publish -c Release -r osx-arm64 --self-contained true
 
 | Short | Long | Descrizione |
 |-------|------|-------------|
-| -ac | --audio-codec | Importa solo tracce audio con questo codec |
+| -ac | --audio-codec | Codec audio da importare dal file lingua. Separa con virgola: DTS,E-AC-3 |
 | -so | --sub-only | Importa solo sottotitoli, ignora l'audio |
 | -ao | --audio-only | Importa solo audio, ignora i sottotitoli |
 | -ksa | --keep-source-audio | Lingue audio da MANTENERE nel sorgente (le altre vengono rimosse) |
+| -ksac | --keep-source-audio-codec | Codec audio da MANTENERE nel sorgente. Separa con virgola: DTS,TrueHD |
 | -kss | --keep-source-subs | Lingue sub da MANTENERE nel sorgente |
 
 ### Matching

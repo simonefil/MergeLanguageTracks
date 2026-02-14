@@ -38,10 +38,11 @@ OPZIONI SYNC:
   -at,  --analysis-time <sec>    Durata analisi audio in secondi (default: 300 = 5 min)
 
 OPZIONI FILTRO:
-  -ac,  --audio-codec <codec>    Importa solo audio con codec specifico (es: E-AC-3, DTS)
+  -ac,  --audio-codec <codec>    Importa solo audio con codec specifico (es: E-AC-3 oppure DTS,E-AC-3)
   -so,  --sub-only               Importa solo sottotitoli (ignora audio)
   -ao,  --audio-only             Importa solo audio (ignora sottotitoli)
   -ksa, --keep-source-audio      Lingue audio da mantenere nel sorgente (es: eng,jpn)
+  -ksac,--keep-source-audio-codec Codec audio da mantenere nel sorgente (es: DTS,E-AC-3)
   -kss, --keep-source-subs       Lingue sub da mantenere nel sorgente
 
 OPZIONI MATCHING:
@@ -105,6 +106,9 @@ ESEMPI:
   # Solo audio E-AC-3 italiano
   MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -ac ""E-AC-3"" -d ""D:\Out"" -as
 
+  # Importa audio DTS o E-AC-3 italiano
+  MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -ac ""DTS,E-AC-3"" -d ""D:\Out"" -as
+
   # Solo sottotitoli (no audio)
   MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -so -d ""D:\Out"" -as
 
@@ -113,6 +117,12 @@ ESEMPI:
 
   # Mantieni solo eng/jpn audio e eng sub dal sorgente
   MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -ksa eng,jpn -kss eng -d ""D:\Out""
+
+  # Mantieni solo tracce DTS dal sorgente (qualsiasi lingua)
+  MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -ksac DTS -d ""D:\Out""
+
+  # Mantieni solo eng con codec DTS dal sorgente
+  MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -ksa eng -ksac DTS -d ""D:\Out""
 
   # Pattern custom (1x01 invece di S01E01)
   MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -m ""(\d+)x(\d+)"" -d ""D:\Out""
@@ -393,6 +403,19 @@ NOTE:
                 }
             }
 
+            // Valida codec audio sorgente se specificato
+            for (int i = 0; i < opts.KeepSourceAudioCodec.Count; i++)
+            {
+                string[] patterns = CodecMapping.GetCodecPatterns(opts.KeepSourceAudioCodec[i]);
+                if (patterns == null)
+                {
+                    ConsoleHelper.WriteRed("Errore: codec '" + opts.KeepSourceAudioCodec[i] + "' in -ksac non riconosciuto.");
+                    ConsoleHelper.WriteYellow("Codec validi: " + CodecMapping.GetAllCodecNames());
+                    valid = false;
+                    return valid;
+                }
+            }
+
             // Valida mutua esclusione SubOnly e AudioOnly
             if (opts.SubOnly && opts.AudioOnly)
             {
@@ -418,12 +441,12 @@ NOTE:
             }
 
             // Valida codec audio se specificato
-            if (opts.AudioCodec.Length > 0)
+            for (int i = 0; i < opts.AudioCodec.Count; i++)
             {
-                string[] codecPatterns = CodecMapping.GetCodecPatterns(opts.AudioCodec);
-                if (codecPatterns == null)
+                string[] acPatterns = CodecMapping.GetCodecPatterns(opts.AudioCodec[i]);
+                if (acPatterns == null)
                 {
-                    ConsoleHelper.WriteRed("Errore: codec '" + opts.AudioCodec + "' non riconosciuto.");
+                    ConsoleHelper.WriteRed("Errore: codec '" + opts.AudioCodec[i] + "' in -ac non riconosciuto.");
                     ConsoleHelper.WriteYellow("Codec validi: " + CodecMapping.GetAllCodecNames());
                     valid = false;
                     return valid;
@@ -480,15 +503,19 @@ NOTE:
             {
                 ConsoleHelper.WriteCyan("  Solo audio:          SI (sottotitoli ignorati)");
             }
-            else if (opts.AudioCodec.Length > 0 && codecPatterns != null)
+            else if (opts.AudioCodec.Count > 0 && codecPatterns != null)
             {
-                ConsoleHelper.WriteGreen("  Codec selezionato: " + opts.AudioCodec + " -> matcha: " + string.Join(", ", codecPatterns));
+                ConsoleHelper.WriteGreen("  Codec selezionato: " + string.Join(", ", opts.AudioCodec) + " -> matcha: " + string.Join(", ", codecPatterns));
             }
 
             // Mostra filtri tracce sorgente
             if (opts.KeepSourceAudioLangs.Count > 0)
             {
                 ConsoleHelper.WritePlain("  Mantieni audio src:  " + string.Join(", ", opts.KeepSourceAudioLangs));
+            }
+            if (opts.KeepSourceAudioCodec.Count > 0)
+            {
+                ConsoleHelper.WritePlain("  Codec audio src:     " + string.Join(", ", opts.KeepSourceAudioCodec));
             }
             if (opts.KeepSourceSubtitleLangs.Count > 0)
             {
@@ -694,7 +721,7 @@ NOTE:
         /// <param name="codecPatterns">Pattern codec risolti per il filtraggio, o null.</param>
         /// <param name="filterSourceAudio">Se le tracce audio sorgente devono essere filtrate.</param>
         /// <param name="filterSourceSubs">Se le tracce sottotitoli sorgente devono essere filtrate.</param>
-        private static void ProcessFile(string sourceFilePath, Dictionary<string, string> languageIndex, Options opts, MkvToolsService service, AudioSyncService syncService, ProcessingStats stats, List<FileProcessingRecord> records, string[] codecPatterns, bool filterSourceAudio, bool filterSourceSubs)
+        private static void ProcessFile(string sourceFilePath, Dictionary<string, string> languageIndex, Options opts, MkvToolsService service, AudioSyncService syncService, ProcessingStats stats, List<FileProcessingRecord> records, string[] codecPatterns, string[] sourceAudioCodecPatterns, bool filterSourceAudio, bool filterSourceSubs)
         {
             string sourceFileName = Path.GetFileName(sourceFilePath);
 
@@ -807,12 +834,12 @@ NOTE:
             {
                 if (filterSourceAudio)
                 {
-                    sourceAudioIds = service.GetSourceTrackIds(sourceTracks, "audio", opts.KeepSourceAudioLangs);
+                    sourceAudioIds = service.GetSourceTrackIds(sourceTracks, "audio", opts.KeepSourceAudioLangs, sourceAudioCodecPatterns);
                     ConsoleHelper.WriteDarkYellow("\n  Audio sorgente da mantenere: " + FormatTrackIdList(sourceAudioIds));
                 }
                 if (filterSourceSubs)
                 {
-                    sourceSubIds = service.GetSourceTrackIds(sourceTracks, "subtitles", opts.KeepSourceSubtitleLangs);
+                    sourceSubIds = service.GetSourceTrackIds(sourceTracks, "subtitles", opts.KeepSourceSubtitleLangs, null);
                     ConsoleHelper.WriteDarkYellow("  Sub sorgente da mantenere:   " + FormatTrackIdList(sourceSubIds));
                 }
             }
@@ -847,7 +874,7 @@ NOTE:
             }
 
             // Mostra tracce trovate
-            string codecSuffix = (opts.AudioCodec.Length > 0) ? " / " + opts.AudioCodec : "";
+            string codecSuffix = (opts.AudioCodec.Count > 0) ? " / " + string.Join(",", opts.AudioCodec) : "";
             ConsoleHelper.WriteMagenta("\n  Audio file lingua (" + string.Join(",", opts.TargetLanguage) + codecSuffix + "):");
             ConsoleHelper.WritePlain(FormatTrackInfo(audioTracks));
 
@@ -908,7 +935,7 @@ NOTE:
             List<string> resultAudioLangs = new List<string>();
             List<string> resultSubLangs = new List<string>();
 
-            // Audio dal sorgente (se non filtrate, tutte; se filtrate, solo quelle che esistono E sono in KeepSourceAudioLangs)
+            // Audio dal sorgente: deriva le lingue dalle tracce effettivamente selezionate
             if (!filterSourceAudio)
             {
                 for (int i = 0; i < record.SourceAudioLangs.Count; i++)
@@ -919,24 +946,23 @@ NOTE:
                     }
                 }
             }
-            else
+            else if (sourceTracks != null)
             {
-                // Aggiungi solo le lingue che esistono nel sorgente E sono nella lista keep
-                for (int i = 0; i < record.SourceAudioLangs.Count; i++)
+                // Ricava le lingue dalle tracce con ID in sourceAudioIds
+                for (int i = 0; i < sourceTracks.Count; i++)
                 {
-                    string srcLang = record.SourceAudioLangs[i];
-                    bool keepThis = false;
-                    for (int k = 0; k < opts.KeepSourceAudioLangs.Count; k++)
+                    if (!string.Equals(sourceTracks[i].Type, "audio", StringComparison.OrdinalIgnoreCase))
                     {
-                        if (string.Equals(srcLang, opts.KeepSourceAudioLangs[k], StringComparison.OrdinalIgnoreCase))
-                        {
-                            keepThis = true;
-                            break;
-                        }
+                        continue;
                     }
-                    if (keepThis && !resultAudioLangs.Contains(srcLang))
+                    if (!sourceAudioIds.Contains(sourceTracks[i].Id))
                     {
-                        resultAudioLangs.Add(srcLang);
+                        continue;
+                    }
+                    string lang = sourceTracks[i].Language.Length > 0 ? sourceTracks[i].Language : "und";
+                    if (!resultAudioLangs.Contains(lang))
+                    {
+                        resultAudioLangs.Add(lang);
                     }
                 }
             }
@@ -1123,11 +1149,23 @@ NOTE:
                 Directory.CreateDirectory(opts.DestinationFolder);
             }
 
-            // Risolvi pattern codec
+            // Risolvi pattern codec per filtro tracce lingua importate
             string[] codecPatterns = null;
-            if (opts.AudioCodec.Length > 0)
+            if (opts.AudioCodec.Count > 0)
             {
-                codecPatterns = CodecMapping.GetCodecPatterns(opts.AudioCodec);
+                List<string> allCodecPatterns = new List<string>();
+                for (int c = 0; c < opts.AudioCodec.Count; c++)
+                {
+                    string[] patterns = CodecMapping.GetCodecPatterns(opts.AudioCodec[c]);
+                    for (int p = 0; p < patterns.Length; p++)
+                    {
+                        if (!allCodecPatterns.Contains(patterns[p]))
+                        {
+                            allCodecPatterns.Add(patterns[p]);
+                        }
+                    }
+                }
+                codecPatterns = allCodecPatterns.ToArray();
             }
 
             // Verifica mkvmerge
@@ -1166,8 +1204,28 @@ NOTE:
             // Stampa configurazione
             PrintConfiguration(opts, codecPatterns);
 
+            // Risolvi pattern codec per filtro tracce audio sorgente
+            string[] sourceAudioCodecPatterns = null;
+            if (opts.KeepSourceAudioCodec.Count > 0)
+            {
+                // Unisci tutti i pattern codec in un unico array
+                List<string> allPatterns = new List<string>();
+                for (int c = 0; c < opts.KeepSourceAudioCodec.Count; c++)
+                {
+                    string[] patterns = CodecMapping.GetCodecPatterns(opts.KeepSourceAudioCodec[c]);
+                    for (int p = 0; p < patterns.Length; p++)
+                    {
+                        if (!allPatterns.Contains(patterns[p]))
+                        {
+                            allPatterns.Add(patterns[p]);
+                        }
+                    }
+                }
+                sourceAudioCodecPatterns = allPatterns.ToArray();
+            }
+
             // Determina flag filtraggio tracce sorgente
-            bool filterSourceAudio = (opts.KeepSourceAudioLangs.Count > 0);
+            bool filterSourceAudio = (opts.KeepSourceAudioLangs.Count > 0 || opts.KeepSourceAudioCodec.Count > 0);
             bool filterSourceSubs = (opts.KeepSourceSubtitleLangs.Count > 0);
 
             // Trova tutti i file sorgente
@@ -1195,7 +1253,7 @@ NOTE:
             // Elabora ogni file sorgente
             for (int i = 0; i < sourceFiles.Count; i++)
             {
-                ProcessFile(sourceFiles[i], languageIndex, opts, service, syncService, stats, records, codecPatterns, filterSourceAudio, filterSourceSubs);
+                ProcessFile(sourceFiles[i], languageIndex, opts, service, syncService, stats, records, codecPatterns, sourceAudioCodecPatterns, filterSourceAudio, filterSourceSubs);
             }
 
             // Stampa report dettagliato
