@@ -1108,6 +1108,14 @@ NOTE:
             // Parsa argomenti da riga di comando
             Options opts = Options.Parse(args);
 
+            // Controlla errori di parsing
+            if (opts.ErrorMessage.Length > 0)
+            {
+                ConsoleHelper.WriteRed("Errore: " + opts.ErrorMessage);
+                ConsoleHelper.WriteDarkGray("Usa -h per vedere tutte le opzioni.");
+                return 1;
+            }
+
             // Gestisci richiesta help
             if (opts.Help || args.Length == 0)
             {

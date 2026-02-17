@@ -116,6 +116,11 @@ namespace MergeLanguageTracks
         /// </summary>
         public List<string> FileExtensions { get; set; }
 
+        /// <summary>
+        /// Messaggio di errore dal parsing. Vuoto se nessun errore
+        /// </summary>
+        public string ErrorMessage { get; set; }
+
         #endregion
 
         #region Costruttore
@@ -147,6 +152,7 @@ namespace MergeLanguageTracks
             this.Recursive = true;
             this.DryRun = false;
             this.FileExtensions = new List<string> { "mkv" };
+            this.ErrorMessage = "";
         }
 
         #endregion
@@ -215,12 +221,11 @@ namespace MergeLanguageTracks
                     continue;
                 }
 
-                // Gestione opzioni che richiedono un valore successivo
+                // Se non e' uno switch riconosciuto e non ha valore successivo, parametro sconosciuto
                 if (!hasNextValue)
                 {
-                    // Flag sconosciuto o valore mancante, salta
-                    i++;
-                    continue;
+                    options.ErrorMessage = "Parametro sconosciuto: -" + key;
+                    return options;
                 }
 
                 string value = args[i + 1];
@@ -341,6 +346,12 @@ namespace MergeLanguageTracks
                             options.FileExtensions.Add(trimmed);
                         }
                     }
+                }
+                else
+                {
+                    // Parametro con valore non riconosciuto
+                    options.ErrorMessage = "Parametro sconosciuto: -" + key;
+                    return options;
                 }
 
                 // Avanza oltre la coppia chiave-valore
