@@ -110,6 +110,16 @@ Il file lingua ha sia E-AC-3 che DTS italiano. Vuoi importare entrambi.
 MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3,DTS" -d "D:\Output" -as
 ```
 
+**13. Singola sorgente: applicare delay e filtrare tracce**
+
+Hai una stagione con audio in piu' lingue (jpn, eng, ita) e i sottotitoli sono fuori sync di 960ms. Senza bisogno di una seconda cartella, lavori direttamente sui file originali: le tracce italiane vengono ri-importate con il delay applicato, mantenendo solo le lingue che vuoi.
+
+```bash
+MergeLanguageTracks -s "D:\Serie" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
+```
+
+Quando **-l** non e' specificato, l'applicazione usa la cartella sorgente anche come cartella lingua. Il file viene usato sia come base che come fonte delle tracce da importare, permettendo di remuxare con filtri e delay senza una release separata.
+
 ## Come funziona AutoSync
 
 Spesso le release in lingue diverse hanno tagli differenti: intro piu' lunghe, scene tagliate, crediti diversi. Se fai un merge diretto, l'audio va fuori sync.
@@ -276,8 +286,13 @@ dotnet publish -c Release -r osx-arm64 --self-contained true
 | Short | Long | Descrizione |
 |-------|------|-------------|
 | -s | --source | Cartella con i file MKV sorgente |
-| -l | --language | Cartella con i file MKV da cui prendere le tracce |
 | -t | --target-language | Codice lingua delle tracce da importare (es: ita) |
+
+### Sorgente
+
+| Short | Long | Descrizione |
+|-------|------|-------------|
+| -l | --language | Cartella con i file MKV da cui prendere le tracce. Se omesso, usa la cartella sorgente (singola sorgente) |
 
 ### Output (mutuamente esclusivi, uno obbligatorio)
 

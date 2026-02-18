@@ -24,8 +24,11 @@ Supporta sincronizzazione automatica tramite audio fingerprinting.
 
 OPZIONI OBBLIGATORIE:
   -s,   --source <path>          Cartella con i file MKV sorgente
-  -l,   --language <path>        Cartella con i file MKV nella lingua da importare
   -t,   --target-language <code> Codice/i lingua ISO 639-2 (es: ita, eng  oppure: eng,ita)
+
+OPZIONI SORGENTE:
+  -l,   --language <path>        Cartella con i file MKV nella lingua da importare
+                                 Se omesso, usa la cartella sorgente (modalita' singola sorgente)
 
 OPZIONI OUTPUT (mutuamente esclusive, una obbligatoria):
   -d,   --destination <path>     Cartella di output
@@ -129,6 +132,9 @@ ESEMPI:
 
   # Cerca anche file MP4 e AVI oltre a MKV
   MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -ext mkv,mp4,avi -d ""D:\Out"" -as
+
+  # Singola sorgente: applica delay 960ms alle tracce ita, mantieni jpn+eng audio e eng+jpn sub
+  MergeLanguageTracks -s ""D:\Serie"" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
 
 CODICI LINGUA (ISO 639-2):
   Comuni: ita, eng, jpn, ger/deu, fra/fre, spa, por, rus, chi/zho, kor
@@ -314,10 +320,10 @@ NOTE:
             bool valid = true;
 
             // Verifica parametri obbligatori
-            if (opts.SourceFolder.Length == 0 || opts.LanguageFolder.Length == 0 || opts.TargetLanguage.Count == 0)
+            if (opts.SourceFolder.Length == 0 || opts.TargetLanguage.Count == 0)
             {
                 ConsoleHelper.WriteRed("Errore: parametri obbligatori mancanti.");
-                ConsoleHelper.WriteYellow("Uso: MergeLanguageTracks -s <source> -l <lang> -t <lingua> [-d <dest> | -o] [-as] [-n]");
+                ConsoleHelper.WriteYellow("Uso: MergeLanguageTracks -s <source> [-l <lang>] -t <lingua> [-d <dest> | -o] [-as] [-n]");
                 ConsoleHelper.WriteDarkGray("     Usa -h per vedere tutte le opzioni.");
                 valid = false;
                 return valid;
@@ -465,7 +471,14 @@ NOTE:
         {
             ConsoleHelper.WriteYellow("Configurazione:");
             ConsoleHelper.WritePlain("  Cartella sorgente:   " + opts.SourceFolder);
-            ConsoleHelper.WritePlain("  Cartella lingua:     " + opts.LanguageFolder);
+            if (string.Equals(opts.SourceFolder, opts.LanguageFolder, StringComparison.OrdinalIgnoreCase))
+            {
+                ConsoleHelper.WriteCyan("  Modalita':           Singola sorgente (lingua = sorgente)");
+            }
+            else
+            {
+                ConsoleHelper.WritePlain("  Cartella lingua:     " + opts.LanguageFolder);
+            }
             ConsoleHelper.WritePlain("  Lingua target:       " + string.Join(", ", opts.TargetLanguage));
             ConsoleHelper.WritePlain("  Pattern matching:    " + opts.MatchPattern);
             ConsoleHelper.WritePlain("  Estensioni file:     " + string.Join(", ", opts.FileExtensions));
@@ -1135,6 +1148,12 @@ NOTE:
             if (opts.DestinationFolder.Length > 0)
             {
                 opts.DestinationFolder = NormalizePath(opts.DestinationFolder);
+            }
+
+            // Modalita' singola sorgente: se -l non specificato, usa -s come lingua
+            if (opts.LanguageFolder.Length == 0 && opts.SourceFolder.Length > 0)
+            {
+                opts.LanguageFolder = opts.SourceFolder;
             }
 
             // Determina cartella tools

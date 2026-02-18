@@ -110,6 +110,16 @@ The language file has both E-AC-3 and DTS Italian tracks. You want to import bot
 MergeLanguageTracks -s "D:\Series.ENG" -l "D:\Series.ITA" -t ita -ac "E-AC-3,DTS" -d "D:\Output" -as
 ```
 
+**13. Single source: apply delay and filter tracks**
+
+You have a season with audio in multiple languages (jpn, eng, ita) and the subtitles are out of sync by 960ms. Without needing a second folder, you work directly on the original files: the Italian tracks are re-imported with the delay applied, keeping only the languages you want.
+
+```bash
+MergeLanguageTracks -s "D:\Series" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
+```
+
+When **-l** is not specified, the application uses the source folder as the language folder too. The file is used both as the base and as the source of tracks to import, allowing you to remux with filters and delays without a separate release.
+
 ## How AutoSync Works
 
 Often releases in different languages have different cuts: longer intros, deleted scenes, different credits. If you do a direct merge, the audio goes out of sync.
@@ -276,8 +286,13 @@ dotnet publish -c Release -r osx-arm64 --self-contained true
 | Short | Long | Description |
 |-------|------|-------------|
 | -s | --source | Folder with source MKV files |
-| -l | --language | Folder with MKV files to take tracks from |
 | -t | --target-language | Language code of the tracks to import (e.g.: ita) |
+
+### Source
+
+| Short | Long | Description |
+|-------|------|-------------|
+| -l | --language | Folder with MKV files to take tracks from. If omitted, uses the source folder (single source mode) |
 
 ### Output (mutually exclusive, one required)
 
