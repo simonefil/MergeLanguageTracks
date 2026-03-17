@@ -296,10 +296,10 @@ namespace MergeLanguageTracks
                 // Applica tema grafico di default
                 this.ApplyTheme("Nord");
 
-                // Crea finestra principale con bordo doppio stile DOS
+                // Crea finestra principale
                 this._mainWindow = new Window()
                 {
-                    Title = " MergeLanguageTracks v2.0 ",
+                    Title = " MergeLanguageTracks v" + Utils.GetVersion() + " ",
                     BorderStyle = LineStyle.Double,
                     SchemeName = "Base"
                 };
@@ -396,6 +396,7 @@ namespace MergeLanguageTracks
 
             return btn;
         }
+
 
         /// <summary>
         /// Parsa una stringa CSV e popola la lista destinazione con i valori trimmati non vuoti
@@ -742,7 +743,7 @@ namespace MergeLanguageTracks
                     }),
                     new MenuBarItem("_Impostazioni", new MenuItem[]
                     {
-                        new MenuItem("_Audio conversione", "", () => this.ShowAudioSettingsDialog())
+                        new MenuItem("_Conversione audio", "", () => this.ShowAudioSettingsDialog())
                     }),
                     new MenuBarItem("_Tema", new MenuItem[]
                     {
@@ -1682,8 +1683,15 @@ namespace MergeLanguageTracks
             y++;
 
             Label lblConvert = new Label() { Text = "Converti audio:", X = 1, Y = y, SchemeName = "Dialog" };
-            TextField tfConvert = new TextField() { Text = this._opts.ConvertFormat, X = 16, Y = y, Width = 10, SchemeName = "Input" };
-            Label lblConvertHint = new Label() { Text = "(flac/opus/vuoto)", X = 27, Y = y, SchemeName = "Dialog" };
+            int[] cfState = new int[] { 0 };
+            if (string.Equals(this._opts.ConvertFormat, "flac", StringComparison.OrdinalIgnoreCase)) cfState[0] = 1;
+            else if (string.Equals(this._opts.ConvertFormat, "opus", StringComparison.OrdinalIgnoreCase)) cfState[0] = 2;
+            Button btnCfNone = new Button() { Text = (cfState[0] == 0 ? "(X) " : "( ) ") + "No", X = 16, Y = y, NoDecorations = true, NoPadding = true, ShadowStyle = ShadowStyle.None, SchemeName = "Dialog" };
+            Button btnCfFlac = new Button() { Text = (cfState[0] == 1 ? "(X) " : "( ) ") + "FLAC", X = 24, Y = y, NoDecorations = true, NoPadding = true, ShadowStyle = ShadowStyle.None, SchemeName = "Dialog" };
+            Button btnCfOpus = new Button() { Text = (cfState[0] == 2 ? "(X) " : "( ) ") + "Opus", X = 34, Y = y, NoDecorations = true, NoPadding = true, ShadowStyle = ShadowStyle.None, SchemeName = "Dialog" };
+            btnCfNone.Accepting += (object sender, CommandEventArgs e) => { cfState[0] = 0; btnCfNone.Text = "(X) No"; btnCfFlac.Text = "( ) FLAC"; btnCfOpus.Text = "( ) Opus"; e.Handled = true; };
+            btnCfFlac.Accepting += (object sender, CommandEventArgs e) => { cfState[0] = 1; btnCfNone.Text = "( ) No"; btnCfFlac.Text = "(X) FLAC"; btnCfOpus.Text = "( ) Opus"; e.Handled = true; };
+            btnCfOpus.Accepting += (object sender, CommandEventArgs e) => { cfState[0] = 2; btnCfNone.Text = "( ) No"; btnCfFlac.Text = "( ) FLAC"; btnCfOpus.Text = "(X) Opus"; e.Handled = true; };
             y++;
 
             Label lblMkv = new Label() { Text = "Percorso mkv:", X = 1, Y = y, SchemeName = "Dialog" };
@@ -1695,7 +1703,7 @@ namespace MergeLanguageTracks
                 lblSection1, lblSource, tfSource, btnBrowseSource, lblLang, tfLang, btnBrowseLang, lblDest, tfDest, btnBrowseDest, cbOverwrite, cbRecursive,
                 lblSection2, lblTarget, tfTarget, lblCodec, tfCodec, lblKsa, tfKsa, lblKsac, tfKsac, lblKss, tfKss, cbSubOnly, cbAudioOnly,
                 lblSection3, cbFrameSync, lblAudioDelay, tfAudioDelay, lblMs2, lblSubDelay, tfSubDelay, lblMs3,
-                lblSection4, lblPattern, tfPattern, lblExt, tfExt, lblConvert, tfConvert, lblConvertHint, lblMkv, tfMkv, btnBrowseMkv
+                lblSection4, lblPattern, tfPattern, lblExt, tfExt, lblConvert, btnCfNone, btnCfFlac, btnCfOpus, lblMkv, tfMkv, btnBrowseMkv
             );
 
             // Esegui dialog modale
@@ -1743,11 +1751,9 @@ namespace MergeLanguageTracks
                 }
 
                 // Formato conversione audio
-                string cfValue = tfConvert.Text.Trim().ToLower();
-                if (cfValue == "flac" || cfValue == "opus" || cfValue.Length == 0)
-                {
-                    this._opts.ConvertFormat = cfValue;
-                }
+                if (cfState[0] == 1) this._opts.ConvertFormat = "flac";
+                else if (cfState[0] == 2) this._opts.ConvertFormat = "opus";
+                else this._opts.ConvertFormat = "";
 
                 this._opts.MkvMergePath = tfMkv.Text;
 
@@ -1838,7 +1844,7 @@ namespace MergeLanguageTracks
 
             Dialog dialog = new Dialog()
             {
-                Title = " Impostazioni Audio Conversione ",
+                Title = " Impostazioni Conversione Audio ",
                 Width = 55,
                 Height = 18,
                 BorderStyle = LineStyle.Double,

@@ -12,6 +12,9 @@ $project = "MergeLanguageTracks.csproj"
 $artifactsDir = "release-artifacts"
 $publishDir = "publish"
 
+# Estrai versione dal tag (rimuovi prefisso "v" se presente)
+$version = $Tag -replace "^v", ""
+
 $rids = @(
     "win-x64",
     "linux-x64",
@@ -43,6 +46,7 @@ foreach ($rid in $rids) {
         -p:PublishSingleFile=true `
         -p:PublishTrimmed=false `
         -p:EnableCompressionInSingleFile=true `
+        -p:Version=$version `
         -o "$publishDir\$rid"
 
     if ($LASTEXITCODE -ne 0) {

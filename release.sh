@@ -16,6 +16,9 @@ PROJECT="MergeLanguageTracks.csproj"
 ARTIFACTS_DIR="release-artifacts"
 PUBLISH_DIR="publish"
 
+# Estrai versione dal tag (rimuovi prefisso "v" se presente)
+VERSION="${TAG#v}"
+
 RIDS=("win-x64" "linux-x64" "linux-arm64" "osx-x64" "osx-arm64")
 
 confirm_step() {
@@ -39,6 +42,7 @@ for rid in "${RIDS[@]}"; do
         -p:PublishSingleFile=true \
         -p:PublishTrimmed=false \
         -p:EnableCompressionInSingleFile=true \
+        -p:Version="$VERSION" \
         -o "$PUBLISH_DIR/$rid"
 
     # Zip the binary

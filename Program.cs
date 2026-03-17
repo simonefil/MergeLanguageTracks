@@ -343,6 +343,8 @@ namespace MergeLanguageTracks
         private static void PrintHelp()
         {
             string helpText = @"
+MergeLanguageTracks v" + Utils.GetVersion() + @"
+
 USAGE: MergeLanguageTracks [OPTIONS]
 
 Unisce tracce audio e sottotitoli da file MKV in lingue diverse.

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 
 namespace MergeLanguageTracks
@@ -95,6 +96,24 @@ namespace MergeLanguageTracks
             else
             {
                 result = text + new string(' ', width - text.Length);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Restituisce la versione dell'applicazione letta dall'assembly
+        /// </summary>
+        /// <returns>Stringa versione</returns>
+        public static string GetVersion()
+        {
+            string result = "0.0";
+            Assembly asm = Assembly.GetExecutingAssembly();
+            AssemblyInformationalVersionAttribute attr = (AssemblyInformationalVersionAttribute)Attribute.GetCustomAttribute(asm, typeof(AssemblyInformationalVersionAttribute));
+
+            if (attr != null)
+            {
+                result = attr.InformationalVersion;
             }
 
             return result;
