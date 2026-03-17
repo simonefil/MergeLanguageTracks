@@ -81,7 +81,7 @@ namespace MergeLanguageTracks
             "\n-- Avanzate --\n" +
             "Pattern match: regex per abbinare episodi tra le due cartelle. I gruppi catturati vengono usati come identificativo episodio. Default: S(\\d+)E(\\d+) (formato SxxExx)\n" +
             "Estensioni: estensioni file da cercare, senza punto. Default: mkv\n" +
-            "Cartella tools: percorso dove cercare ffmpeg se non presente nel PATH di sistema.\n" +
+            "Converti audio: formato di conversione per tracce audio lossless. Valori: flac, opus. Vuoto = nessuna conversione.\n" +
             "Percorso mkv: percorso completo di mkvmerge se non presente nel PATH. Default: mkvmerge (cerca nel PATH).\n" +
             "\n=== NOTE FRAME-SYNC ===\n" +
             "Il frame-sync trova l'offset rilevando i tagli scena (scene-cut) nei frame video di sorgente e lingua. Opera in due fasi:\n" +
@@ -107,6 +107,19 @@ namespace MergeLanguageTracks
             "Fase 3 - Correzione via mkvmerge: calcola lo stretch factor come rapporto dei default_duration e il sync delay corretto. La correzione avviene interamente in mkvmerge tramite il parametro --sync TID:delay,num/den che applica time-stretching senza ricodifica alle tracce audio e sottotitoli importate.\n" +
             "\n" +
             "Fase 4 - Verifica: controlla la correzione a 9 punti (10%-90% del video) tramite scene-cut matching con retry adattivo. Per ogni punto rileva i tagli scena e verifica la corrispondenza compensando il drift. Un punto e' valido se l'errore e' inferiore a 1 frame. Servono almeno 5/9 punti validi per confermare la correzione.\n" +
+            "\n=== CONVERSIONE AUDIO ===\n" +
+            "Quando attiva (campo 'Converti audio' in configurazione oppure -cf da CLI), le tracce audio lossless vengono convertite in FLAC o Opus durante il merge tramite ffmpeg.\n" +
+            "\n" +
+            "Codec convertibili: DTS-HD Master Audio, DTS-HD High Resolution, TrueHD, PCM, ALAC, MLP, FLAC.\n" +
+            "Esclusi dalla conversione: TrueHD Atmos e DTS:X (perderebbero le informazioni spaziali).\n" +
+            "La conversione si applica sia alle tracce sorgente mantenute (KSA/KSAC) sia alle tracce importate dal file lingua.\n" +
+            "Se il formato target e' FLAC e la traccia e' gia' FLAC, la conversione viene saltata.\n" +
+            "\n" +
+            "Le impostazioni di compressione FLAC e bitrate Opus sono configurabili dal menu Impostazioni > Audio conversione.\n" +
+            "I valori vengono salvati in .mlt/appsettings.json (creato automaticamente con valori di default se assente).\n" +
+            "\n" +
+            "Default FLAC: compression level 12 (massima compressione, range 0-12).\n" +
+            "Default Opus: Mono 128 kbps, Stereo 256 kbps, 5.1 510 kbps, 7.1 768 kbps (range 64-768 kbps).\n" +
             "\n=== CODEC AUDIO ===\n" +
             "I codec specificati nel campo 'Codec audio' filtrano le tracce audio importate dal file lingua. Il matching e' ESATTO, non parziale.\n" +
             "\n" +
@@ -727,6 +740,10 @@ namespace MergeLanguageTracks
                         new MenuItem("_Processa selezionato", "F9", () => this.DoProcessSelected()),
                         new MenuItem("Processa t_utti", "F10", () => this.DoProcessAll())
                     }),
+                    new MenuBarItem("_Impostazioni", new MenuItem[]
+                    {
+                        new MenuItem("_Audio conversione", "", () => this.ShowAudioSettingsDialog())
+                    }),
                     new MenuBarItem("_Tema", new MenuItem[]
                     {
                         new MenuItem("_Nord", "", () => this.ApplyTheme("Nord")),
@@ -936,11 +953,11 @@ namespace MergeLanguageTracks
             {
                 FileProcessingRecord r = this._records[i];
                 string stato = this.GetStatusText(r.Status);
-                string audio = FileProcessingRecord.FormatLangs(r.LangAudioLangs);
-                string sub = FileProcessingRecord.FormatLangs(r.LangSubLangs);
-                string delay = this.FormatDelayShort(r.AudioDelayApplied);
+                string audio = Utils.FormatLangs(r.LangAudioLangs);
+                string sub = Utils.FormatLangs(r.LangSubLangs);
+                string delay = Utils.FormatDelay(r.AudioDelayApplied);
                 string stretch = r.StretchFactor.Length > 0 ? r.StretchFactor : "-";
-                string size = FileProcessingRecord.FormatSize(r.SourceSize);
+                string size = Utils.FormatSize(r.SourceSize);
 
                 this._dataTable.Rows.Add(r.EpisodeId, stato, audio, sub, delay, stretch, size);
             }
@@ -976,19 +993,19 @@ namespace MergeLanguageTracks
             // File coinvolti
             sb.Append("FILE SORGENTE\n");
             sb.Append("  ").Append(record.SourceFileName).Append('\n');
-            sb.Append("  Dimensione: ").Append(FileProcessingRecord.FormatSize(record.SourceSize)).Append('\n');
+            sb.Append("  Dimensione: ").Append(Utils.FormatSize(record.SourceSize)).Append('\n');
             sb.Append('\n');
             sb.Append("FILE LINGUA\n");
             sb.Append("  ").Append(record.LangFileName.Length > 0 ? record.LangFileName : "(nessuno)").Append('\n');
             if (record.LangSize > 0)
             {
-                sb.Append("  Dimensione: ").Append(FileProcessingRecord.FormatSize(record.LangSize)).Append('\n');
+                sb.Append("  Dimensione: ").Append(Utils.FormatSize(record.LangSize)).Append('\n');
             }
 
             // Tracce sorgente
             sb.Append("\nTRACCE SORGENTE\n");
-            srcAudio = FileProcessingRecord.FormatLangs(record.SourceAudioLangs);
-            srcSub = FileProcessingRecord.FormatLangs(record.SourceSubLangs);
+            srcAudio = Utils.FormatLangs(record.SourceAudioLangs);
+            srcSub = Utils.FormatLangs(record.SourceSubLangs);
             sb.Append("  Audio: ").Append(srcAudio.Length > 0 ? srcAudio : "nessuna").Append('\n');
             sb.Append("  Sub:   ").Append(srcSub.Length > 0 ? srcSub : "nessuno").Append('\n');
 
@@ -1020,8 +1037,8 @@ namespace MergeLanguageTracks
                     importSub.Add(tl);
                 }
             }
-            impAudioStr = FileProcessingRecord.FormatLangs(importAudio);
-            impSubStr = FileProcessingRecord.FormatLangs(importSub);
+            impAudioStr = Utils.FormatLangs(importAudio);
+            impSubStr = Utils.FormatLangs(importSub);
             sb.Append("  Audio: ").Append(impAudioStr.Length > 0 ? impAudioStr : "nessuna").Append('\n');
             sb.Append("  Sub:   ").Append(impSubStr.Length > 0 ? impSubStr : "nessuno").Append('\n');
 
@@ -1072,7 +1089,7 @@ namespace MergeLanguageTracks
             if (record.ResultSize > 0)
             {
                 sb.Append("\nRISULTATO\n");
-                sb.Append("  Dimensione: ").Append(FileProcessingRecord.FormatSize(record.ResultSize)).Append('\n');
+                sb.Append("  Dimensione: ").Append(Utils.FormatSize(record.ResultSize)).Append('\n');
             }
 
             // Comando mkvmerge risultante
@@ -1133,16 +1150,6 @@ namespace MergeLanguageTracks
         /// </summary>
         /// <param name="delayMs">Delay in millisecondi</param>
         /// <returns>Stringa formattata</returns>
-        private string FormatDelayShort(int delayMs)
-        {
-            string result = "-";
-
-            if (delayMs > 0) result = "+" + delayMs + "ms";
-            else if (delayMs < 0) result = delayMs + "ms";
-            else if (delayMs == 0) result = "0ms";
-
-            return result;
-        }
 
         /// <summary>
         /// Formatta il delay audio completo per il pannello dettaglio
@@ -1151,7 +1158,7 @@ namespace MergeLanguageTracks
         /// <returns>Stringa dettagliata del delay audio</returns>
         private string FormatDelayFull(FileProcessingRecord record)
         {
-            string result = this.FormatDelayShort(record.AudioDelayApplied);
+            string result = Utils.FormatDelay(record.AudioDelayApplied);
 
             if (record.ManualAudioDelayMs != 0)
             {
@@ -1168,7 +1175,7 @@ namespace MergeLanguageTracks
         /// <returns>Stringa dettagliata del delay sottotitoli</returns>
         private string FormatSubDelayFull(FileProcessingRecord record)
         {
-            string result = this.FormatDelayShort(record.SubDelayApplied);
+            string result = Utils.FormatDelay(record.SubDelayApplied);
 
             if (record.ManualSubDelayMs != 0)
             {
@@ -1674,10 +1681,9 @@ namespace MergeLanguageTracks
             TextField tfExt = new TextField() { Text = extStr, X = 16, Y = y, Width = 20, SchemeName = "Input" };
             y++;
 
-            Label lblTools = new Label() { Text = "Cartella tools:", X = 1, Y = y, SchemeName = "Dialog" };
-            TextField tfTools = new TextField() { Text = this._opts.ToolsFolder, X = 16, Y = y, Width = Dim.Fill(10), SchemeName = "Input" };
-            Button btnBrowseTools = new Button() { Text = "..", X = Pos.Right(tfTools) + 1, Y = y, SchemeName = "Dialog" };
-            btnBrowseTools.Accepting += (object sender, CommandEventArgs e) => { this.BrowseFolder(tfTools); e.Handled = true; };
+            Label lblConvert = new Label() { Text = "Converti audio:", X = 1, Y = y, SchemeName = "Dialog" };
+            TextField tfConvert = new TextField() { Text = this._opts.ConvertFormat, X = 16, Y = y, Width = 10, SchemeName = "Input" };
+            Label lblConvertHint = new Label() { Text = "(flac/opus/vuoto)", X = 27, Y = y, SchemeName = "Dialog" };
             y++;
 
             Label lblMkv = new Label() { Text = "Percorso mkv:", X = 1, Y = y, SchemeName = "Dialog" };
@@ -1689,7 +1695,7 @@ namespace MergeLanguageTracks
                 lblSection1, lblSource, tfSource, btnBrowseSource, lblLang, tfLang, btnBrowseLang, lblDest, tfDest, btnBrowseDest, cbOverwrite, cbRecursive,
                 lblSection2, lblTarget, tfTarget, lblCodec, tfCodec, lblKsa, tfKsa, lblKsac, tfKsac, lblKss, tfKss, cbSubOnly, cbAudioOnly,
                 lblSection3, cbFrameSync, lblAudioDelay, tfAudioDelay, lblMs2, lblSubDelay, tfSubDelay, lblMs3,
-                lblSection4, lblPattern, tfPattern, lblExt, tfExt, lblTools, tfTools, btnBrowseTools, lblMkv, tfMkv, btnBrowseMkv
+                lblSection4, lblPattern, tfPattern, lblExt, tfExt, lblConvert, tfConvert, lblConvertHint, lblMkv, tfMkv, btnBrowseMkv
             );
 
             // Esegui dialog modale
@@ -1736,7 +1742,13 @@ namespace MergeLanguageTracks
                     }
                 }
 
-                this._opts.ToolsFolder = tfTools.Text;
+                // Formato conversione audio
+                string cfValue = tfConvert.Text.Trim().ToLower();
+                if (cfValue == "flac" || cfValue == "opus" || cfValue.Length == 0)
+                {
+                    this._opts.ConvertFormat = cfValue;
+                }
+
                 this._opts.MkvMergePath = tfMkv.Text;
 
                 this.AppendLog("Configurazione aggiornata");
@@ -1809,6 +1821,109 @@ namespace MergeLanguageTracks
             }
 
             } // if (!this._isProcessing)
+        }
+
+        /// <summary>
+        /// Mostra il dialog per modifica impostazioni conversione audio (FLAC/Opus)
+        /// </summary>
+        private void ShowAudioSettingsDialog()
+        {
+            bool accepted = false;
+            int y = 0;
+            int tempValue = 0;
+
+            // Pulsanti dialog
+            Button btnOk = new Button() { Text = "OK", IsDefault = true, SchemeName = "Dialog" };
+            Button btnCancel = new Button() { Text = "Annulla", SchemeName = "Dialog" };
+
+            Dialog dialog = new Dialog()
+            {
+                Title = " Impostazioni Audio Conversione ",
+                Width = 55,
+                Height = 18,
+                BorderStyle = LineStyle.Double,
+                SchemeName = "Dialog"
+            };
+            dialog.AddButton(btnOk);
+            dialog.AddButton(btnCancel);
+
+            btnOk.Accepting += (object sender, CommandEventArgs e) => { accepted = true; this._app.RequestStop(); e.Handled = true; };
+            btnCancel.Accepting += (object sender, CommandEventArgs e) => { this._app.RequestStop(); e.Handled = true; };
+
+            // --- FLAC ---
+            Label lblFlac = new Label() { Text = "== FLAC ==", X = 1, Y = y, SchemeName = "Highlight" };
+            y++;
+
+            Label lblFlacComp = new Label() { Text = "Compressione (0-12):", X = 1, Y = y, SchemeName = "Dialog" };
+            TextField tfFlacComp = new TextField() { Text = AppSettings.FlacCompressionLevel.ToString(), X = 22, Y = y, Width = 6, SchemeName = "Input" };
+            y += 2;
+
+            // --- Opus ---
+            Label lblOpus = new Label() { Text = "== Opus (bitrate kbps) ==", X = 1, Y = y, SchemeName = "Highlight" };
+            y++;
+
+            Label lblMono = new Label() { Text = "Mono (1ch):", X = 1, Y = y, SchemeName = "Dialog" };
+            TextField tfMono = new TextField() { Text = AppSettings.OpusBitrateMono.ToString(), X = 22, Y = y, Width = 6, SchemeName = "Input" };
+            y++;
+
+            Label lblStereo = new Label() { Text = "Stereo (2ch):", X = 1, Y = y, SchemeName = "Dialog" };
+            TextField tfStereo = new TextField() { Text = AppSettings.OpusBitrateStereo.ToString(), X = 22, Y = y, Width = 6, SchemeName = "Input" };
+            y++;
+
+            Label lblS51 = new Label() { Text = "Surround 5.1:", X = 1, Y = y, SchemeName = "Dialog" };
+            TextField tfS51 = new TextField() { Text = AppSettings.OpusBitrateSurround51.ToString(), X = 22, Y = y, Width = 6, SchemeName = "Input" };
+            y++;
+
+            Label lblS71 = new Label() { Text = "Surround 7.1:", X = 1, Y = y, SchemeName = "Dialog" };
+            TextField tfS71 = new TextField() { Text = AppSettings.OpusBitrateSurround71.ToString(), X = 22, Y = y, Width = 6, SchemeName = "Input" };
+            y++;
+
+            Label lblRange = new Label() { Text = "Range: " + AppSettings.OPUS_BITRATE_MIN + "-" + AppSettings.OPUS_BITRATE_MAX + " kbps", X = 1, Y = y, SchemeName = "Dialog" };
+
+            dialog.Add(lblFlac, lblFlacComp, tfFlacComp, lblOpus, lblMono, tfMono, lblStereo, tfStereo, lblS51, tfS51, lblS71, tfS71, lblRange);
+
+            // Esegui dialog modale
+            this._app.Run(dialog);
+            dialog.Dispose();
+
+            if (accepted)
+            {
+                // Parsing e validazione FLAC compression
+                if (int.TryParse(tfFlacComp.Text, out tempValue))
+                {
+                    AppSettings.FlacCompressionLevel = tempValue;
+                }
+
+                // Parsing bitrate Opus
+                if (int.TryParse(tfMono.Text, out tempValue))
+                {
+                    AppSettings.OpusBitrateMono = tempValue;
+                }
+                if (int.TryParse(tfStereo.Text, out tempValue))
+                {
+                    AppSettings.OpusBitrateStereo = tempValue;
+                }
+                if (int.TryParse(tfS51.Text, out tempValue))
+                {
+                    AppSettings.OpusBitrateSurround51 = tempValue;
+                }
+                if (int.TryParse(tfS71.Text, out tempValue))
+                {
+                    AppSettings.OpusBitrateSurround71 = tempValue;
+                }
+
+                // Valida range e salva
+                AppSettings.Validate();
+
+                if (AppSettings.Save())
+                {
+                    this.AppendLog("Impostazioni audio salvate");
+                }
+                else
+                {
+                    this.AppendLog("Errore salvataggio impostazioni audio");
+                }
+            }
         }
 
         /// <summary>

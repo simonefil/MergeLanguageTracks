@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace MergeLanguageTracks
 {
@@ -47,56 +45,6 @@ namespace MergeLanguageTracks
             this.LangFilePath = "";
             this.SyncOffsetMs = 0;
             this.MergeCommand = "";
-        }
-
-        #endregion
-
-        #region Metodi pubblici
-
-        /// <summary>
-        /// Formatta la dimensione file in formato leggibile.
-        /// </summary>
-        /// <param name="bytes">Dimensione in bytes.</param>
-        /// <returns>Stringa formattata (es. "1.5 GB").</returns>
-        public static string FormatSize(long bytes)
-        {
-            string result = "";
-
-            if (bytes >= 1073741824)
-            {
-                result = Math.Round(bytes / 1073741824.0, 2) + " GB";
-            }
-            else if (bytes >= 1048576)
-            {
-                result = Math.Round(bytes / 1048576.0, 1) + " MB";
-            }
-            else if (bytes >= 1024)
-            {
-                result = Math.Round(bytes / 1024.0, 1) + " KB";
-            }
-            else
-            {
-                result = bytes + " B";
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Formatta una lista di lingue come stringa.
-        /// </summary>
-        /// <param name="langs">Lista di codici lingua.</param>
-        /// <returns>Stringa formattata (es. "eng,ita,jpn").</returns>
-        public static string FormatLangs(List<string> langs)
-        {
-            string result = "-";
-
-            if (langs != null && langs.Count > 0)
-            {
-                result = string.Join(",", langs);
-            }
-
-            return result;
         }
 
         #endregion

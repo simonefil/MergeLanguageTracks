@@ -16,6 +16,7 @@ namespace MergeLanguageTracks
             this.LanguageIetf = "";
             this.Name = "";
             this.DefaultDurationNs = 0;
+            this.Channels = 0;
         }
 
         #endregion
@@ -56,6 +57,11 @@ namespace MergeLanguageTracks
         /// Durata predefinita in nanosecondi per frame della traccia video
         /// </summary>
         public long DefaultDurationNs { get; set; }
+
+        /// <summary>
+        /// Numero di canali audio della traccia
+        /// </summary>
+        public int Channels { get; set; }
 
         #endregion
     }

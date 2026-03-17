@@ -11,6 +11,23 @@ namespace MergeLanguageTracks
         /// <summary>
         /// Mappa nomi codec utente a stringhe codec esatte mkvmerge
         /// </summary>
+        /// <summary>
+        /// Codec lossless riconosciuti (stringhe mkvmerge)
+        /// </summary>
+        private static readonly string[] s_losslessCodecs = new string[]
+        {
+            "DTS-HD Master Audio",
+            "DTS-HD High Resolution",
+            "TrueHD",
+            "PCM",
+            "ALAC",
+            "MLP",
+            "FLAC"
+        };
+
+        /// <summary>
+        /// Mappa nomi codec utente a stringhe codec esatte mkvmerge
+        /// </summary>
         private static readonly Dictionary<string, string[]> s_codecMap = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
         {
             // Dolby
@@ -119,6 +136,83 @@ namespace MergeLanguageTracks
             }
 
             return matched;
+        }
+
+        /// <summary>
+        /// Verifica se un codec e' lossless (candidato a conversione)
+        /// </summary>
+        /// <param name="trackCodec">Stringa codec dalla traccia MKV</param>
+        /// <returns>True se il codec e' lossless</returns>
+        public static bool IsLosslessCodec(string trackCodec)
+        {
+            bool result = false;
+
+            for (int i = 0; i < s_losslessCodecs.Length; i++)
+            {
+                if (string.Equals(trackCodec, s_losslessCodecs[i], StringComparison.OrdinalIgnoreCase))
+                {
+                    result = true;
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Verifica se una traccia e' Atmos o DTS:X (codec con metadati spaziali, non convertibile)
+        /// </summary>
+        /// <param name="track">Traccia da verificare</param>
+        /// <returns>True se la traccia e' TrueHD Atmos o DTS:X</returns>
+        public static bool IsSpatialCodec(TrackInfo track)
+        {
+            bool result = false;
+
+            // DTS:X: codec gia' distinto in mkvmerge
+            if (string.Equals(track.Codec, "DTS:X", StringComparison.OrdinalIgnoreCase))
+            {
+                result = true;
+            }
+            // TrueHD Atmos: codec TrueHD + nome traccia contiene "Atmos"
+            else if (string.Equals(track.Codec, "TrueHD", StringComparison.OrdinalIgnoreCase) && track.Name.IndexOf("Atmos", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                result = true;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Verifica se una traccia e' lossless e convertibile (lossless ma non spaziale)
+        /// </summary>
+        /// <param name="track">Traccia da verificare</param>
+        /// <param name="targetFormat">Formato target (flac/opus). Se flac, FLAC sorgente non viene convertito</param>
+        /// <returns>True se la traccia puo' essere convertita</returns>
+        public static bool IsConvertibleLossless(TrackInfo track, string targetFormat)
+        {
+            bool result = false;
+
+            // Deve essere lossless
+            if (!IsLosslessCodec(track.Codec))
+            {
+                result = false;
+            }
+            // Non convertire codec spaziali
+            else if (IsSpatialCodec(track))
+            {
+                result = false;
+            }
+            // Non convertire FLAC -> FLAC
+            else if (string.Equals(track.Codec, "FLAC", StringComparison.OrdinalIgnoreCase) && string.Equals(targetFormat, "flac", StringComparison.OrdinalIgnoreCase))
+            {
+                result = false;
+            }
+            else
+            {
+                result = true;
+            }
+
+            return result;
         }
 
         #endregion

@@ -114,7 +114,6 @@ namespace MergeLanguageTracks
             Regex langRegex = new Regex(@"^[a-z]{2,3}$");
             List<string> suggestions = null;
             string[] patterns = null;
-            string appDir = "";
             MkvToolsService tempService = null;
             FfmpegProvider ffmpegProvider = null;
 
@@ -140,11 +139,10 @@ namespace MergeLanguageTracks
                 this._opts.LanguageFolder = this._opts.SourceFolder;
             }
 
-            // Cartella tools di default
-            if (this._opts.ToolsFolder.Length == 0)
+            // Inizializza AppSettings e cartella .mlt
+            if (!AppSettings.Initialize())
             {
-                appDir = AppContext.BaseDirectory;
-                this._opts.ToolsFolder = Path.Combine(appDir, "tools");
+                this.Log("Attenzione: impossibile caricare impostazioni, uso default", ConsoleColor.Yellow);
             }
 
             // Verifica parametri obbligatori
@@ -302,16 +300,17 @@ namespace MergeLanguageTracks
                     this.Log("Trovato mkvmerge: " + this._opts.MkvMergePath, ConsoleColor.Green);
 
                     // Risolvi ffmpeg (tentato sempre per supportare speed correction automatica)
-                    ffmpegProvider = new FfmpegProvider(this._opts.ToolsFolder);
+                    ffmpegProvider = new FfmpegProvider(AppSettings.ConfigFolder);
                     if (ffmpegProvider.Resolve())
                     {
                         this._ffmpegPath = ffmpegProvider.FfmpegPath;
                         this.Log("Trovato ffmpeg: " + this._ffmpegPath, ConsoleColor.Green);
                     }
-                    else if (this._opts.FrameSync)
+                    else if (this._opts.FrameSync || this._opts.ConvertFormat.Length > 0)
                     {
-                        // ffmpeg richiesto per frame-sync
-                        this.Log("ffmpeg non trovato e impossibile scaricarlo. Necessario per frame-sync", ConsoleColor.Red);
+                        // ffmpeg richiesto per frame-sync o conversione audio
+                        string reason = this._opts.FrameSync ? "frame-sync" : "conversione audio";
+                        this.Log("ffmpeg non trovato e impossibile scaricarlo. Necessario per " + reason, ConsoleColor.Red);
                         success = false;
                     }
 
@@ -319,6 +318,20 @@ namespace MergeLanguageTracks
                     if (success && this._opts.FrameSync && this._ffmpegPath.Length > 0)
                     {
                         this._frameSyncService = new FrameSyncService(this._ffmpegPath);
+                    }
+
+                    // Log impostazioni conversione se attiva
+                    if (success && this._opts.ConvertFormat.Length > 0)
+                    {
+                        this.Log("Conversione audio attiva: " + this._opts.ConvertFormat.ToUpper(), ConsoleColor.Cyan);
+                        if (string.Equals(this._opts.ConvertFormat, "flac", StringComparison.OrdinalIgnoreCase))
+                        {
+                            this.Log("  FLAC compression level: " + AppSettings.FlacCompressionLevel, ConsoleColor.DarkGray);
+                        }
+                        else
+                        {
+                            this.Log("  Opus bitrate: mono=" + AppSettings.OpusBitrateMono + "k, stereo=" + AppSettings.OpusBitrateStereo + "k, 5.1=" + AppSettings.OpusBitrateSurround51 + "k, 7.1=" + AppSettings.OpusBitrateSurround71 + "k", ConsoleColor.DarkGray);
+                        }
                     }
 
                     // Pulisci cache da inizializzazioni precedenti
@@ -505,7 +518,7 @@ namespace MergeLanguageTracks
                     if (ffmpegPath.Length == 0)
                     {
                         ConsoleHelper.WriteDarkYellow("  [SPEED] Risoluzione ffmpeg per frame matching...");
-                        ffmpegProvider = new FfmpegProvider(this._opts.ToolsFolder);
+                        ffmpegProvider = new FfmpegProvider(AppSettings.ConfigFolder);
                         if (ffmpegProvider.Resolve())
                         {
                             ffmpegPath = ffmpegProvider.FfmpegPath;
@@ -583,7 +596,7 @@ namespace MergeLanguageTracks
                 if (frameSyncOffset != int.MinValue)
                 {
                     syncOffset = frameSyncOffset;
-                    ConsoleHelper.WriteGreen("  [FRAME-SYNC] Offset: " + this.FormatDelay(frameSyncOffset) + " (tempo: " + this._frameSyncService.FrameSyncTimeMs + "ms)");
+                    ConsoleHelper.WriteGreen("  [FRAME-SYNC] Offset: " + Utils.FormatDelay(frameSyncOffset) + " (tempo: " + this._frameSyncService.FrameSyncTimeMs + "ms)");
                     ConsoleHelper.WriteDarkGray("  [FRAME-SYNC] Dettaglio: " + this._frameSyncService.GetDetailSummary());
                 }
                 else
@@ -609,7 +622,7 @@ namespace MergeLanguageTracks
 
                 // Analisi completata
                 record.Status = FileStatus.Analyzed;
-                ConsoleHelper.WriteGreen("  Analisi completata: delay audio " + this.FormatDelay(record.AudioDelayApplied) + ", sub " + this.FormatDelay(record.SubDelayApplied));
+                ConsoleHelper.WriteGreen("  Analisi completata: delay audio " + Utils.FormatDelay(record.AudioDelayApplied) + ", sub " + Utils.FormatDelay(record.SubDelayApplied));
 
                 // Costruisci comando mkvmerge preview
                 this.BuildMergeCommand(record);
@@ -733,6 +746,8 @@ namespace MergeLanguageTracks
                     mergeReq.FilterSourceAudio = this._filterSourceAudio;
                     mergeReq.FilterSourceSubs = this._filterSourceSubs;
                     mergeReq.StretchFactor = stretchFactor;
+                    mergeReq.ConvertedSourceTracks = new Dictionary<int, string>();
+                    mergeReq.ConvertedLangTracks = new Dictionary<int, string>();
                     mergeArgs = this._mkvService.BuildMergeArguments(mergeReq);
 
                     // Formatta comando
@@ -780,6 +795,12 @@ namespace MergeLanguageTracks
             string destDir = "";
             List<string> mergeArgs = null;
             string delayInfo = "";
+            Dictionary<int, string> convertedSourceTracks = new Dictionary<int, string>();
+            Dictionary<int, string> convertedLangTracks = new Dictionary<int, string>();
+            bool conversionActive = (this._opts.ConvertFormat.Length > 0 && this._ffmpegPath.Length > 0);
+            AudioConversionService convService = null;
+            string convertedFile = "";
+            string episodeLabel = "";
 
             // Verifica stato
             if (record.Status != FileStatus.Analyzed)
@@ -886,6 +907,81 @@ namespace MergeLanguageTracks
                 }
             }
 
+            // Conversione tracce lossless se attiva
+            if (!done && conversionActive)
+            {
+                episodeLabel = record.EpisodeId.Length > 0 ? record.EpisodeId : "track";
+                convService = new AudioConversionService(this._ffmpegPath, AppSettings.GetTempFolder(), this._opts.ConvertFormat);
+
+                // Converti tracce audio sorgente mantenute (se FilterSourceAudio attivo)
+                if (this._filterSourceAudio && sourceTracks != null)
+                {
+                    for (int i = 0; i < sourceTracks.Count; i++)
+                    {
+                        TrackInfo srcTrack = sourceTracks[i];
+
+                        // Solo tracce audio presenti nella lista da mantenere
+                        if (!string.Equals(srcTrack.Type, "audio", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+                        if (!sourceAudioIds.Contains(srcTrack.Id))
+                        {
+                            continue;
+                        }
+
+                        // Verifica se convertibile
+                        if (!CodecMapping.IsConvertibleLossless(srcTrack, this._opts.ConvertFormat))
+                        {
+                            continue;
+                        }
+
+                        ConsoleHelper.WriteCyan("  [CONV] Sorgente traccia " + srcTrack.Id + " (" + srcTrack.Codec + " " + srcTrack.Channels + "ch)");
+                        convertedFile = convService.ConvertTrack(record.SourceFilePath, srcTrack.Id, srcTrack.Channels, "src_" + episodeLabel);
+
+                        if (convertedFile.Length > 0)
+                        {
+                            convertedSourceTracks[srcTrack.Id] = convertedFile;
+                        }
+                        else
+                        {
+                            // Conversione fallita, usa traccia originale
+                            ConsoleHelper.WriteWarning("  [CONV] Fallback: traccia " + srcTrack.Id + " non convertita, uso originale");
+                        }
+                    }
+                }
+
+                // Converti tracce audio lingua importate
+                for (int i = 0; i < audioTracks.Count; i++)
+                {
+                    TrackInfo langTrack = audioTracks[i];
+
+                    // Verifica se convertibile
+                    if (!CodecMapping.IsConvertibleLossless(langTrack, this._opts.ConvertFormat))
+                    {
+                        continue;
+                    }
+
+                    ConsoleHelper.WriteCyan("  [CONV] Lingua traccia " + langTrack.Id + " (" + langTrack.Codec + " " + langTrack.Channels + "ch)");
+                    convertedFile = convService.ConvertTrack(record.LangFilePath, langTrack.Id, langTrack.Channels, "lang_" + episodeLabel);
+
+                    if (convertedFile.Length > 0)
+                    {
+                        convertedLangTracks[langTrack.Id] = convertedFile;
+                    }
+                    else
+                    {
+                        // Conversione fallita, usa traccia originale
+                        ConsoleHelper.WriteWarning("  [CONV] Fallback: traccia " + langTrack.Id + " non convertita, uso originale");
+                    }
+                }
+
+                if (convertedSourceTracks.Count > 0 || convertedLangTracks.Count > 0)
+                {
+                    ConsoleHelper.WriteGreen("  [CONV] Convertite " + (convertedSourceTracks.Count + convertedLangTracks.Count) + " tracce");
+                }
+            }
+
             if (!done)
             {
                 // Determina percorso output
@@ -928,6 +1024,8 @@ namespace MergeLanguageTracks
                 mergeReq.FilterSourceAudio = this._filterSourceAudio;
                 mergeReq.FilterSourceSubs = this._filterSourceSubs;
                 mergeReq.StretchFactor = stretchFactor;
+                mergeReq.ConvertedSourceTracks = convertedSourceTracks;
+                mergeReq.ConvertedLangTracks = convertedLangTracks;
                 mergeArgs = this._mkvService.BuildMergeArguments(mergeReq);
 
                 // Aggiorna comando nel record (delay manuali potrebbero essere cambiati)
@@ -940,7 +1038,7 @@ namespace MergeLanguageTracks
 
                 // Log info merge
                 ConsoleHelper.WriteDarkGray("  Output: " + finalOutput);
-                delayInfo = "  Delay: Audio " + this.FormatDelay(effectiveAudioDelay) + ", Sub " + this.FormatDelay(effectiveSubDelay);
+                delayInfo = "  Delay: Audio " + Utils.FormatDelay(effectiveAudioDelay) + ", Sub " + Utils.FormatDelay(effectiveSubDelay);
                 if (stretchFactor.Length > 0)
                 {
                     delayInfo += ", stretch: " + stretchFactor;
@@ -949,6 +1047,16 @@ namespace MergeLanguageTracks
 
                 // Esegui merge e registra risultato
                 this.RunMergeAndRecord(record, mergeArgs, tempOutput, finalOutput);
+
+                // Cleanup file convertiti temporanei
+                foreach (KeyValuePair<int, string> kvp in convertedSourceTracks)
+                {
+                    AudioConversionService.DeleteTempFile(kvp.Value);
+                }
+                foreach (KeyValuePair<int, string> kvp in convertedLangTracks)
+                {
+                    AudioConversionService.DeleteTempFile(kvp.Value);
+                }
 
                 if (this.OnFileUpdated != null)
                 {
@@ -1306,27 +1414,6 @@ namespace MergeLanguageTracks
             }
 
             return langs;
-        }
-
-        /// <summary>
-        /// Formatta un valore di ritardo in millisecondi per visualizzazione
-        /// </summary>
-        /// <param name="delayMs">Ritardo in millisecondi</param>
-        /// <returns>Stringa formattata con segno</returns>
-        private string FormatDelay(int delayMs)
-        {
-            string result = "0ms";
-
-            if (delayMs > 0)
-            {
-                result = "+" + delayMs + "ms";
-            }
-            else if (delayMs < 0)
-            {
-                result = delayMs + "ms";
-            }
-
-            return result;
         }
 
         /// <summary>

@@ -65,6 +65,11 @@ namespace MergeLanguageTracks
             /// Percorso ffmpeg risolto
             /// </summary>
             public string FfmpegPath;
+
+            /// <summary>
+            /// Percorso cartella configurazione .mlt
+            /// </summary>
+            public string ConfigFolder;
         }
 
         /// <summary>
@@ -191,7 +196,8 @@ namespace MergeLanguageTracks
             // Inizializzazione frame-sync
             if (!done && opts.FrameSync)
             {
-                ffmpegProvider = new FfmpegProvider(opts.ToolsFolder);
+                AppSettings.Initialize();
+                ffmpegProvider = new FfmpegProvider(AppSettings.ConfigFolder);
                 if (!ffmpegProvider.Resolve())
                 {
                     ConsoleHelper.WriteRed("ffmpeg non trovato e impossibile scaricarlo. Installalo manualmente.");
@@ -218,6 +224,7 @@ namespace MergeLanguageTracks
                 ctx.Opts = opts;
                 ctx.CodecPatterns = codecPatterns;
                 ctx.FfmpegPath = resolvedFfmpegPath;
+                ctx.ConfigFolder = AppSettings.ConfigFolder;
 
                 // Risoluzione pattern codec per filtro tracce audio sorgente
                 if (opts.KeepSourceAudioCodec.Count > 0)
@@ -283,8 +290,6 @@ namespace MergeLanguageTracks
         /// <param name="opts">Opzioni da normalizzare</param>
         private static void NormalizeOptionsPaths(Options opts)
         {
-            string appDir = "";
-
             // Normalizza percorsi
             if (opts.SourceFolder.Length > 0)
             {
@@ -305,12 +310,6 @@ namespace MergeLanguageTracks
                 opts.LanguageFolder = opts.SourceFolder;
             }
 
-            // Cartella tools di default
-            if (opts.ToolsFolder.Length == 0)
-            {
-                appDir = AppContext.BaseDirectory;
-                opts.ToolsFolder = Path.Combine(appDir, "tools");
-            }
         }
 
         /// <summary>
@@ -382,9 +381,13 @@ OPZIONI MATCHING:
   -r,   --recursive              Cerca ricorsivamente nelle sottocartelle (default: true)
   -ext, --extensions <list>      Estensioni file da cercare (default: mkv). Separa con virgola: mkv,mp4,avi
 
+OPZIONI CONVERSIONE:
+  -cf,  --convert-format <fmt>   Converte tracce lossless nel formato specificato: flac o opus
+                                 Le tracce TrueHD Atmos e DTS:X non vengono mai convertite
+                                 Impostazioni bitrate/compressione in .mlt/appsettings.json
+
 OPZIONI TOOL:
   -mkv,   --mkvmerge-path <path> Percorso mkvmerge (default: cerca in PATH)
-  -tools, --tools-folder <path>  Cartella per tool scaricati (ffmpeg)
 
 ALTRE OPZIONI:
   -n,   --dry-run                Mostra cosa verrebbe fatto senza eseguire
@@ -465,6 +468,12 @@ ESEMPI:
   # Singola sorgente: applica delay 960ms alle tracce ita, mantieni jpn+eng audio e eng+jpn sub
   MergeLanguageTracks -s ""D:\Serie"" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
 
+  # Converti tracce lossless in FLAC (TrueHD Atmos e DTS:X esclusi)
+  MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -cf flac -d ""D:\Out""
+
+  # Converti tracce lossless in Opus (bitrate configurabile in .mlt/appsettings.json)
+  MergeLanguageTracks -s ""D:\EN"" -l ""D:\IT"" -t ita -cf opus -ksa eng -d ""D:\Out"" -fs
+
 CODICI LINGUA (ISO 639-2):
   Comuni: ita, eng, jpn, ger/deu, fra/fre, spa, por, rus, chi/zho, kor
   Altri:  ara, hin, pol, tur, nld/dut, swe, nor, dan, fin, hun, ces/cze
@@ -538,27 +547,6 @@ NOTE:
                     // Nessun gruppo di cattura, usa il match completo come identificatore
                     result = match.Value;
                 }
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Formatta un delay in millisecondi con segno
-        /// </summary>
-        /// <param name="delayMs">Ritardo in millisecondi</param>
-        /// <returns>Stringa formattata con segno</returns>
-        private static string FormatDelay(int delayMs)
-        {
-            string result = "0ms";
-
-            if (delayMs > 0)
-            {
-                result = "+" + delayMs + "ms";
-            }
-            else if (delayMs < 0)
-            {
-                result = delayMs + "ms";
             }
 
             return result;
@@ -839,13 +827,13 @@ NOTE:
                 ConsoleHelper.WriteGreen("  Frame-sync:          ATTIVO");
                 if (opts.AudioDelay != 0 || opts.SubtitleDelay != 0)
                 {
-                    ConsoleHelper.WriteDarkYellow("  Offset manuale:      Audio " + FormatDelay(opts.AudioDelay) + ", Sub " + FormatDelay(opts.SubtitleDelay) + " (sommato a frame-sync)");
+                    ConsoleHelper.WriteDarkYellow("  Offset manuale:      Audio " + Utils.FormatDelay(opts.AudioDelay) + ", Sub " + Utils.FormatDelay(opts.SubtitleDelay) + " (sommato a frame-sync)");
                 }
             }
             else
             {
-                ConsoleHelper.WritePlain("  Delay audio:         " + FormatDelay(opts.AudioDelay));
-                ConsoleHelper.WritePlain("  Delay sottotitoli:   " + FormatDelay(opts.SubtitleDelay));
+                ConsoleHelper.WritePlain("  Delay audio:         " + Utils.FormatDelay(opts.AudioDelay));
+                ConsoleHelper.WritePlain("  Delay sottotitoli:   " + Utils.FormatDelay(opts.SubtitleDelay));
             }
 
             // Mostra flag filtro
@@ -958,13 +946,13 @@ NOTE:
 
             // Tabella 1: Source Files
             ConsoleHelper.WriteYellow("SOURCE FILES:");
-            ConsoleHelper.WritePlain("  " + PadRight("Episode", 12) + PadRight("Audio", 20) + PadRight("Subtitles", 20) + PadRight("Size", 12));
+            ConsoleHelper.WritePlain("  " + Utils.PadRight("Episode", 12) + Utils.PadRight("Audio", 20) + Utils.PadRight("Subtitles", 20) + Utils.PadRight("Size", 12));
             ConsoleHelper.WriteDarkGray("  " + new string('-', 64));
 
             for (int i = 0; i < validRecords.Count; i++)
             {
                 FileProcessingRecord r = validRecords[i];
-                string line = "  " + PadRight(r.EpisodeId, 12) + PadRight(FileProcessingRecord.FormatLangs(r.SourceAudioLangs), 20) + PadRight(FileProcessingRecord.FormatLangs(r.SourceSubLangs), 20) + PadRight(FileProcessingRecord.FormatSize(r.SourceSize), 12);
+                string line = "  " + Utils.PadRight(r.EpisodeId, 12) + Utils.PadRight(Utils.FormatLangs(r.SourceAudioLangs), 20) + Utils.PadRight(Utils.FormatLangs(r.SourceSubLangs), 20) + Utils.PadRight(Utils.FormatSize(r.SourceSize), 12);
                 ConsoleHelper.WritePlain(line);
             }
 
@@ -972,13 +960,13 @@ NOTE:
 
             // Tabella 2: Language Files
             ConsoleHelper.WriteYellow("LANGUAGE FILES:");
-            ConsoleHelper.WritePlain("  " + PadRight("Episode", 12) + PadRight("Audio", 20) + PadRight("Subtitles", 20) + PadRight("Size", 12));
+            ConsoleHelper.WritePlain("  " + Utils.PadRight("Episode", 12) + Utils.PadRight("Audio", 20) + Utils.PadRight("Subtitles", 20) + Utils.PadRight("Size", 12));
             ConsoleHelper.WriteDarkGray("  " + new string('-', 64));
 
             for (int i = 0; i < validRecords.Count; i++)
             {
                 FileProcessingRecord r = validRecords[i];
-                string line = "  " + PadRight(r.EpisodeId, 12) + PadRight(FileProcessingRecord.FormatLangs(r.LangAudioLangs), 20) + PadRight(FileProcessingRecord.FormatLangs(r.LangSubLangs), 20) + PadRight(FileProcessingRecord.FormatSize(r.LangSize), 12);
+                string line = "  " + Utils.PadRight(r.EpisodeId, 12) + Utils.PadRight(Utils.FormatLangs(r.LangAudioLangs), 20) + Utils.PadRight(Utils.FormatLangs(r.LangSubLangs), 20) + Utils.PadRight(Utils.FormatSize(r.LangSize), 12);
                 ConsoleHelper.WritePlain(line);
             }
 
@@ -986,19 +974,19 @@ NOTE:
 
             // Tabella 3: Result Files
             ConsoleHelper.WriteYellow("RESULT FILES:");
-            ConsoleHelper.WritePlain("  " + PadRight("Episode", 12) + PadRight("Audio", 15) + PadRight("Subtitles", 15) + PadRight("Size", 10) + PadRight("Delay", 12) + PadRight("FrmSync", 10) + PadRight("Speed", 10) + PadRight("Merge", 10));
+            ConsoleHelper.WritePlain("  " + Utils.PadRight("Episode", 12) + Utils.PadRight("Audio", 15) + Utils.PadRight("Subtitles", 15) + Utils.PadRight("Size", 10) + Utils.PadRight("Delay", 12) + Utils.PadRight("FrmSync", 10) + Utils.PadRight("Speed", 10) + Utils.PadRight("Merge", 10));
             ConsoleHelper.WriteDarkGray("  " + new string('-', 94));
 
             for (int i = 0; i < validRecords.Count; i++)
             {
                 FileProcessingRecord r = validRecords[i];
-                string sizeStr = isDryRun ? "N/A" : FileProcessingRecord.FormatSize(r.ResultSize);
-                string delayStr = FormatDelay(r.AudioDelayApplied);
+                string sizeStr = isDryRun ? "N/A" : Utils.FormatSize(r.ResultSize);
+                string delayStr = Utils.FormatDelay(r.AudioDelayApplied);
                 string frameSyncStr = r.FrameSyncTimeMs > 0 ? r.FrameSyncTimeMs + "ms" : "-";
                 string speedStr = r.SpeedCorrectionTimeMs > 0 ? r.SpeedCorrectionTimeMs + "ms" : "-";
                 string mergeStr = r.MergeTimeMs > 0 ? r.MergeTimeMs + "ms" : (isDryRun ? "N/A" : "-");
 
-                string line = "  " + PadRight(r.EpisodeId, 12) + PadRight(FileProcessingRecord.FormatLangs(r.ResultAudioLangs), 15) + PadRight(FileProcessingRecord.FormatLangs(r.ResultSubLangs), 15) + PadRight(sizeStr, 10) + PadRight(delayStr, 12) + PadRight(frameSyncStr, 10) + PadRight(speedStr, 10) + PadRight(mergeStr, 10);
+                string line = "  " + Utils.PadRight(r.EpisodeId, 12) + Utils.PadRight(Utils.FormatLangs(r.ResultAudioLangs), 15) + Utils.PadRight(Utils.FormatLangs(r.ResultSubLangs), 15) + Utils.PadRight(sizeStr, 10) + Utils.PadRight(delayStr, 12) + Utils.PadRight(frameSyncStr, 10) + Utils.PadRight(speedStr, 10) + Utils.PadRight(mergeStr, 10);
                 ConsoleHelper.WritePlain(line);
             }
 
@@ -1012,21 +1000,6 @@ NOTE:
         /// <param name="text">Testo da allineare</param>
         /// <param name="width">Larghezza totale</param>
         /// <returns>Stringa con padding</returns>
-        private static string PadRight(string text, int width)
-        {
-            string result = "";
-
-            if (text.Length >= width)
-            {
-                result = text.Substring(0, width - 1) + " ";
-            }
-            else
-            {
-                result = text + new string(' ', width - text.Length);
-            }
-
-            return result;
-        }
 
         /// <summary>
         /// Stampa il riepilogo elaborazione finale
@@ -1216,11 +1189,11 @@ NOTE:
                 ConsoleHelper.WriteDarkGray("\n  Output: " + finalOutput);
                 if (state.SpeedCorrectionActive)
                 {
-                    ConsoleHelper.WriteDarkGray("  Delay applicato: Audio " + FormatDelay(state.EffectiveAudioDelay) + ", Sub " + FormatDelay(state.EffectiveSubDelay) + ", stretch: " + state.StretchFactor);
+                    ConsoleHelper.WriteDarkGray("  Delay applicato: Audio " + Utils.FormatDelay(state.EffectiveAudioDelay) + ", Sub " + Utils.FormatDelay(state.EffectiveSubDelay) + ", stretch: " + state.StretchFactor);
                 }
                 else
                 {
-                    ConsoleHelper.WriteDarkGray("  Delay applicato: Audio " + FormatDelay(state.EffectiveAudioDelay) + ", Sub " + FormatDelay(state.EffectiveSubDelay));
+                    ConsoleHelper.WriteDarkGray("  Delay applicato: Audio " + Utils.FormatDelay(state.EffectiveAudioDelay) + ", Sub " + Utils.FormatDelay(state.EffectiveSubDelay));
                 }
 
                 record.AudioDelayApplied = state.EffectiveAudioDelay;
@@ -1268,7 +1241,7 @@ NOTE:
                 if (ffmpegPath.Length == 0)
                 {
                     ConsoleHelper.WriteDarkYellow("  [SPEED] Risoluzione ffmpeg per frame matching...");
-                    ffmpegProvider = new FfmpegProvider(ctx.Opts.ToolsFolder);
+                    ffmpegProvider = new FfmpegProvider(ctx.ConfigFolder);
                     if (ffmpegProvider.Resolve())
                     {
                         ffmpegPath = ffmpegProvider.FfmpegPath;
@@ -1357,7 +1330,7 @@ NOTE:
 
             if (frameSyncOffset != int.MinValue)
             {
-                ConsoleHelper.WriteGreen("  [FRAME-SYNC] Offset: " + FormatDelay(frameSyncOffset) + " (tempo: " + ctx.FrameSyncService.FrameSyncTimeMs + "ms)");
+                ConsoleHelper.WriteGreen("  [FRAME-SYNC] Offset: " + Utils.FormatDelay(frameSyncOffset) + " (tempo: " + ctx.FrameSyncService.FrameSyncTimeMs + "ms)");
                 ConsoleHelper.WriteDarkGray("  [FRAME-SYNC] Dettaglio: " + ctx.FrameSyncService.GetDetailSummary());
 
                 // Calcola delay effettivi con offset frame-sync
@@ -1366,7 +1339,7 @@ NOTE:
 
                 if (ctx.Opts.AudioDelay != 0 || ctx.Opts.SubtitleDelay != 0)
                 {
-                    ConsoleHelper.WriteDarkYellow("  [FRAME-SYNC] Offset finale (sync + manuale): Audio " + FormatDelay(state.EffectiveAudioDelay) + ", Sub " + FormatDelay(state.EffectiveSubDelay));
+                    ConsoleHelper.WriteDarkYellow("  [FRAME-SYNC] Offset finale (sync + manuale): Audio " + Utils.FormatDelay(state.EffectiveAudioDelay) + ", Sub " + Utils.FormatDelay(state.EffectiveSubDelay));
                 }
             }
             else

@@ -22,6 +22,7 @@ L'interfaccia e' organizzata in tre pannelli: tabella episodi, dettaglio episodi
 
 - **File**: Configurazione (F2), Esci (Ctrl+Q)
 - **Azioni**: Scan file (F5), Analizza selezionato (F6), Analizza tutti (F7), Skip/Unskip (F8), Processa selezionato (F9), Processa tutti (F10)
+- **Impostazioni**: Audio conversione (configura compressione FLAC e bitrate Opus)
 - **Tema**: cambio tema grafico
 - **Aiuto**: Info e help (F1)
 
@@ -49,7 +50,7 @@ Il dialog di configurazione raggruppa tutte le opzioni:
 - **Cartelle**: Source, Lingua, Destinazione, con pulsante browse per ciascuna. Checkbox per sovrascrivere sorgente e ricerca ricorsiva.
 - **Lingua e Tracce**: Lingua target, Codec audio, Keep source audio/codec/sub, Solo sottotitoli, Solo audio.
 - **Sincronizzazione**: Frame-sync (checkbox), Delay audio (ms), Delay sub (ms).
-- **Avanzate**: Pattern match (regex), Estensioni file, Cartella tools, Percorso mkvmerge.
+- **Avanzate**: Pattern match (regex), Estensioni file, Converti audio (flac/opus), Percorso mkvmerge.
 
 **Temi:**
 
@@ -123,6 +124,29 @@ Attivabile con **-fs** da CLI o dal checkbox nella configurazione TUI.
 **Delay manuale:**
 
 I parametri **-ad** e **-sd** specificano un offset in millisecondi che viene **sommato** al risultato di frame-sync o speed correction. Nella TUI e' possibile impostare delay diversi per singolo episodio tramite Enter.
+
+## Conversione Audio
+
+Quando attiva tramite **-cf** da CLI o dal campo "Converti audio" nella configurazione TUI, le tracce audio lossless vengono convertite in FLAC o Opus durante il merge tramite ffmpeg.
+
+**Codec convertibili:** DTS-HD Master Audio, DTS-HD High Resolution, TrueHD, PCM, ALAC, MLP, FLAC.
+
+**Esclusi dalla conversione:** TrueHD Atmos e DTS:X. Questi codec contengono metadati spaziali che verrebbero persi con la conversione.
+
+La conversione si applica sia alle tracce sorgente mantenute tramite **-ksa**/**-ksac** sia alle tracce importate dal file lingua (solo se lossless). Se il formato target e' FLAC e la traccia e' gia' FLAC, la conversione viene saltata.
+
+**Configurazione:**
+
+Le impostazioni sono salvate in `.mlt/appsettings.json` (creato automaticamente con valori di default). La cartella `.mlt` e' nascosta e viene creata nella directory dell'eseguibile.
+
+- **FLAC**: compression level 0-12 (default: 12, massima compressione)
+- **Opus**: bitrate per channel layout (range 64-768 kbps)
+  - Mono: 128 kbps
+  - Stereo: 256 kbps
+  - 5.1: 510 kbps
+  - 7.1: 768 kbps
+
+Da TUI le impostazioni sono modificabili dal menu **Impostazioni > Audio conversione**. Le modifiche vengono salvate immediatamente in `appsettings.json`.
 
 ## Casi d'uso
 
@@ -222,6 +246,20 @@ Senza **-l**, l'applicazione usa la cartella sorgente anche come lingua. Permett
 
 ```bash
 MergeLanguageTracks -s "D:\Serie" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
+```
+
+**14. Convertire tracce lossless in FLAC durante il merge**
+
+```bash
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -d "D:\Output" -fs
+```
+
+**15. Convertire tracce lossless in Opus mantenendo solo l'inglese dal sorgente**
+
+Le tracce TrueHD Atmos e DTS:X vengono mantenute intatte. Il bitrate Opus e' configurabile in `.mlt/appsettings.json`.
+
+```bash
+MergeLanguageTracks -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf opus -ksa eng -d "D:\Output" -fs
 ```
 
 ## Report
@@ -334,7 +372,7 @@ Forse intendevi: ita?
 ## Requisiti
 
 - [MKVToolNix](https://mkvtoolnix.download/) installato (mkvmerge deve essere nel PATH o specificato con **-mkv**)
-- ffmpeg per frame-sync e speed correction (scaricato automaticamente nella cartella tools se mancante)
+- ffmpeg per frame-sync, speed correction e conversione audio (scaricato automaticamente nella cartella .mlt se mancante)
 - Locale UTF-8 su Linux (necessario per nomi file con caratteri non-ASCII)
 
 **Piattaforme supportate** (da csproj RuntimeIdentifiers):
@@ -425,6 +463,12 @@ L'applicazione usa i gruppi catturati dalla regex per abbinare i file. Ogni grup
 
 **Come funziona:** Il pattern **S(\d+)E(\d+)** cattura due gruppi (stagione e episodio). Per "S01E05" crea l'ID "01_05". File sorgente e lingua con lo stesso ID vengono abbinati.
 
+### Conversione
+
+| Short | Long | Descrizione |
+|-------|------|-------------|
+| -cf | --convert-format | Converte tracce lossless: flac o opus. TrueHD Atmos e DTS:X esclusi |
+
 ### Altro
 
 | Short | Long | Descrizione | Default |
@@ -432,5 +476,4 @@ L'applicazione usa i gruppi catturati dalla regex per abbinare i file. Ogni grup
 | -n | --dry-run | Mostra cosa farebbe senza eseguire | |
 | -h | --help | Mostra l'help integrato | |
 | -mkv | --mkvmerge-path | Percorso custom di mkvmerge | mkvmerge (cerca nel PATH) |
-| -tools | --tools-folder | Cartella per ffmpeg scaricato | |
 

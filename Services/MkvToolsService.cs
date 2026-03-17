@@ -132,6 +132,11 @@ namespace MergeLanguageTracks
                                     string nameVal = nameEl.ValueKind == JsonValueKind.Null ? "" : nameEl.GetString();
                                     track.Name = nameVal;
                                 }
+
+                                if (propsEl.TryGetProperty("audio_channels", out JsonElement chEl))
+                                {
+                                    track.Channels = chEl.GetInt32();
+                                }
                             }
 
                             tracks.Add(track);
@@ -240,6 +245,11 @@ namespace MergeLanguageTracks
                                 if (propsEl.TryGetProperty("default_duration", out JsonElement defDurEl))
                                 {
                                     track.DefaultDurationNs = defDurEl.GetInt64();
+                                }
+
+                                if (propsEl.TryGetProperty("audio_channels", out JsonElement chEl))
+                                {
+                                    track.Channels = chEl.GetInt32();
                                 }
                             }
 
@@ -394,23 +404,45 @@ namespace MergeLanguageTracks
         public List<string> BuildMergeArguments(MergeRequest req)
         {
             List<string> mkvArgs = new List<string>();
-            List<int> langAudioIds = new List<int>();
+            List<int> sourceAudioKeep = new List<int>();
+            List<int> langAudioKeep = new List<int>();
             List<int> langSubIds = new List<int>();
             string syncValue = "";
+            bool hasConvertedSource = (req.ConvertedSourceTracks != null && req.ConvertedSourceTracks.Count > 0);
+            bool hasConvertedLang = (req.ConvertedLangTracks != null && req.ConvertedLangTracks.Count > 0);
 
             // File output
             mkvArgs.Add("-o");
             mkvArgs.Add(req.OutputFile);
 
-            // Selezione tracce audio sorgente
-            if (req.FilterSourceAudio && req.SourceAudioIds.Count > 0)
+            // Separa tracce audio sorgente: non convertite (dal file) vs convertite (file separati)
+            if (req.FilterSourceAudio)
             {
-                mkvArgs.Add("--audio-tracks");
-                mkvArgs.Add(JoinInts(req.SourceAudioIds));
-            }
-            else if (req.FilterSourceAudio && req.SourceAudioIds.Count == 0)
-            {
-                mkvArgs.Add("-A");
+                for (int i = 0; i < req.SourceAudioIds.Count; i++)
+                {
+                    // Se la traccia e' stata convertita, non includerla dal file sorgente
+                    if (hasConvertedSource && req.ConvertedSourceTracks.ContainsKey(req.SourceAudioIds[i]))
+                    {
+                        continue;
+                    }
+                    sourceAudioKeep.Add(req.SourceAudioIds[i]);
+                }
+
+                if (sourceAudioKeep.Count > 0)
+                {
+                    mkvArgs.Add("--audio-tracks");
+                    mkvArgs.Add(JoinInts(sourceAudioKeep));
+                }
+                else if (!hasConvertedSource)
+                {
+                    // Nessuna traccia audio da sorgente e nessuna convertita
+                    mkvArgs.Add("-A");
+                }
+                else
+                {
+                    // Tutte convertite, nessuna audio dal file sorgente
+                    mkvArgs.Add("-A");
+                }
             }
 
             // Selezione tracce sottotitoli sorgente
@@ -427,26 +459,48 @@ namespace MergeLanguageTracks
             // File sorgente
             mkvArgs.Add(req.SourceFile);
 
+            // File convertiti da sorgente: aggiunti come input separati (solo audio, no video/sub)
+            if (hasConvertedSource)
+            {
+                for (int i = 0; i < req.SourceAudioIds.Count; i++)
+                {
+                    int srcId = req.SourceAudioIds[i];
+                    if (req.ConvertedSourceTracks.ContainsKey(srcId))
+                    {
+                        // File convertito: no video, no sottotitoli
+                        mkvArgs.Add("-D");
+                        mkvArgs.Add("-S");
+                        mkvArgs.Add(req.ConvertedSourceTracks[srcId]);
+                    }
+                }
+            }
+
             // File lingua: niente video
             mkvArgs.Add("-D");
 
-            // Tracce audio lingua
+            // Separa tracce audio lingua: non convertite vs convertite
             for (int i = 0; i < req.LangAudioTracks.Count; i++)
             {
-                langAudioIds.Add(req.LangAudioTracks[i].Id);
+                int langId = req.LangAudioTracks[i].Id;
+
+                if (hasConvertedLang && req.ConvertedLangTracks.ContainsKey(langId))
+                {
+                    continue;
+                }
+                langAudioKeep.Add(langId);
             }
 
-            if (langAudioIds.Count > 0)
+            if (langAudioKeep.Count > 0)
             {
                 mkvArgs.Add("--audio-tracks");
-                mkvArgs.Add(JoinInts(langAudioIds));
+                mkvArgs.Add(JoinInts(langAudioKeep));
 
-                // Applica delay e/o stretch
+                // Applica delay e/o stretch alle tracce non convertite
                 if (req.AudioDelayMs != 0 || req.StretchFactor.Length > 0)
                 {
-                    for (int i = 0; i < langAudioIds.Count; i++)
+                    for (int i = 0; i < langAudioKeep.Count; i++)
                     {
-                        syncValue = langAudioIds[i].ToString() + ":" + req.AudioDelayMs.ToString();
+                        syncValue = langAudioKeep[i].ToString() + ":" + req.AudioDelayMs.ToString();
                         if (req.StretchFactor.Length > 0)
                         {
                             syncValue = syncValue + "," + req.StretchFactor;
@@ -456,8 +510,13 @@ namespace MergeLanguageTracks
                     }
                 }
             }
+            else if (!hasConvertedLang)
+            {
+                mkvArgs.Add("-A");
+            }
             else
             {
+                // Tutte convertite, nessuna audio dal file lingua
                 mkvArgs.Add("-A");
             }
 
@@ -472,7 +531,7 @@ namespace MergeLanguageTracks
                 mkvArgs.Add("--subtitle-tracks");
                 mkvArgs.Add(JoinInts(langSubIds));
 
-                // Applica delay e/o stretch
+                // Applica delay e/o stretch ai sottotitoli
                 if (req.SubDelayMs != 0 || req.StretchFactor.Length > 0)
                 {
                     for (int i = 0; i < langSubIds.Count; i++)
@@ -494,6 +553,35 @@ namespace MergeLanguageTracks
 
             // Percorso file lingua
             mkvArgs.Add(req.LanguageFile);
+
+            // File convertiti da lingua: aggiunti come input separati con delay/stretch
+            if (hasConvertedLang)
+            {
+                for (int i = 0; i < req.LangAudioTracks.Count; i++)
+                {
+                    int langId = req.LangAudioTracks[i].Id;
+                    if (req.ConvertedLangTracks.ContainsKey(langId))
+                    {
+                        // File convertito: no video, no sottotitoli
+                        mkvArgs.Add("-D");
+                        mkvArgs.Add("-S");
+
+                        // Applica delay e/o stretch (trackId 0 nel file convertito)
+                        if (req.AudioDelayMs != 0 || req.StretchFactor.Length > 0)
+                        {
+                            syncValue = "0:" + req.AudioDelayMs.ToString();
+                            if (req.StretchFactor.Length > 0)
+                            {
+                                syncValue = syncValue + "," + req.StretchFactor;
+                            }
+                            mkvArgs.Add("--sync");
+                            mkvArgs.Add(syncValue);
+                        }
+
+                        mkvArgs.Add(req.ConvertedLangTracks[langId]);
+                    }
+                }
+            }
 
             return mkvArgs;
         }

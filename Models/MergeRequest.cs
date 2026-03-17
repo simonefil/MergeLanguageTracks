@@ -69,6 +69,18 @@ namespace MergeLanguageTracks
         /// </summary>
         public string StretchFactor;
 
+        /// <summary>
+        /// Mappa trackId sorgente -> percorso file audio convertito. Le tracce in questa mappa
+        /// vengono aggiunte come input separati in mkvmerge al posto della traccia originale
+        /// </summary>
+        public Dictionary<int, string> ConvertedSourceTracks;
+
+        /// <summary>
+        /// Mappa trackId lingua -> percorso file audio convertito. Le tracce in questa mappa
+        /// vengono aggiunte come input separati in mkvmerge al posto della traccia originale
+        /// </summary>
+        public Dictionary<int, string> ConvertedLangTracks;
+
         #endregion
     }
 }

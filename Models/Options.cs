@@ -28,10 +28,10 @@ namespace MergeLanguageTracks
             this.KeepSourceAudioCodec = new List<string>();
             this.KeepSourceSubtitleLangs = new List<string>();
             this.MkvMergePath = "mkvmerge";
-            this.ToolsFolder = "";
             this.Recursive = true;
             this.DryRun = false;
             this.FileExtensions = new List<string> { "mkv" };
+            this.ConvertFormat = "";
             this.ErrorMessage = "";
         }
 
@@ -164,13 +164,21 @@ namespace MergeLanguageTracks
                     {
                         ParseCsvToList(value, options.KeepSourceSubtitleLangs);
                     }
+                    else if (key == "cf" || key == "convert-format")
+                    {
+                        string cfLower = value.Trim().ToLower();
+                        if (cfLower == "flac" || cfLower == "opus")
+                        {
+                            options.ConvertFormat = cfLower;
+                        }
+                        else
+                        {
+                            options.ErrorMessage = "Formato conversione non valido: " + value + ". Valori validi: flac, opus";
+                        }
+                    }
                     else if (key == "mkv" || key == "mkvmerge-path")
                     {
                         options.MkvMergePath = value;
-                    }
-                    else if (key == "tools" || key == "tools-folder")
-                    {
-                        options.ToolsFolder = value;
                     }
                     else if (key == "ext" || key == "extensions")
                     {
@@ -318,9 +326,9 @@ namespace MergeLanguageTracks
         public string MkvMergePath { get; set; }
 
         /// <summary>
-        /// Cartella per i tool scaricati come ffmpeg (-tools, --tools-folder). Default: cartella applicazione
+        /// Formato conversione tracce lossless (-cf, --convert-format). Valori: "flac", "opus", "" = disabilitato
         /// </summary>
-        public string ToolsFolder { get; set; }
+        public string ConvertFormat { get; set; }
 
         /// <summary>
         /// Indica se cercare ricorsivamente nelle sottocartelle (-r, --recursive). Default: true
