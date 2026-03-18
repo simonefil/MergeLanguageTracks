@@ -1,0 +1,92 @@
+<div class="mlt-panel">
+    <div class="mlt-panel-title">Episodi</div>
+    <div class="mlt-panel-body">
+        <table class="episode-table">
+            <thead>
+                <tr>
+                    <th>Ep</th>
+                    <th>Stato</th>
+                    <th>Audio</th>
+                    <th>Sub</th>
+                    <th>Delay</th>
+                    <th>Stretch</th>
+                    <th>Size</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < Records.Count; i++)
+                {
+                    int idx = i;
+                    FileProcessingRecord r = Records[i];
+                    string statusCss = GetStatusCss(r.Status);
+                    string selectedCss = (idx == SelectedIndex) ? " selected" : "";
+                    <tr class="@(statusCss + selectedCss)"
+                        @onclick="() => OnRowSelected.InvokeAsync(idx)"
+                        @ondblclick="() => OnRowActivated.InvokeAsync(idx)">
+                        <td>@r.EpisodeId</td>
+                        <td>@GetStatusText(r.Status)</td>
+                        <td>@Utils.FormatLangs(r.LangAudioLangs)</td>
+                        <td>@Utils.FormatLangs(r.LangSubLangs)</td>
+                        <td>@Utils.FormatDelay(r.AudioDelayApplied)</td>
+                        <td>@(r.StretchFactor.Length > 0 ? r.StretchFactor : "-")</td>
+                        <td>@Utils.FormatSize(r.SourceSize)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Lista record episodi
+    /// </summary>
+    [Parameter] public List<FileProcessingRecord> Records { get; set; }
+
+    /// <summary>
+    /// Indice riga selezionata
+    /// </summary>
+    [Parameter] public int SelectedIndex { get; set; }
+
+    /// <summary>
+    /// Evento selezione riga
+    /// </summary>
+    [Parameter] public EventCallback<int> OnRowSelected { get; set; }
+
+    /// <summary>
+    /// Evento attivazione riga (doppio click)
+    /// </summary>
+    [Parameter] public EventCallback<int> OnRowActivated { get; set; }
+
+    /// <summary>
+    /// Restituisce il testo localizzato per lo stato
+    /// </summary>
+    /// <param name="status">Stato file</param>
+    /// <returns>Testo stato in italiano</returns>
+    private string GetStatusText(FileStatus status)
+    {
+        string result = "";
+        if (status == FileStatus.Pending) result = "In attesa";
+        else if (status == FileStatus.Analyzing) result = "Analisi...";
+        else if (status == FileStatus.Analyzed) result = "Pronto";
+        else if (status == FileStatus.Processing) result = "Merge...";
+        else if (status == FileStatus.Done) result = "Completato";
+        else if (status == FileStatus.Error) result = "Errore";
+        else if (status == FileStatus.Skipped) result = "Saltato";
+        return result;
+    }
+
+    /// <summary>
+    /// Restituisce la classe CSS per lo stato
+    /// </summary>
+    /// <param name="status">Stato file</param>
+    /// <returns>Nome classe CSS</returns>
+    private string GetStatusCss(FileStatus status)
+    {
+        string result = "";
+        if (status == FileStatus.Done) result = "status-done";
+        else if (status == FileStatus.Error) result = "status-error";
+        else if (status == FileStatus.Skipped) result = "status-skipped";
+        return result;
+    }
+}

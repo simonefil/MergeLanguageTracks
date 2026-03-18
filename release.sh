@@ -12,7 +12,7 @@ fi
 TAG="$1"
 NOTES="$2"
 
-PROJECT="MergeLanguageTracks.csproj"
+PROJECT="MergeLanguageTracks.Cli/MergeLanguageTracks.Cli.csproj"
 ARTIFACTS_DIR="release-artifacts"
 PUBLISH_DIR="publish"
 VERSION="${TAG#v}"

@@ -1,0 +1,77 @@
+<div class="dialog-overlay visible" @onclick="OnClose">
+    <div class="dialog-box" style="min-width: 45ch;" @onclick:stopPropagation="true">
+        <div class="dialog-title">Delay: @Record.EpisodeId</div>
+        <div class="dialog-body">
+            <div style="color: var(--foreground2);">Sync offset auto: @(Record.SyncOffsetMs)ms</div>
+            <br />
+            <div class="form-row">
+                <span class="form-label">Delay audio (ms):</span>
+                <input class="form-input" style="width: 10ch;" @bind="_audioDelay" />
+            </div>
+            <br />
+            <div class="form-row">
+                <span class="form-label">Delay sub (ms):</span>
+                <input class="form-input" style="width: 10ch;" @bind="_subDelay" />
+            </div>
+            <br />
+            <div style="color: var(--foreground2);">Delay effettivo audio: @(Record.AudioDelayApplied)ms, sub: @(Record.SubDelayApplied)ms</div>
+        </div>
+        <div class="dialog-footer">
+            <button @onclick="Apply">OK</button>
+            <button @onclick="OnClose">Annulla</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Record episodio per delay
+    /// </summary>
+    [Parameter] public FileProcessingRecord Record { get; set; }
+
+    /// <summary>
+    /// Evento chiusura dialog
+    /// </summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// Evento applicazione delay (audioDelay, subDelay)
+    /// </summary>
+    [Parameter] public EventCallback<(int, int)> OnApply { get; set; }
+
+    /// <summary>
+    /// Delay audio in ms (stringa per binding input)
+    /// </summary>
+    private string _audioDelay = "0";
+
+    /// <summary>
+    /// Delay sottotitoli in ms (stringa per binding input)
+    /// </summary>
+    private string _subDelay = "0";
+
+    /// <summary>
+    /// Precompila campi dal record corrente
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        if (Record != null)
+        {
+            _audioDelay = Record.ManualAudioDelayMs.ToString();
+            _subDelay = Record.ManualSubDelayMs.ToString();
+        }
+    }
+
+    /// <summary>
+    /// Applica delay e notifica il parent
+    /// </summary>
+    private void Apply()
+    {
+        int audioVal = 0;
+        int subVal = 0;
+
+        int.TryParse(_audioDelay, out audioVal);
+        int.TryParse(_subDelay, out subVal);
+
+        OnApply.InvokeAsync((audioVal, subVal));
+    }
+}

@@ -8,7 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$project = "MergeLanguageTracks.csproj"
+$project = "MergeLanguageTracks.Cli\MergeLanguageTracks.Cli.csproj"
 $artifactsDir = "release-artifacts"
 $publishDir = "publish"
 $version = $Tag -replace "^v", ""

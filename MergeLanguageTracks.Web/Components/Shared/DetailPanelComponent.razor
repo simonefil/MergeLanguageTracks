@@ -1,0 +1,125 @@
+<div class="mlt-panel">
+    <div class="mlt-panel-title">Dettaglio</div>
+    <div class="mlt-panel-body">
+        <div class="detail-content">@(Record != null ? BuildDetail() : "Selezionare un episodio.")</div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Record selezionato da visualizzare
+    /// </summary>
+    [Parameter] public FileProcessingRecord Record { get; set; }
+
+    /// <summary>
+    /// Costruisce il testo dettaglio per il record selezionato
+    /// </summary>
+    /// <returns>Stringa con dettaglio completo</returns>
+    private string BuildDetail()
+    {
+        string result = "";
+
+        if (Record == null)
+        {
+            return result;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(512);
+
+        // Intestazione
+        sb.Append("--- ").Append(Record.EpisodeId).Append(" [").Append(GetStatusText(Record.Status)).Append("] ---\n\n");
+
+        // File sorgente
+        sb.Append("FILE SORGENTE\n");
+        sb.Append("  ").Append(Record.SourceFileName).Append('\n');
+        sb.Append("  Dimensione: ").Append(Utils.FormatSize(Record.SourceSize)).Append('\n');
+        sb.Append('\n');
+
+        // File lingua
+        sb.Append("FILE LINGUA\n");
+        sb.Append("  ").Append(Record.LangFileName.Length > 0 ? Record.LangFileName : "(nessuno)").Append('\n');
+        if (Record.LangSize > 0)
+        {
+            sb.Append("  Dimensione: ").Append(Utils.FormatSize(Record.LangSize)).Append('\n');
+        }
+
+        // Tracce sorgente
+        sb.Append("\nTRACCE SORGENTE\n");
+        sb.Append("  Audio: ").Append(Utils.FormatLangs(Record.SourceAudioLangs)).Append('\n');
+        sb.Append("  Sub:   ").Append(Utils.FormatLangs(Record.SourceSubLangs)).Append('\n');
+
+        // Tracce importate
+        sb.Append("\nTRACCE IMPORTATE\n");
+        sb.Append("  Audio: ").Append(Utils.FormatLangs(Record.LangAudioLangs)).Append('\n');
+        sb.Append("  Sub:   ").Append(Utils.FormatLangs(Record.LangSubLangs)).Append('\n');
+
+        // Sincronizzazione
+        sb.Append("\nSINCRONIZZAZIONE\n");
+        sb.Append("  Delay audio: ").Append(Utils.FormatDelay(Record.AudioDelayApplied)).Append('\n');
+        sb.Append("  Delay sub:   ").Append(Utils.FormatDelay(Record.SubDelayApplied)).Append('\n');
+        if (Record.StretchFactor.Length > 0)
+        {
+            sb.Append("  Stretch:     ").Append(Record.StretchFactor).Append('\n');
+        }
+        if (Record.SpeedCorrectionApplied)
+        {
+            sb.Append("  Correzione velocita': applicata\n");
+        }
+
+        // Errore
+        if (Record.ErrorMessage.Length > 0)
+        {
+            sb.Append("\nERRORE\n");
+            sb.Append("  ").Append(Record.ErrorMessage).Append('\n');
+        }
+        if (Record.SkipReason.Length > 0)
+        {
+            sb.Append("\nSALTATO\n");
+            sb.Append("  ").Append(Record.SkipReason).Append('\n');
+        }
+
+        // Tempi elaborazione
+        if (Record.SpeedCorrectionTimeMs > 0 || Record.FrameSyncTimeMs > 0 || Record.MergeTimeMs > 0)
+        {
+            sb.Append("\nTEMPI ELABORAZIONE\n");
+            if (Record.SpeedCorrectionTimeMs > 0) { sb.Append("  Correzione: ").Append(Record.SpeedCorrectionTimeMs).Append(" ms\n"); }
+            if (Record.FrameSyncTimeMs > 0) { sb.Append("  Frame-sync: ").Append(Record.FrameSyncTimeMs).Append(" ms\n"); }
+            if (Record.MergeTimeMs > 0) { sb.Append("  Merge:      ").Append(Record.MergeTimeMs).Append(" ms\n"); }
+        }
+
+        // Risultato
+        if (Record.ResultSize > 0)
+        {
+            sb.Append("\nRISULTATO\n");
+            sb.Append("  Dimensione: ").Append(Utils.FormatSize(Record.ResultSize)).Append('\n');
+        }
+
+        // Comando
+        if (Record.MergeCommand.Length > 0)
+        {
+            sb.Append("\nCOMANDO\n");
+            sb.Append("  ").Append(Record.MergeCommand).Append('\n');
+        }
+
+        result = sb.ToString();
+        return result;
+    }
+
+    /// <summary>
+    /// Restituisce il testo localizzato per lo stato
+    /// </summary>
+    /// <param name="status">Stato file</param>
+    /// <returns>Testo stato in italiano</returns>
+    private string GetStatusText(FileStatus status)
+    {
+        string result = "";
+        if (status == FileStatus.Pending) result = "In attesa";
+        else if (status == FileStatus.Analyzing) result = "Analisi...";
+        else if (status == FileStatus.Analyzed) result = "Pronto";
+        else if (status == FileStatus.Processing) result = "Merge...";
+        else if (status == FileStatus.Done) result = "Completato";
+        else if (status == FileStatus.Error) result = "Errore";
+        else if (status == FileStatus.Skipped) result = "Saltato";
+        return result;
+    }
+}

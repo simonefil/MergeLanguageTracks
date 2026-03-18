@@ -1,0 +1,70 @@
+@page "/"
+@rendermode InteractiveServer
+@inject MergeOrchestrator Orchestrator
+@implements IDisposable
+
+<div class="mlt-layout">
+
+    @* Barra Menu *@
+    <MenuBarComponent OnScan="DoScan"
+                       OnAnalyzeSelected="DoAnalyzeSelected"
+                       OnAnalyzeAll="DoAnalyzeAll"
+                       OnSkip="DoToggleSkip"
+                       OnMergeSelected="DoMergeSelected"
+                       OnMergeAll="DoMergeAll"
+                       OnShowConfig="ShowConfig"
+                       OnShowAudioSettings="ShowAudioSettings"
+                       OnShowHelp="ShowHelp"
+                       OnThemeChanged="ChangeTheme"
+                       CurrentTheme="@_currentTheme" />
+
+    @* Area Pannelli *@
+    <div class="panels-area">
+        <EpisodeTableComponent Records="@_records"
+                                SelectedIndex="@Orchestrator.SelectedIndex"
+                                OnRowSelected="SelectRow"
+                                OnRowActivated="ActivateRow" />
+        <DetailPanelComponent Record="@_selectedRecord" />
+    </div>
+
+    @* Pannello Log *@
+    <LogPanelComponent LogText="@Orchestrator.LogText" />
+
+    @* Barra di Stato *@
+    <StatusBarComponent OnScan="DoScan"
+                         OnAnalyzeSelected="DoAnalyzeSelected"
+                         OnAnalyzeAll="DoAnalyzeAll"
+                         OnSkip="DoToggleSkip"
+                         OnMergeSelected="DoMergeSelected"
+                         OnMergeAll="DoMergeAll"
+                         OnShowConfig="ShowConfig"
+                         OnShowHelp="ShowHelp" />
+</div>
+
+@* Dialog Configurazione *@
+@if (_showConfig)
+{
+    <ConfigDialogComponent Options="@Orchestrator.CurrentOptions"
+                            OnClose="CloseConfig"
+                            OnApply="ApplyConfig" />
+}
+
+@* Dialog Impostazioni Audio *@
+@if (_showAudioSettings)
+{
+    <AudioSettingsDialogComponent OnClose="CloseAudioSettings" />
+}
+
+@* Dialog Delay *@
+@if (_showDelay && _selectedRecord != null)
+{
+    <DelayDialogComponent Record="@_selectedRecord"
+                           OnClose="CloseDelay"
+                           OnApply="ApplyDelay" />
+}
+
+@* Dialog Help *@
+@if (_showHelp)
+{
+    <HelpDialogComponent OnClose="CloseHelp" />
+}

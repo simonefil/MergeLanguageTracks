@@ -1,0 +1,99 @@
+<div class="dialog-overlay visible" @onclick="OnClose">
+    <div class="dialog-box" style="min-width: 40ch;" @onclick:stopPropagation="true">
+        <div class="dialog-title">Impostazioni Conversione Audio</div>
+        <div class="dialog-body">
+            <div class="form-section">== FLAC ==</div>
+            <div class="form-row">
+                <span class="form-label">Compressione (0-12):</span>
+                <input class="form-input" style="width: 6ch;" @bind="_flacCompression" />
+            </div>
+
+            <div class="form-section">== Opus (bitrate kbps) ==</div>
+            <div class="form-row">
+                <span class="form-label">Mono (1ch):</span>
+                <input class="form-input" style="width: 8ch;" @bind="_opusMono" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Stereo (2ch):</span>
+                <input class="form-input" style="width: 8ch;" @bind="_opusStereo" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Surround 5.1:</span>
+                <input class="form-input" style="width: 8ch;" @bind="_opusS51" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Surround 7.1:</span>
+                <input class="form-input" style="width: 8ch;" @bind="_opusS71" />
+            </div>
+            <div class="form-row" style="color: var(--foreground2);">
+                Range: @AppSettings.OPUS_BITRATE_MIN-@AppSettings.OPUS_BITRATE_MAX kbps
+            </div>
+        </div>
+        <div class="dialog-footer">
+            <button @onclick="Save">OK</button>
+            <button @onclick="OnClose">Annulla</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Evento chiusura dialog
+    /// </summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// Livello compressione FLAC (stringa per binding input)
+    /// </summary>
+    private string _flacCompression = "";
+
+    /// <summary>
+    /// Bitrate Opus mono (stringa per binding input)
+    /// </summary>
+    private string _opusMono = "";
+
+    /// <summary>
+    /// Bitrate Opus stereo (stringa per binding input)
+    /// </summary>
+    private string _opusStereo = "";
+
+    /// <summary>
+    /// Bitrate Opus surround 5.1 (stringa per binding input)
+    /// </summary>
+    private string _opusS51 = "";
+
+    /// <summary>
+    /// Bitrate Opus surround 7.1 (stringa per binding input)
+    /// </summary>
+    private string _opusS71 = "";
+
+    /// <summary>
+    /// Carica valori correnti da AppSettings
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        _flacCompression = AppSettings.FlacCompressionLevel.ToString();
+        _opusMono = AppSettings.OpusBitrateMono.ToString();
+        _opusStereo = AppSettings.OpusBitrateStereo.ToString();
+        _opusS51 = AppSettings.OpusBitrateSurround51.ToString();
+        _opusS71 = AppSettings.OpusBitrateSurround71.ToString();
+    }
+
+    /// <summary>
+    /// Salva impostazioni audio e chiude dialog
+    /// </summary>
+    private void Save()
+    {
+        int val = 0;
+
+        if (int.TryParse(_flacCompression, out val)) { AppSettings.FlacCompressionLevel = val; }
+        if (int.TryParse(_opusMono, out val)) { AppSettings.OpusBitrateMono = val; }
+        if (int.TryParse(_opusStereo, out val)) { AppSettings.OpusBitrateStereo = val; }
+        if (int.TryParse(_opusS51, out val)) { AppSettings.OpusBitrateSurround51 = val; }
+        if (int.TryParse(_opusS71, out val)) { AppSettings.OpusBitrateSurround71 = val; }
+
+        AppSettings.Validate();
+        AppSettings.Save();
+        OnClose.InvokeAsync();
+    }
+}

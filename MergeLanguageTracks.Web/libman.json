@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "defaultProvider": "jsdelivr",
+  "libraries": [
+    {
+      "library": "@webtui/css@0.1.6",
+      "destination": "wwwroot/lib/webtui/",
+      "files": [
+        "dist/base.css",
+        "dist/full.css",
+        "dist/components/button.css",
+        "dist/components/dialog.css",
+        "dist/components/input.css",
+        "dist/components/separator.css",
+        "dist/components/table.css",
+        "dist/components/view.css"
+      ]
+    },
+    {
+      "library": "@webtui/theme-nord@0.0.2",
+      "destination": "wwwroot/lib/webtui-theme-nord/"
+    }
+  ]
+}

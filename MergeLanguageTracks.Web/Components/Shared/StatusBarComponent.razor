@@ -1,0 +1,52 @@
+<div class="status-bar">
+    <span class="cmd-key" @onclick="OnShowHelp"><span class="key-label">F1</span>Help</span>
+    <span class="cmd-key" @onclick="OnShowConfig"><span class="key-label">F2</span>Config</span>
+    <span class="cmd-key" @onclick="OnScan"><span class="key-label">F5</span>Scan</span>
+    <span class="cmd-key" @onclick="OnAnalyzeSelected"><span class="key-label">F6</span>Analizza</span>
+    <span class="cmd-key" @onclick="OnAnalyzeAll"><span class="key-label">F7</span>Tutti</span>
+    <span class="cmd-key" @onclick="OnSkip"><span class="key-label">F8</span>Skip</span>
+    <span class="cmd-key" @onclick="OnMergeSelected"><span class="key-label">F9</span>Processa</span>
+    <span class="cmd-key" @onclick="OnMergeAll"><span class="key-label">F10</span>Tutti</span>
+</div>
+
+@code {
+    /// <summary>
+    /// Evento scan file
+    /// </summary>
+    [Parameter] public EventCallback OnScan { get; set; }
+
+    /// <summary>
+    /// Evento analizza selezionato
+    /// </summary>
+    [Parameter] public EventCallback OnAnalyzeSelected { get; set; }
+
+    /// <summary>
+    /// Evento analizza tutti
+    /// </summary>
+    [Parameter] public EventCallback OnAnalyzeAll { get; set; }
+
+    /// <summary>
+    /// Evento toggle skip
+    /// </summary>
+    [Parameter] public EventCallback OnSkip { get; set; }
+
+    /// <summary>
+    /// Evento merge selezionato
+    /// </summary>
+    [Parameter] public EventCallback OnMergeSelected { get; set; }
+
+    /// <summary>
+    /// Evento merge tutti
+    /// </summary>
+    [Parameter] public EventCallback OnMergeAll { get; set; }
+
+    /// <summary>
+    /// Evento mostra configurazione
+    /// </summary>
+    [Parameter] public EventCallback OnShowConfig { get; set; }
+
+    /// <summary>
+    /// Evento mostra help
+    /// </summary>
+    [Parameter] public EventCallback OnShowHelp { get; set; }
+}

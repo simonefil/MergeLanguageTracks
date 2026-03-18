@@ -1,0 +1,24 @@
+/* WebTUI layer ordering */
+@layer base, utils, components;
+
+/* WebTUI full bundle */
+@import '../lib/webtui/dist/full.css';
+
+/* WebTUI Nord theme */
+@import '../lib/webtui-theme-nord/dist/index.css';
+
+/* Custom themes */
+@import 'themes.css';
+
+/* Application styles */
+@import 'layout.css';
+@import 'components.css';
+
+/* Global overrides */
+html, body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
