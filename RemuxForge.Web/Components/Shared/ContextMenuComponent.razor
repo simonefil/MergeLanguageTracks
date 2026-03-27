@@ -1,0 +1,45 @@
+<div class="ctx-menu-overlay" @onclick="OnClose">
+    <div class="ctx-menu-popup" style="left: @(X)px; top: @(Y)px;" @onclick:stopPropagation="true">
+        @for (int i = 0; i < Items.Count; i++)
+        {
+            int idx = i;
+            <div class="ctx-menu-item" @onclick="() => SelectItem(idx)">@Items[i]</div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Lista voci del context menu
+    /// </summary>
+    [Parameter] public List<string> Items { get; set; }
+
+    /// <summary>
+    /// Coordinata X posizione menu (pixel)
+    /// </summary>
+    [Parameter] public double X { get; set; }
+
+    /// <summary>
+    /// Coordinata Y posizione menu (pixel)
+    /// </summary>
+    [Parameter] public double Y { get; set; }
+
+    /// <summary>
+    /// Evento chiusura menu (click esterno o Esc)
+    /// </summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// Evento selezione voce (indice voce selezionata)
+    /// </summary>
+    [Parameter] public EventCallback<int> OnSelect { get; set; }
+
+    /// <summary>
+    /// Gestisce click su voce del menu
+    /// </summary>
+    /// <param name="index">Indice voce selezionata</param>
+    private void SelectItem(int index)
+    {
+        OnSelect.InvokeAsync(index);
+    }
+}

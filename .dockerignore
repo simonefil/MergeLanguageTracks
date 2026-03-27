@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/.vs/
+.git/
+.gitignore
+*.md
+*.bbcode
+publish/
+release-artifacts/

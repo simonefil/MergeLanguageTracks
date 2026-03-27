@@ -1,0 +1,77 @@
+<div class="rf-panel">
+    <div class="rf-panel-title">Episodi</div>
+    <div class="rf-panel-body">
+        <table class="episode-table">
+            <thead>
+                <tr>
+                    <th>Ep</th>
+                    <th>Stato</th>
+                    <th>Audio</th>
+                    <th>Sub</th>
+                    <th>Delay</th>
+                    <th>Stretch</th>
+                    <th>Deep</th>
+                    <th>Size</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int i = 0; i < Records.Count; i++)
+                {
+                    int idx = i;
+                    FileProcessingRecord r = Records[i];
+                    string statusCss = GetStatusCss(r.Status);
+                    string selectedCss = (idx == SelectedIndex) ? " selected" : "";
+                    <tr class="@(statusCss + selectedCss)"
+                        @onclick="() => OnRowSelected.InvokeAsync(idx)"
+                        @oncontextmenu="(e) => OnContextMenu.InvokeAsync((idx, e.ClientX, e.ClientY))"
+                        @oncontextmenu:preventDefault="true">
+                        <td>@r.EpisodeId</td>
+                        <td>@Utils.GetStatusText(r.Status)</td>
+                        <td>@Utils.FormatLangs(r.ResultAudioLangs)</td>
+                        <td>@Utils.FormatLangs(r.ResultSubLangs)</td>
+                        <td>@Utils.FormatDelay(r.AudioDelayApplied)</td>
+                        <td>@(r.StretchFactor.Length > 0 ? r.StretchFactor : "-")</td>
+                        <td>@(r.DeepAnalysisApplied && r.DeepAnalysisMap != null ? r.DeepAnalysisMap.Operations.Count + " ops" : "-")</td>
+                        <td>@Utils.FormatSize(r.SourceSize)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Lista record episodi
+    /// </summary>
+    [Parameter] public List<FileProcessingRecord> Records { get; set; }
+
+    /// <summary>
+    /// Indice riga selezionata
+    /// </summary>
+    [Parameter] public int SelectedIndex { get; set; }
+
+    /// <summary>
+    /// Evento selezione riga
+    /// </summary>
+    [Parameter] public EventCallback<int> OnRowSelected { get; set; }
+
+    /// <summary>
+    /// Evento context menu su riga (right-click) - passa (indice, clientX, clientY)
+    /// </summary>
+    [Parameter] public EventCallback<(int Index, double X, double Y)> OnContextMenu { get; set; }
+
+    /// <summary>
+    /// Restituisce la classe CSS per lo stato
+    /// </summary>
+    /// <param name="status">Stato file</param>
+    /// <returns>Nome classe CSS</returns>
+    private string GetStatusCss(FileStatus status)
+    {
+        string result = "";
+        if (status == FileStatus.Done) result = "status-done";
+        else if (status == FileStatus.Error) result = "status-error";
+        else if (status == FileStatus.Skipped) result = "status-skipped";
+        return result;
+    }
+}

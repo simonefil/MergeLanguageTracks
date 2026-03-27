@@ -1,0 +1,101 @@
+<div class="dialog-overlay visible" @onclick="OnClose">
+    <div class="dialog-box" style="min-width: 55ch;" @onclick:stopPropagation="true">
+        <div class="dialog-title">RemuxForge - Info</div>
+        <div class="dialog-body">
+            <table class="info-table">
+                <tr><td class="info-label">Nome</td><td><img src="favicon-32x32.png" alt="icon" style="vertical-align: middle; margin-right: 0.5ch;" />RemuxForge</td></tr>
+                <tr><td class="info-label">Versione</td><td>@_version</td></tr>
+                <tr><td class="info-label">Licenza</td><td>GNU General Public License v3.0</td></tr>
+                <tr><td class="info-label">Repository</td><td><a href="https://github.com/simonefil/RemuxForge" target="_blank">https://github.com/simonefil/RemuxForge</a></td></tr>
+                <tr><td class="info-label">Runtime</td><td>@_runtime</td></tr>
+                <tr><td class="info-label">Piattaforma</td><td>@_platform</td></tr>
+            </table>
+        </div>
+        <div class="dialog-footer">
+            <button @onclick="OnClose">Chiudi</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .info-table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+    .info-table:before {
+        display: none !important;
+    }
+    .info-table tr td:before,
+    .info-table tr td:after {
+        display: none !important;
+    }
+    .info-table :first-child > tr:first-child > td {
+        padding-top: 0 !important;
+    }
+    .info-table tr td {
+        padding: 0 1ch;
+        line-height: 1lh;
+        padding-bottom: 0 !important;
+    }
+    .info-label {
+        font-weight: bold;
+        width: 14ch;
+    }
+    .info-table a {
+        color: var(--accent);
+    }
+</style>
+
+@code {
+    /// <summary>
+    /// Evento chiusura dialog
+    /// </summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// Versione applicazione
+    /// </summary>
+    private string _version;
+
+    /// <summary>
+    /// Descrizione runtime
+    /// </summary>
+    private string _runtime;
+
+    /// <summary>
+    /// Descrizione piattaforma
+    /// </summary>
+    private string _platform;
+
+    /// <summary>
+    /// Inizializza informazioni di sistema
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        // Versione dall'assembly
+        System.Reflection.Assembly assembly = System.Reflection.Assembly.GetEntryAssembly();
+        System.Reflection.CustomAttributeData infoAttr = null;
+
+        foreach (System.Reflection.CustomAttributeData attr in assembly.CustomAttributes)
+        {
+            if (attr.AttributeType == typeof(System.Reflection.AssemblyInformationalVersionAttribute))
+            {
+                infoAttr = attr;
+                break;
+            }
+        }
+
+        if (infoAttr != null && infoAttr.ConstructorArguments.Count > 0)
+        {
+            this._version = infoAttr.ConstructorArguments[0].Value.ToString();
+        }
+        else
+        {
+            this._version = assembly.GetName().Version.ToString();
+        }
+
+        // Runtime e piattaforma
+        this._runtime = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription;
+        this._platform = System.Runtime.InteropServices.RuntimeInformation.OSDescription;
+    }
+}

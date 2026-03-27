@@ -1,0 +1,666 @@
+/* Main layout - 4 rows: menu bar, panels area, log panel, status bar */
+.rf-layout {
+    display: grid;
+    grid-template-rows: 1lh 3fr 2fr 1lh;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    background-color: var(--background0);
+    color: var(--foreground0);
+}
+
+/* Panels area - 2 columns */
+.panels-area {
+    display: grid;
+    grid-template-columns: 55fr 45fr;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Individual panel */
+.rf-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    border: 2px double var(--foreground2);
+}
+
+.rf-panel-title {
+    background-color: var(--background1);
+    color: var(--foreground0);
+    padding: 0 1ch;
+    line-height: 1lh;
+    border-bottom: 1px solid var(--foreground2);
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.rf-panel-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0;
+}
+
+/* Log panel */
+.log-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    border: 2px double var(--foreground2);
+}
+
+.log-panel .rf-panel-body {
+    padding: 0 1ch;
+    font-size: inherit;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* ============================================================
+   Menu bar
+   ============================================================ */
+.menu-bar {
+    display: flex;
+    flex-direction: row;
+    background-color: var(--background1);
+    border-bottom: 1px solid var(--foreground2);
+    line-height: 1lh;
+    z-index: 100;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.menu-bar-item {
+    padding: 0 1ch;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+    position: relative;
+}
+
+.menu-bar-item:hover {
+    background-color: var(--background2);
+}
+
+.menu-bar-item.active {
+    background-color: var(--foreground0);
+    color: var(--background0);
+}
+
+/* Menu overlay - invisible layer to capture clicks outside dropdown */
+.menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 999;
+}
+
+/* Dropdown menu */
+.menu-dropdown {
+    position: absolute;
+    top: 1lh;
+    left: 0;
+    z-index: 1001;
+    background-color: var(--background0);
+    border: 1px solid var(--foreground2);
+    min-width: 25ch;
+}
+
+.menu-dropdown-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 1ch;
+    cursor: pointer;
+    white-space: nowrap;
+    line-height: 1lh;
+    color: var(--foreground0);
+}
+
+.menu-dropdown-item:hover {
+    background-color: var(--background2);
+}
+
+.menu-dropdown-item .shortcut {
+    color: var(--foreground2);
+    margin-left: 2ch;
+}
+
+/* ============================================================
+   Status bar
+   ============================================================ */
+.status-bar {
+    display: flex;
+    background-color: var(--background1);
+    border-top: 1px solid var(--foreground2);
+    line-height: 1lh;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.cmd-key {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 0 0.5ch;
+    white-space: nowrap;
+}
+
+.cmd-key:hover {
+    background-color: var(--background2);
+}
+
+.key-label {
+    background-color: var(--foreground0);
+    color: var(--background0);
+    padding: 0 0.5ch;
+    margin-right: 0.5ch;
+}
+
+/* ============================================================
+   Episode table
+   ============================================================ */
+.episode-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: inherit;
+}
+
+.episode-table th {
+    background-color: var(--background1);
+    color: var(--foreground0);
+    text-align: left;
+    padding: 0 1ch;
+    line-height: 1lh;
+    border-bottom: 1px solid var(--foreground2);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    white-space: nowrap;
+}
+
+.episode-table td {
+    padding: 0 1ch;
+    line-height: 1lh;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.episode-table tr {
+    cursor: pointer;
+}
+
+.episode-table tr:hover {
+    background-color: var(--background1);
+}
+
+.episode-table tr.selected {
+    background-color: var(--background2);
+    color: var(--foreground0);
+}
+
+.episode-table tr.status-done td:first-child {
+    color: var(--foreground1);
+}
+
+.episode-table tr.status-error td:first-child {
+    color: var(--color-error);
+}
+
+.episode-table tr.status-skipped {
+    color: var(--foreground2);
+}
+
+/* ============================================================
+   Detail panel content
+   ============================================================ */
+.detail-content {
+    padding: 0 1ch;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1lh;
+}
+
+/* ============================================================
+   Dialog overlay and dialog box (Bivium pattern)
+   ============================================================ */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.dialog-box {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    background-color: var(--background0);
+    border: 2px double var(--foreground0);
+    min-width: 50ch;
+    max-width: 90vw;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 2px 2px 0 var(--background3);
+}
+
+/* Dialog fullscreen (quasi) - stile TUI Dim.Fill(4)/Dim.Fill(2) */
+.dialog-box.dialog-fullscreen {
+    left: 2ch;
+    top: 1lh;
+    right: 2ch;
+    bottom: 1lh;
+    transform: none;
+    min-width: unset;
+    max-width: unset;
+    max-height: unset;
+}
+
+/* Dialog browse cartella - stile OpenDialog Terminal.Gui */
+.dialog-box.dialog-browse {
+    width: 80vw;
+    height: 70vh;
+    min-width: unset;
+    max-width: unset;
+    max-height: unset;
+}
+
+.browse-path-bar {
+    padding: 0 1ch;
+    line-height: 1.5lh;
+    border-bottom: 1px solid var(--foreground2);
+    flex-shrink: 0;
+}
+
+/* Barra percorso edit mode (pattern Bivium) */
+.path-bar-edit {
+    position: relative;
+    width: 100%;
+}
+
+.path-bar-input {
+    width: 100%;
+    background-color: var(--background0);
+    color: var(--foreground0);
+    border: none;
+    outline: none;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Autocomplete dropdown (pattern Bivium) */
+.path-autocomplete {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 10lh;
+    overflow-y: auto;
+    background-color: var(--background1);
+    border: 1px solid var(--foreground2);
+    z-index: 1100;
+}
+
+.path-autocomplete-item {
+    padding: 0 1ch;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    color: var(--foreground1);
+}
+
+.path-autocomplete-item:hover,
+.path-autocomplete-item.active {
+    background-color: var(--background2);
+    color: var(--foreground0);
+}
+
+.browse-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+/* Tabella browse - 4 colonne come OpenDialog TUI */
+.browse-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.browse-table:before {
+    display: none !important;
+}
+
+.browse-table tr th:before,
+.browse-table tr th:after,
+.browse-table tr td:before,
+.browse-table tr td:after {
+    display: none !important;
+}
+
+.browse-table :first-child > tr:first-child > td,
+.browse-table :first-child > tr:first-child > th {
+    padding-top: 0 !important;
+}
+
+.browse-table tr th,
+.browse-table tr td {
+    padding-bottom: 0 !important;
+}
+
+.browse-table thead th {
+    background-color: var(--background1);
+    color: var(--foreground0);
+    text-align: left;
+    padding: 0 1ch;
+    line-height: 1lh;
+    border-bottom: 1px solid var(--foreground2);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.browse-table thead th:hover {
+    background-color: var(--background2);
+}
+
+.browse-table tbody td {
+    padding: 0 1ch;
+    line-height: 1lh;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.browse-table .browse-row {
+    cursor: pointer;
+}
+
+.browse-table .browse-row:hover {
+    background-color: var(--background1);
+}
+
+.browse-table .browse-row.selected {
+    background-color: var(--background2);
+    color: var(--foreground0);
+}
+
+/* Larghezze colonne */
+.browse-col-name { width: auto; }
+.browse-col-size { width: 10ch; }
+.browse-col-date { width: 22ch; }
+.browse-col-type { width: 14ch; }
+
+/* Barra Find */
+.browse-find-bar {
+    display: flex;
+    align-items: center;
+    padding: 0 1ch;
+    line-height: 1.5lh;
+    border-top: 1px solid var(--foreground2);
+    flex-shrink: 0;
+}
+
+.browse-find-label {
+    width: 5ch;
+    flex-shrink: 0;
+    color: var(--foreground2);
+}
+
+.browse-error {
+    padding: 0 1ch;
+    color: var(--color-error);
+    line-height: 1.5lh;
+    flex-shrink: 0;
+    border-top: 1px solid var(--foreground2);
+}
+
+.dialog-title {
+    background-color: var(--foreground0);
+    color: var(--background0);
+    padding: 0 1ch;
+    line-height: 1lh;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.dialog-body {
+    padding: 1ch;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1ch;
+    padding: 0.5ch 1ch;
+    border-top: 1px solid var(--foreground2);
+    flex-shrink: 0;
+}
+
+/* TUI-style buttons with brackets */
+.dialog-box button,
+.rf-dialog button {
+    background: none;
+    color: var(--foreground0);
+    border: none;
+    padding: 0;
+    height: 1lh;
+    font-family: inherit;
+    font-size: inherit;
+    cursor: pointer;
+}
+
+.dialog-box button::before,
+.rf-dialog button::before {
+    content: "[ ";
+    color: var(--foreground2);
+}
+
+.dialog-box button::after,
+.rf-dialog button::after {
+    content: " ]";
+    color: var(--foreground2);
+}
+
+.dialog-box button:hover,
+.dialog-box button.dialog-btn-focused,
+.rf-dialog button:hover,
+.rf-dialog button.dialog-btn-focused {
+    background-color: var(--foreground0);
+    color: var(--background0);
+}
+
+/* ============================================================
+   Form fields for dialogs
+   ============================================================ */
+.form-row {
+    display: flex;
+    align-items: center;
+    line-height: 1.5lh;
+}
+
+.form-label {
+    width: 18ch;
+    flex-shrink: 0;
+    color: var(--foreground1);
+}
+
+.form-input {
+    flex: 1;
+    background-color: var(--background1);
+    color: var(--foreground0);
+    border: 1px solid var(--foreground2);
+    padding: 0 0.5ch;
+    margin: 0;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1lh;
+    height: calc(1lh + 2px);
+    box-sizing: border-box;
+    outline: none;
+}
+
+select.form-input {
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 0 0.5ch;
+}
+
+textarea.form-input {
+    resize: vertical;
+    line-height: 1lh;
+}
+
+.form-input:focus {
+    border-color: var(--foreground0);
+}
+
+.form-section {
+    color: var(--foreground0);
+    font-weight: bold;
+    padding: 0.5ch 0 0 0;
+}
+
+.form-checkbox {
+    cursor: pointer;
+}
+
+/* Radio toggle buttons (matching TUI style) */
+.radio-group {
+    display: flex;
+    gap: 1ch;
+}
+
+.radio-btn {
+    cursor: pointer;
+    padding: 0 0.5ch;
+    background: none;
+    border: none;
+    color: var(--foreground0);
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.radio-btn:hover {
+    background-color: var(--background2);
+}
+
+.radio-btn.active {
+    color: var(--foreground0);
+    font-weight: bold;
+}
+
+/* ============================================================
+   TUI-style toggle checkbox [ ] / [X]
+   ============================================================ */
+.tui-toggle {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.tui-toggle:hover {
+    background-color: var(--background2);
+}
+
+/* ============================================================
+   Browse button [ .. ] for folder fields
+   ============================================================ */
+.btn-browse {
+    background: none;
+    border: none;
+    color: var(--foreground0);
+    font-family: inherit;
+    font-size: inherit;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 1ch;
+    white-space: nowrap;
+}
+
+.btn-browse:hover {
+    background-color: var(--foreground0);
+    color: var(--background0);
+}
+
+/* ============================================================
+   WebTUI override: rimuovi bordi griglia TUI dalla episode table
+   ============================================================ */
+.episode-table:before {
+    display: none !important;
+}
+
+.episode-table tr th:before,
+.episode-table tr th:after,
+.episode-table tr td:before,
+.episode-table tr td:after {
+    display: none !important;
+}
+
+.episode-table :first-child > tr:first-child > td,
+.episode-table :first-child > tr:first-child > th {
+    padding-top: 0 !important;
+}
+
+.episode-table tr th,
+.episode-table tr td {
+    padding-bottom: 0 !important;
+}
+
+/* Context menu overlay trasparente */
+.ctx-menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9000;
+}
+
+/* Context menu popup posizionato al cursore */
+.ctx-menu-popup {
+    position: fixed;
+    z-index: 9001;
+    background-color: var(--background1);
+    border: 1px solid var(--foreground2);
+    min-width: 22ch;
+    box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* Context menu items */
+.ctx-menu-item {
+    padding: 0.25em 1ch;
+    cursor: pointer;
+    color: var(--foreground);
+    white-space: nowrap;
+}
+
+.ctx-menu-item:hover {
+    background-color: var(--foreground0);
+    color: var(--background0);
+}

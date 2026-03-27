@@ -1,0 +1,242 @@
+<div class="dialog-overlay visible" @onclick="OnClose">
+    <div class="dialog-box" style="min-width: 60ch;" @onclick:stopPropagation="true">
+        <div class="dialog-title">Percorsi Tool</div>
+        <div class="dialog-body">
+            <div class="form-row">
+                <span class="form-label">mkvmerge:</span>
+                <input class="form-input" @bind="_mkvPath" />
+                <span class="btn-browse" @onclick="() => BrowseFolder(0)">[ .. ]</span>
+                <span style="margin-left: 0.5ch; color: var(@(_mkvFound ? "--color-ok" : "--color-error"));">@(_mkvFound ? "[OK]" : "[NON TROVATO]")</span>
+            </div>
+            <div class="form-row">
+                <span class="form-label">ffmpeg:</span>
+                <input class="form-input" @bind="_ffmpegPath" />
+                <span class="btn-browse" @onclick="() => BrowseFolder(1)">[ .. ]</span>
+                <span style="margin-left: 0.5ch; color: var(@(_ffmpegFound ? "--color-ok" : "--color-error"));">@(_ffmpegStatusText)</span>
+                @if (!_ffmpegFound && !_ffmpegDownloading)
+                {
+                    <span class="btn-browse" style="margin-left: 0.5ch;" @onclick="DownloadFfmpeg">[ Scarica ]</span>
+                }
+            </div>
+            <div class="form-row">
+                <span class="form-label">mediainfo:</span>
+                <input class="form-input" @bind="_mediaInfoPath" />
+                <span class="btn-browse" @onclick="() => BrowseFolder(2)">[ .. ]</span>
+                <span style="margin-left: 0.5ch; color: var(@(_mediaInfoFound ? "--color-ok" : "--color-error"));">@(_mediaInfoFound ? "[OK]" : "[NON TROVATO]")</span>
+            </div>
+            <div class="form-row" style="margin-top: 0.5em;">
+                <span class="form-label">temp:</span>
+                <input class="form-input" @bind="_tempFolder" />
+                <span class="btn-browse" @onclick="() => BrowseFolder(3)">[ .. ]</span>
+            </div>
+        </div>
+        @if (_validationError.Length > 0)
+        {
+            <div style="padding: 0.5em 1em; color: var(--color-error); white-space: pre-line;">@_validationError</div>
+        }
+        <div class="dialog-footer">
+            <button @onclick="Save">OK</button>
+            <button @onclick="OnClose">Annulla</button>
+        </div>
+    </div>
+</div>
+
+@* Dialog browse file *@
+@if (_showBrowse)
+{
+    <FolderBrowserDialog InitialPath="@_browseInitialPath"
+                          ShowFiles="true"
+                          OnClose="CloseBrowse"
+                          OnSelect="ApplyBrowse" />
+}
+
+@code {
+    /// <summary>
+    /// Evento chiusura dialog
+    /// </summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// Percorso mkvmerge
+    /// </summary>
+    private string _mkvPath = "";
+
+    /// <summary>
+    /// Percorso ffmpeg
+    /// </summary>
+    private string _ffmpegPath = "";
+
+    /// <summary>
+    /// Percorso mediainfo
+    /// </summary>
+    private string _mediaInfoPath = "";
+
+    /// <summary>
+    /// Flag: mkvmerge trovato
+    /// </summary>
+    private bool _mkvFound = false;
+
+    /// <summary>
+    /// Flag: ffmpeg trovato
+    /// </summary>
+    private bool _ffmpegFound = false;
+
+    /// <summary>
+    /// Flag: download ffmpeg in corso
+    /// </summary>
+    private bool _ffmpegDownloading = false;
+
+    /// <summary>
+    /// Testo stato ffmpeg
+    /// </summary>
+    private string _ffmpegStatusText = "[NON TROVATO]";
+
+    /// <summary>
+    /// Flag: mediainfo trovato
+    /// </summary>
+    private bool _mediaInfoFound = false;
+
+    /// <summary>
+    /// Percorso cartella file temporanei
+    /// </summary>
+    private string _tempFolder = "";
+
+    /// <summary>
+    /// Flag: mostra dialog browse
+    /// </summary>
+    private bool _showBrowse = false;
+
+    /// <summary>
+    /// Percorso iniziale per il dialog browse
+    /// </summary>
+    private string _browseInitialPath = "";
+
+    /// <summary>
+    /// Indice campo destinazione del browse: 0=mkv, 1=ffmpeg, 2=mediainfo
+    /// </summary>
+    private int _browseFieldIndex = -1;
+
+    /// <summary>
+    /// Messaggio errore validazione
+    /// </summary>
+    private string _validationError = "";
+
+    /// <summary>
+    /// Carica valori correnti da AppSettings (auto-find gia' fatto all'avvio)
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        // mkvmerge
+        _mkvPath = AppSettingsService.Instance.Settings.Tools.MkvMergePath;
+        _mkvFound = _mkvPath.Length > 0 && _mkvPath != "mkvmerge" && System.IO.File.Exists(_mkvPath);
+
+        // ffmpeg
+        _ffmpegPath = AppSettingsService.Instance.Settings.Tools.FfmpegPath;
+        _ffmpegFound = _ffmpegPath.Length > 0 && System.IO.File.Exists(_ffmpegPath);
+        _ffmpegStatusText = _ffmpegFound ? "[OK]" : "[NON TROVATO]";
+
+        // mediainfo
+        _mediaInfoPath = AppSettingsService.Instance.Settings.Tools.MediaInfoPath;
+        _mediaInfoFound = _mediaInfoPath.Length > 0 && System.IO.File.Exists(_mediaInfoPath);
+
+        // cartella temp
+        _tempFolder = AppSettingsService.Instance.Settings.Tools.TempFolder;
+    }
+
+    /// <summary>
+    /// Salva percorsi con validazione, non chiude se errore
+    /// </summary>
+    private void Save()
+    {
+        // Aggiorna model
+        AppSettingsService.Instance.Settings.Tools.MkvMergePath = _mkvPath;
+        AppSettingsService.Instance.Settings.Tools.FfmpegPath = _ffmpegPath;
+        AppSettingsService.Instance.Settings.Tools.MediaInfoPath = _mediaInfoPath;
+        AppSettingsService.Instance.Settings.Tools.TempFolder = _tempFolder;
+
+        // Valida percorsi
+        string errorMessage;
+        if (!AppSettingsService.Instance.ValidateToolPaths(out errorMessage))
+        {
+            _validationError = errorMessage;
+            return;
+        }
+
+        _validationError = "";
+        AppSettingsService.Instance.Save();
+        OnClose.InvokeAsync();
+    }
+
+    /// <summary>
+    /// Apre il dialog browse cartella per il campo specificato
+    /// </summary>
+    /// <param name="fieldIndex">Indice campo: 0=mkv, 1=ffmpeg, 2=mediainfo, 3=temp</param>
+    private void BrowseFolder(int fieldIndex)
+    {
+        _browseFieldIndex = fieldIndex;
+
+        if (fieldIndex == 0) { _browseInitialPath = _mkvPath; }
+        else if (fieldIndex == 1) { _browseInitialPath = _ffmpegPath; }
+        else if (fieldIndex == 2) { _browseInitialPath = _mediaInfoPath; }
+        else if (fieldIndex == 3) { _browseInitialPath = _tempFolder; }
+
+        _showBrowse = true;
+    }
+
+    /// <summary>
+    /// Chiude il dialog browse
+    /// </summary>
+    private void CloseBrowse()
+    {
+        _showBrowse = false;
+    }
+
+    /// <summary>
+    /// Applica il percorso selezionato dal dialog browse
+    /// </summary>
+    /// <param name="selectedPath">Percorso selezionato</param>
+    private void ApplyBrowse(string selectedPath)
+    {
+        _showBrowse = false;
+
+        if (selectedPath == null || selectedPath.Length == 0) { return; }
+
+        if (_browseFieldIndex == 0) { _mkvPath = selectedPath; }
+        else if (_browseFieldIndex == 1) { _ffmpegPath = selectedPath; }
+        else if (_browseFieldIndex == 2) { _mediaInfoPath = selectedPath; }
+        else if (_browseFieldIndex == 3) { _tempFolder = selectedPath; }
+    }
+
+    /// <summary>
+    /// Scarica ffmpeg su thread background e aggiorna lo stato
+    /// </summary>
+    private void DownloadFfmpeg()
+    {
+        _ffmpegDownloading = true;
+        _ffmpegStatusText = "[Download...]";
+
+        Thread dlThread = new Thread(() =>
+        {
+            FfmpegProvider dlProvider = new FfmpegProvider(AppSettingsService.Instance.ConfigFolder);
+            bool dlResult = dlProvider.Resolve(true, true);
+
+            InvokeAsync(() =>
+            {
+                _ffmpegDownloading = false;
+                if (dlResult)
+                {
+                    _ffmpegPath = dlProvider.FfmpegPath;
+                    _ffmpegFound = true;
+                    _ffmpegStatusText = "[OK]";
+                }
+                else
+                {
+                    _ffmpegStatusText = "[ERRORE]";
+                }
+                StateHasChanged();
+            });
+        });
+        dlThread.IsBackground = true;
+        dlThread.Start();
+    }
+}

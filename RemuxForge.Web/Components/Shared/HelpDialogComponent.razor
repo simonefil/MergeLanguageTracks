@@ -1,0 +1,85 @@
+<div class="dialog-overlay visible" @onclick="OnClose">
+    <div class="dialog-box" style="min-width: 70ch; max-height: 80vh;" @onclick:stopPropagation="true">
+        <div class="dialog-title">RemuxForge - Guida</div>
+        <div class="dialog-body" style="white-space: pre-wrap; line-height: 1.2lh;">@_helpText</div>
+        <div class="dialog-footer">
+            <button @onclick="OnClose">Chiudi</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Evento chiusura dialog
+    /// </summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// Testo help completo
+    /// </summary>
+    private string _helpText = @"=== CONFIGURAZIONE ===
+
+-- Cartelle --
+Source: cartella contenente i file MKV originali.
+Lingua: cartella contenente i file MKV nella lingua alternativa da importare.
+Destinazione: cartella output per i file mergiati.
+Sovrascrivi sorgente: il file risultante sostituisce il sorgente originale.
+Ricorsivo: cerca file anche nelle sottocartelle.
+
+-- Lingua e Tracce --
+Lingua target: codici ISO 639-2 delle lingue da importare (es: ita o ita,eng)
+Codec audio: importa solo tracce audio con questi codec dal file lingua.
+Mantieni audio: lingue audio da MANTENERE nel sorgente. Vuoto = mantiene tutte.
+Mantieni codec: codec audio da mantenere nel sorgente. Vuoto = tutti.
+Mantieni sub: lingue sottotitoli da mantenere nel sorgente. Vuoto = mantiene tutti.
+Solo sottotitoli: importa solo sottotitoli, ignora audio.
+Solo audio: importa solo audio, ignora sottotitoli.
+
+-- Sincronizzazione --
+Frame-sync: sincronizzazione tramite confronto visivo dei frame.
+  Trova il delay confrontando i tagli scena nei primi minuti, poi verifica in 9 punti lungo il video.
+  Non funziona se le differenze sono a meta' episodio.
+Deep analysis: analisi completa per file con montaggio diverso (scene aggiunte o rimosse).
+  Analizza l'intera traccia video e genera operazioni di taglia-cuci.
+  I codec senza encoder ffmpeg (TrueHD, DTS-HD MA, DTS:X) usano solo il delay iniziale.
+  Mutuamente esclusiva con Frame-sync.
+Delay audio: offset manuale in ms per tracce audio importate.
+Delay sub: offset manuale in ms per sottotitoli.
+La correzione velocita' (PAL vs NTSC) e' automatica, non richiede opzioni.
+Il delay manuale viene sommato all'offset calcolato automaticamente.
+
+-- Matching --
+Pattern match: regex per abbinare episodi. Default: S(\d+)E(\d+)
+Estensioni: estensioni file da cercare. Default: mkv
+
+-- Post-Processing --
+Converti audio: formato conversione per tracce lossless (flac/opus).
+Rinomina tutte le tracce audio: rinomina le tracce audio, non solo quelle convertite.
+Encoding video: profilo encoding video post-merge.
+
+=== MENU IMPOSTAZIONI ===
+Percorsi tool: percorsi di mkvmerge, ffmpeg, mediainfo e cartella temp.
+  I tool vengono cercati automaticamente all'avvio.
+  ffmpeg puo' essere scaricato direttamente dall'interfaccia.
+Conversione audio: compressione FLAC e bitrate Opus per layout canali.
+Profili encoding: gestione profili encoding video (aggiungi, modifica, elimina).
+Impostazioni avanzate: soglie e parametri di sincronizzazione.
+  Reset defaults disponibile per ciascuna sezione.
+
+=== CONVERSIONE AUDIO ===
+Converte le tracce audio lossless in FLAC o Opus durante il merge.
+Codec convertibili: DTS-HD MA, DTS-HD HR, TrueHD, PCM, ALAC, MLP, FLAC.
+Esclusi: TrueHD Atmos e DTS:X perche' contengono informazioni spaziali.
+Default FLAC: compression level 8 (range 0-12).
+Default Opus: Mono 128, Stereo 256, 5.1 510, 7.1 768 kbps (range 64-768).
+
+=== ENCODING VIDEO ===
+Codec supportati: libx264, libx265, libsvtav1.
+Rate control: CRF (qualita' costante), QP, Bitrate (1 o 2 passaggi).
+I profili sono gestibili dal menu Impostazioni > Profili encoding.
+
+=== VARIABILI AMBIENTE ===
+REMUXFORGE_PORT: porta HTTP della WebUI (default: 5000).
+REMUXFORGE_DATA_DIR: directory per config e dati (default: .remux-forge).
+REMUXFORGE_LOG_FILE: percorso file log. Se impostato, abilita il log su file.";
+}

@@ -1,0 +1,807 @@
+<div class="dialog-overlay visible" @onclick="OnClose">
+    <div class="dialog-box" style="min-width: 60ch; max-height: 80vh; overflow-y: auto;" @onclick:stopPropagation="true">
+        <div class="dialog-title">Impostazioni Avanzate</div>
+        <div class="dialog-body">
+
+            @* Sezione Video Sync base *@
+            <details>
+                <summary class="form-section">Video Sync base</summary>
+                <div class="form-row">
+                    <span class="form-label">FrameWidth:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsFrameWidth" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">FrameHeight:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsFrameHeight" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">MseThreshold:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsMseThreshold" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">MseMinThreshold:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsMseMinThreshold" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">SsimThreshold:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsSsimThreshold" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">SsimMaxThreshold:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsSsimMaxThreshold" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">NumCheckPoints:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsNumCheckPoints" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">MinValidPoints:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsMinValidPoints" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">SceneCutThreshold:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsSceneCutThreshold" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">CutHalfWindow:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsCutHalfWindow" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">CutSignatureLength:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsCutSignatureLength" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">FingerprintCorrelationThreshold:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsFingerprintCorrelationThreshold" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">MinSceneCuts:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsMinSceneCuts" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">MinCutSpacingFrames:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsMinCutSpacingFrames" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">VerifySourceDurationSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsVerifySourceDurationSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">VerifyLangDurationSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsVerifyLangDurationSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">VerifySourceRetrySec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsVerifySourceRetrySec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">VerifyLangRetrySec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_vsVerifyLangRetrySec" />
+                </div>
+            </details>
+
+            @* Sezione Speed Correction *@
+            <details>
+                <summary class="form-section">Speed Correction</summary>
+                <div class="form-row">
+                    <span class="form-label">SourceStartSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_scSourceStartSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">SourceDurationSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_scSourceDurationSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">LangDurationSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_scLangDurationSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">MinSpeedRatioDiff:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_scMinSpeedRatioDiff" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">MaxDurationDiffTelecine:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_scMaxDurationDiffTelecine" />
+                </div>
+            </details>
+
+            @* Sezione Frame Sync *@
+            <details>
+                <summary class="form-section">Frame Sync</summary>
+                <div class="form-row">
+                    <span class="form-label">MinDurationMs:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_fsMinDurationMs" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">SourceStartSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_fsSourceStartSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">SourceDurationSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_fsSourceDurationSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">LangDurationSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_fsLangDurationSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">MinValidPoints:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_fsMinValidPoints" />
+                </div>
+            </details>
+
+            @* Sezione Deep Analysis *@
+            <details>
+                <summary class="form-section">Deep Analysis</summary>
+                <div class="form-row">
+                    <span class="form-label">CoarseFps:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daCoarseFps" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">DenseScanFps:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daDenseScanFps" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">DenseScanSsimThreshold:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daDenseScanSsimThreshold" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">DenseScanMinDipFrames:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daDenseScanMinDipFrames" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">LinearScanWindowSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daLinearScanWindowSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">LinearScanConfirmFrames:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daLinearScanConfirmFrames" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">VerifyDipSsimThreshold:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daVerifyDipSsimThreshold" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">ProbeMultiMarginsSec:</span>
+                    <input class="form-input" style="width: 24ch;" @bind="_daProbeMultiMarginsSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">ProbeMinConsistentPoints:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daProbeMinConsistentPoints" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">OffsetProbeDurationSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daOffsetProbeDurationSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">OffsetProbeDeltas:</span>
+                    <input class="form-input" style="width: 40ch;" @bind="_daOffsetProbeDeltas" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">OffsetProbeMinSsim:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daOffsetProbeMinSsim" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">MinOffsetChangeMs:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daMinOffsetChangeMs" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">MinConsecutiveStable:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daMinConsecutiveStable" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">BaselineSampleCount:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daBaselineSampleCount" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">SceneThreshold:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daSceneThreshold" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">MatchToleranceMs:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daMatchToleranceMs" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">WideProbeToleranceSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daWideProbeToleranceSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">SceneExtractTimeoutMs:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daSceneExtractTimeoutMs" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">GlobalVerifyPoints:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daGlobalVerifyPoints" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">GlobalVerifyMinRatio:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daGlobalVerifyMinRatio" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">VerifyMseMultiplier:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daVerifyMseMultiplier" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">InitialOffsetRangeSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daInitialOffsetRangeSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">InitialOffsetStepSec:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daInitialOffsetStepSec" />
+                </div>
+                <div class="form-row">
+                    <span class="form-label">InitialVotingCuts:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_daInitialVotingCuts" />
+                </div>
+            </details>
+
+            @* Sezione Track Split *@
+            <details>
+                <summary class="form-section">Track Split</summary>
+                <div class="form-row">
+                    <span class="form-label">FfmpegTimeoutMs:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_tsFfmpegTimeoutMs" />
+                </div>
+            </details>
+
+        </div>
+        @if (_validationError.Length > 0)
+        {
+            <div style="padding: 0.5em 1em; color: var(--color-error); white-space: pre-line;">@_validationError</div>
+        }
+        <div class="dialog-footer">
+            <button @onclick="Save">OK</button>
+            <button @onclick="ResetDefaults">Reset Default</button>
+            <button @onclick="OnClose">Annulla</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Evento chiusura dialog
+    /// </summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    #region Campi VideoSync
+
+    /// <summary>
+    /// Larghezza frame di analisi
+    /// </summary>
+    private string _vsFrameWidth = "";
+
+    /// <summary>
+    /// Altezza frame di analisi
+    /// </summary>
+    private string _vsFrameHeight = "";
+
+    /// <summary>
+    /// Soglia MSE massima
+    /// </summary>
+    private string _vsMseThreshold = "";
+
+    /// <summary>
+    /// Soglia MSE minima
+    /// </summary>
+    private string _vsMseMinThreshold = "";
+
+    /// <summary>
+    /// Soglia SSIM minima
+    /// </summary>
+    private string _vsSsimThreshold = "";
+
+    /// <summary>
+    /// Soglia SSIM massima
+    /// </summary>
+    private string _vsSsimMaxThreshold = "";
+
+    /// <summary>
+    /// Numero punti di verifica
+    /// </summary>
+    private string _vsNumCheckPoints = "";
+
+    /// <summary>
+    /// Numero minimo punti validi
+    /// </summary>
+    private string _vsMinValidPoints = "";
+
+    /// <summary>
+    /// Soglia cambio scena
+    /// </summary>
+    private string _vsSceneCutThreshold = "";
+
+    /// <summary>
+    /// Meta' finestra intorno a un taglio scena
+    /// </summary>
+    private string _vsCutHalfWindow = "";
+
+    /// <summary>
+    /// Lunghezza firma di taglio
+    /// </summary>
+    private string _vsCutSignatureLength = "";
+
+    /// <summary>
+    /// Soglia correlazione fingerprint
+    /// </summary>
+    private string _vsFingerprintCorrelationThreshold = "";
+
+    /// <summary>
+    /// Numero minimo tagli scena
+    /// </summary>
+    private string _vsMinSceneCuts = "";
+
+    /// <summary>
+    /// Distanza minima frame tra tagli consecutivi
+    /// </summary>
+    private string _vsMinCutSpacingFrames = "";
+
+    /// <summary>
+    /// Durata estrazione source per verifica (sec)
+    /// </summary>
+    private string _vsVerifySourceDurationSec = "";
+
+    /// <summary>
+    /// Durata estrazione lang per verifica (sec)
+    /// </summary>
+    private string _vsVerifyLangDurationSec = "";
+
+    /// <summary>
+    /// Durata estrazione source per retry verifica (sec)
+    /// </summary>
+    private string _vsVerifySourceRetrySec = "";
+
+    /// <summary>
+    /// Durata estrazione lang per retry verifica (sec)
+    /// </summary>
+    private string _vsVerifyLangRetrySec = "";
+
+    #endregion
+
+    #region Campi SpeedCorrection
+
+    /// <summary>
+    /// Secondo di inizio estrazione source
+    /// </summary>
+    private string _scSourceStartSec = "";
+
+    /// <summary>
+    /// Durata estrazione source (sec)
+    /// </summary>
+    private string _scSourceDurationSec = "";
+
+    /// <summary>
+    /// Durata estrazione lang (sec)
+    /// </summary>
+    private string _scLangDurationSec = "";
+
+    /// <summary>
+    /// Differenza minima speed ratio
+    /// </summary>
+    private string _scMinSpeedRatioDiff = "";
+
+    /// <summary>
+    /// Differenza massima durata telecine
+    /// </summary>
+    private string _scMaxDurationDiffTelecine = "";
+
+    #endregion
+
+    #region Campi FrameSync
+
+    /// <summary>
+    /// Durata minima video (ms)
+    /// </summary>
+    private string _fsMinDurationMs = "";
+
+    /// <summary>
+    /// Secondo di inizio estrazione source
+    /// </summary>
+    private string _fsSourceStartSec = "";
+
+    /// <summary>
+    /// Durata estrazione source (sec)
+    /// </summary>
+    private string _fsSourceDurationSec = "";
+
+    /// <summary>
+    /// Durata estrazione lang (sec)
+    /// </summary>
+    private string _fsLangDurationSec = "";
+
+    /// <summary>
+    /// Numero minimo punti validi
+    /// </summary>
+    private string _fsMinValidPoints = "";
+
+    #endregion
+
+    #region Campi DeepAnalysis
+
+    /// <summary>
+    /// FPS scansione grossolana
+    /// </summary>
+    private string _daCoarseFps = "";
+
+    /// <summary>
+    /// FPS scansione densa
+    /// </summary>
+    private string _daDenseScanFps = "";
+
+    /// <summary>
+    /// Soglia SSIM dip scansione densa
+    /// </summary>
+    private string _daDenseScanSsimThreshold = "";
+
+    /// <summary>
+    /// Numero minimo frame dip consecutivi
+    /// </summary>
+    private string _daDenseScanMinDipFrames = "";
+
+    /// <summary>
+    /// Finestra scansione lineare (sec)
+    /// </summary>
+    private string _daLinearScanWindowSec = "";
+
+    /// <summary>
+    /// Frame conferma scansione lineare
+    /// </summary>
+    private string _daLinearScanConfirmFrames = "";
+
+    /// <summary>
+    /// Soglia SSIM verifica dip
+    /// </summary>
+    private string _daVerifyDipSsimThreshold = "";
+
+    /// <summary>
+    /// Margini probe multi-punto (lista separata da virgola)
+    /// </summary>
+    private string _daProbeMultiMarginsSec = "";
+
+    /// <summary>
+    /// Numero minimo punti consistenti probe
+    /// </summary>
+    private string _daProbeMinConsistentPoints = "";
+
+    /// <summary>
+    /// Durata estrazione offset probe (sec)
+    /// </summary>
+    private string _daOffsetProbeDurationSec = "";
+
+    /// <summary>
+    /// Delta offset probe (lista separata da virgola)
+    /// </summary>
+    private string _daOffsetProbeDeltas = "";
+
+    /// <summary>
+    /// Soglia SSIM minima offset probe
+    /// </summary>
+    private string _daOffsetProbeMinSsim = "";
+
+    /// <summary>
+    /// Variazione minima offset (ms)
+    /// </summary>
+    private string _daMinOffsetChangeMs = "";
+
+    /// <summary>
+    /// Numero minimo punti consecutivi stabili
+    /// </summary>
+    private string _daMinConsecutiveStable = "";
+
+    /// <summary>
+    /// Numero campioni baseline
+    /// </summary>
+    private string _daBaselineSampleCount = "";
+
+    /// <summary>
+    /// Soglia scene change ffmpeg
+    /// </summary>
+    private string _daSceneThreshold = "";
+
+    /// <summary>
+    /// Tolleranza match (ms)
+    /// </summary>
+    private string _daMatchToleranceMs = "";
+
+    /// <summary>
+    /// Tolleranza probe ampio (sec)
+    /// </summary>
+    private string _daWideProbeToleranceSec = "";
+
+    /// <summary>
+    /// Timeout estrazione scene ffmpeg (ms)
+    /// </summary>
+    private string _daSceneExtractTimeoutMs = "";
+
+    /// <summary>
+    /// Numero punti verifica globale
+    /// </summary>
+    private string _daGlobalVerifyPoints = "";
+
+    /// <summary>
+    /// Rapporto minimo verifica globale
+    /// </summary>
+    private string _daGlobalVerifyMinRatio = "";
+
+    /// <summary>
+    /// Moltiplicatore MSE verifica
+    /// </summary>
+    private string _daVerifyMseMultiplier = "";
+
+    /// <summary>
+    /// Range iniziale ricerca offset (sec)
+    /// </summary>
+    private string _daInitialOffsetRangeSec = "";
+
+    /// <summary>
+    /// Step ricerca offset iniziale (sec)
+    /// </summary>
+    private string _daInitialOffsetStepSec = "";
+
+    /// <summary>
+    /// Numero tagli scena voting iniziale
+    /// </summary>
+    private string _daInitialVotingCuts = "";
+
+    #endregion
+
+    #region Campi TrackSplit
+
+    /// <summary>
+    /// Timeout comando ffmpeg (ms)
+    /// </summary>
+    private string _tsFfmpegTimeoutMs = "";
+
+    #endregion
+
+    /// <summary>
+    /// Messaggio errore validazione
+    /// </summary>
+    private string _validationError = "";
+
+    /// <summary>
+    /// Carica valori correnti da AppSettings
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        LoadFields();
+    }
+
+    /// <summary>
+    /// Carica tutti i campi dal model corrente
+    /// </summary>
+    private void LoadFields()
+    {
+        RemuxForge.Core.AdvancedConfig adv = AppSettingsService.Instance.Settings.Advanced;
+
+        // VideoSync — interi
+        _vsFrameWidth = adv.VideoSync.FrameWidth.ToString();
+        _vsFrameHeight = adv.VideoSync.FrameHeight.ToString();
+        _vsNumCheckPoints = adv.VideoSync.NumCheckPoints.ToString();
+        _vsMinValidPoints = adv.VideoSync.MinValidPoints.ToString();
+        _vsCutHalfWindow = adv.VideoSync.CutHalfWindow.ToString();
+        _vsCutSignatureLength = adv.VideoSync.CutSignatureLength.ToString();
+        _vsMinSceneCuts = adv.VideoSync.MinSceneCuts.ToString();
+        _vsMinCutSpacingFrames = adv.VideoSync.MinCutSpacingFrames.ToString();
+        _vsVerifySourceDurationSec = adv.VideoSync.VerifySourceDurationSec.ToString();
+        _vsVerifyLangDurationSec = adv.VideoSync.VerifyLangDurationSec.ToString();
+        _vsVerifySourceRetrySec = adv.VideoSync.VerifySourceRetrySec.ToString();
+        _vsVerifyLangRetrySec = adv.VideoSync.VerifyLangRetrySec.ToString();
+
+        // VideoSync — double
+        _vsMseThreshold = adv.VideoSync.MseThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _vsMseMinThreshold = adv.VideoSync.MseMinThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _vsSsimThreshold = adv.VideoSync.SsimThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _vsSsimMaxThreshold = adv.VideoSync.SsimMaxThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _vsSceneCutThreshold = adv.VideoSync.SceneCutThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _vsFingerprintCorrelationThreshold = adv.VideoSync.FingerprintCorrelationThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        // SpeedCorrection — interi
+        _scSourceStartSec = adv.SpeedCorrection.SourceStartSec.ToString();
+        _scSourceDurationSec = adv.SpeedCorrection.SourceDurationSec.ToString();
+        _scLangDurationSec = adv.SpeedCorrection.LangDurationSec.ToString();
+
+        // SpeedCorrection — double
+        _scMinSpeedRatioDiff = adv.SpeedCorrection.MinSpeedRatioDiff.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _scMaxDurationDiffTelecine = adv.SpeedCorrection.MaxDurationDiffTelecine.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        // FrameSync — interi
+        _fsMinDurationMs = adv.FrameSync.MinDurationMs.ToString();
+        _fsSourceStartSec = adv.FrameSync.SourceStartSec.ToString();
+        _fsSourceDurationSec = adv.FrameSync.SourceDurationSec.ToString();
+        _fsLangDurationSec = adv.FrameSync.LangDurationSec.ToString();
+        _fsMinValidPoints = adv.FrameSync.MinValidPoints.ToString();
+
+        // DeepAnalysis — double
+        _daCoarseFps = adv.DeepAnalysis.CoarseFps.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _daDenseScanFps = adv.DeepAnalysis.DenseScanFps.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _daDenseScanSsimThreshold = adv.DeepAnalysis.DenseScanSsimThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _daLinearScanWindowSec = adv.DeepAnalysis.LinearScanWindowSec.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _daVerifyDipSsimThreshold = adv.DeepAnalysis.VerifyDipSsimThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _daOffsetProbeDurationSec = adv.DeepAnalysis.OffsetProbeDurationSec.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _daOffsetProbeMinSsim = adv.DeepAnalysis.OffsetProbeMinSsim.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _daSceneThreshold = adv.DeepAnalysis.SceneThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _daWideProbeToleranceSec = adv.DeepAnalysis.WideProbeToleranceSec.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _daGlobalVerifyMinRatio = adv.DeepAnalysis.GlobalVerifyMinRatio.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _daVerifyMseMultiplier = adv.DeepAnalysis.VerifyMseMultiplier.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _daInitialOffsetStepSec = adv.DeepAnalysis.InitialOffsetStepSec.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        // DeepAnalysis — interi
+        _daDenseScanMinDipFrames = adv.DeepAnalysis.DenseScanMinDipFrames.ToString();
+        _daLinearScanConfirmFrames = adv.DeepAnalysis.LinearScanConfirmFrames.ToString();
+        _daProbeMinConsistentPoints = adv.DeepAnalysis.ProbeMinConsistentPoints.ToString();
+        _daMinOffsetChangeMs = adv.DeepAnalysis.MinOffsetChangeMs.ToString();
+        _daMinConsecutiveStable = adv.DeepAnalysis.MinConsecutiveStable.ToString();
+        _daBaselineSampleCount = adv.DeepAnalysis.BaselineSampleCount.ToString();
+        _daMatchToleranceMs = adv.DeepAnalysis.MatchToleranceMs.ToString();
+        _daSceneExtractTimeoutMs = adv.DeepAnalysis.SceneExtractTimeoutMs.ToString();
+        _daGlobalVerifyPoints = adv.DeepAnalysis.GlobalVerifyPoints.ToString();
+        _daInitialOffsetRangeSec = adv.DeepAnalysis.InitialOffsetRangeSec.ToString();
+        _daInitialVotingCuts = adv.DeepAnalysis.InitialVotingCuts.ToString();
+
+        // DeepAnalysis — liste
+        _daProbeMultiMarginsSec = string.Join(", ", adv.DeepAnalysis.ProbeMultiMarginsSec);
+        _daOffsetProbeDeltas = string.Join(", ", adv.DeepAnalysis.OffsetProbeDeltas);
+
+        // TrackSplit — interi
+        _tsFfmpegTimeoutMs = adv.TrackSplit.FfmpegTimeoutMs.ToString();
+    }
+
+    /// <summary>
+    /// Salva impostazioni avanzate con validazione, non chiude se errore
+    /// </summary>
+    private void Save()
+    {
+        _validationError = "";
+        RemuxForge.Core.AdvancedConfig adv = AppSettingsService.Instance.Settings.Advanced;
+        int intVal = 0;
+        double dblVal = 0.0;
+
+        // Parsing VideoSync — interi
+        if (int.TryParse(_vsFrameWidth, out intVal)) { adv.VideoSync.FrameWidth = intVal; }
+        if (int.TryParse(_vsFrameHeight, out intVal)) { adv.VideoSync.FrameHeight = intVal; }
+        if (int.TryParse(_vsNumCheckPoints, out intVal)) { adv.VideoSync.NumCheckPoints = intVal; }
+        if (int.TryParse(_vsMinValidPoints, out intVal)) { adv.VideoSync.MinValidPoints = intVal; }
+        if (int.TryParse(_vsCutHalfWindow, out intVal)) { adv.VideoSync.CutHalfWindow = intVal; }
+        if (int.TryParse(_vsCutSignatureLength, out intVal)) { adv.VideoSync.CutSignatureLength = intVal; }
+        if (int.TryParse(_vsMinSceneCuts, out intVal)) { adv.VideoSync.MinSceneCuts = intVal; }
+        if (int.TryParse(_vsMinCutSpacingFrames, out intVal)) { adv.VideoSync.MinCutSpacingFrames = intVal; }
+        if (int.TryParse(_vsVerifySourceDurationSec, out intVal)) { adv.VideoSync.VerifySourceDurationSec = intVal; }
+        if (int.TryParse(_vsVerifyLangDurationSec, out intVal)) { adv.VideoSync.VerifyLangDurationSec = intVal; }
+        if (int.TryParse(_vsVerifySourceRetrySec, out intVal)) { adv.VideoSync.VerifySourceRetrySec = intVal; }
+        if (int.TryParse(_vsVerifyLangRetrySec, out intVal)) { adv.VideoSync.VerifyLangRetrySec = intVal; }
+
+        // Parsing VideoSync — double
+        if (double.TryParse(_vsMseThreshold, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.VideoSync.MseThreshold = dblVal; }
+        if (double.TryParse(_vsMseMinThreshold, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.VideoSync.MseMinThreshold = dblVal; }
+        if (double.TryParse(_vsSsimThreshold, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.VideoSync.SsimThreshold = dblVal; }
+        if (double.TryParse(_vsSsimMaxThreshold, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.VideoSync.SsimMaxThreshold = dblVal; }
+        if (double.TryParse(_vsSceneCutThreshold, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.VideoSync.SceneCutThreshold = dblVal; }
+        if (double.TryParse(_vsFingerprintCorrelationThreshold, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.VideoSync.FingerprintCorrelationThreshold = dblVal; }
+
+        // Parsing SpeedCorrection — interi
+        if (int.TryParse(_scSourceStartSec, out intVal)) { adv.SpeedCorrection.SourceStartSec = intVal; }
+        if (int.TryParse(_scSourceDurationSec, out intVal)) { adv.SpeedCorrection.SourceDurationSec = intVal; }
+        if (int.TryParse(_scLangDurationSec, out intVal)) { adv.SpeedCorrection.LangDurationSec = intVal; }
+
+        // Parsing SpeedCorrection — double
+        if (double.TryParse(_scMinSpeedRatioDiff, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.SpeedCorrection.MinSpeedRatioDiff = dblVal; }
+        if (double.TryParse(_scMaxDurationDiffTelecine, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.SpeedCorrection.MaxDurationDiffTelecine = dblVal; }
+
+        // Parsing FrameSync — interi
+        if (int.TryParse(_fsMinDurationMs, out intVal)) { adv.FrameSync.MinDurationMs = intVal; }
+        if (int.TryParse(_fsSourceStartSec, out intVal)) { adv.FrameSync.SourceStartSec = intVal; }
+        if (int.TryParse(_fsSourceDurationSec, out intVal)) { adv.FrameSync.SourceDurationSec = intVal; }
+        if (int.TryParse(_fsLangDurationSec, out intVal)) { adv.FrameSync.LangDurationSec = intVal; }
+        if (int.TryParse(_fsMinValidPoints, out intVal)) { adv.FrameSync.MinValidPoints = intVal; }
+
+        // Parsing DeepAnalysis — double
+        if (double.TryParse(_daCoarseFps, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.CoarseFps = dblVal; }
+        if (double.TryParse(_daDenseScanFps, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.DenseScanFps = dblVal; }
+        if (double.TryParse(_daDenseScanSsimThreshold, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.DenseScanSsimThreshold = dblVal; }
+        if (double.TryParse(_daLinearScanWindowSec, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.LinearScanWindowSec = dblVal; }
+        if (double.TryParse(_daVerifyDipSsimThreshold, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.VerifyDipSsimThreshold = dblVal; }
+        if (double.TryParse(_daOffsetProbeDurationSec, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.OffsetProbeDurationSec = dblVal; }
+        if (double.TryParse(_daOffsetProbeMinSsim, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.OffsetProbeMinSsim = dblVal; }
+        if (double.TryParse(_daSceneThreshold, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.SceneThreshold = dblVal; }
+        if (double.TryParse(_daWideProbeToleranceSec, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.WideProbeToleranceSec = dblVal; }
+        if (double.TryParse(_daGlobalVerifyMinRatio, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.GlobalVerifyMinRatio = dblVal; }
+        if (double.TryParse(_daVerifyMseMultiplier, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.VerifyMseMultiplier = dblVal; }
+        if (double.TryParse(_daInitialOffsetStepSec, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.InitialOffsetStepSec = dblVal; }
+
+        // Parsing DeepAnalysis — interi
+        if (int.TryParse(_daDenseScanMinDipFrames, out intVal)) { adv.DeepAnalysis.DenseScanMinDipFrames = intVal; }
+        if (int.TryParse(_daLinearScanConfirmFrames, out intVal)) { adv.DeepAnalysis.LinearScanConfirmFrames = intVal; }
+        if (int.TryParse(_daProbeMinConsistentPoints, out intVal)) { adv.DeepAnalysis.ProbeMinConsistentPoints = intVal; }
+        if (int.TryParse(_daMinOffsetChangeMs, out intVal)) { adv.DeepAnalysis.MinOffsetChangeMs = intVal; }
+        if (int.TryParse(_daMinConsecutiveStable, out intVal)) { adv.DeepAnalysis.MinConsecutiveStable = intVal; }
+        if (int.TryParse(_daBaselineSampleCount, out intVal)) { adv.DeepAnalysis.BaselineSampleCount = intVal; }
+        if (int.TryParse(_daMatchToleranceMs, out intVal)) { adv.DeepAnalysis.MatchToleranceMs = intVal; }
+        if (int.TryParse(_daSceneExtractTimeoutMs, out intVal)) { adv.DeepAnalysis.SceneExtractTimeoutMs = intVal; }
+        if (int.TryParse(_daGlobalVerifyPoints, out intVal)) { adv.DeepAnalysis.GlobalVerifyPoints = intVal; }
+        if (int.TryParse(_daInitialOffsetRangeSec, out intVal)) { adv.DeepAnalysis.InitialOffsetRangeSec = intVal; }
+        if (int.TryParse(_daInitialVotingCuts, out intVal)) { adv.DeepAnalysis.InitialVotingCuts = intVal; }
+
+        // Parsing DeepAnalysis — ProbeMultiMarginsSec (List<double> separata da virgola)
+        List<double> margins = ParseDoubleList(_daProbeMultiMarginsSec);
+        if (margins != null) { adv.DeepAnalysis.ProbeMultiMarginsSec = margins; }
+        else { _validationError = "ProbeMultiMarginsSec: formato non valido (usare numeri separati da virgola)"; return; }
+
+        // Parsing DeepAnalysis — OffsetProbeDeltas (List<int> separata da virgola)
+        List<int> deltas = ParseIntList(_daOffsetProbeDeltas);
+        if (deltas != null) { adv.DeepAnalysis.OffsetProbeDeltas = deltas; }
+        else { _validationError = "OffsetProbeDeltas: formato non valido (usare interi separati da virgola)"; return; }
+
+        // Parsing TrackSplit — interi
+        if (int.TryParse(_tsFfmpegTimeoutMs, out intVal)) { adv.TrackSplit.FfmpegTimeoutMs = intVal; }
+
+        _validationError = "";
+        AppSettingsService.Instance.Save();
+        OnClose.InvokeAsync();
+    }
+
+    /// <summary>
+    /// Ripristina valori di default per tutte le sezioni avanzate
+    /// </summary>
+    private void ResetDefaults()
+    {
+        // Sostituisci con nuova istanza default
+        AppSettingsService.Instance.Settings.Advanced = new RemuxForge.Core.AdvancedConfig();
+        AppSettingsService.Instance.Save();
+
+        // Ricarica i campi dal model appena resettato
+        _validationError = "";
+        LoadFields();
+    }
+
+    /// <summary>
+    /// Parsing lista double da stringa separata da virgola
+    /// </summary>
+    /// <param name="input">Stringa con valori separati da virgola</param>
+    /// <returns>Lista di double oppure null se parsing fallisce</returns>
+    private List<double> ParseDoubleList(string input)
+    {
+        List<double> result = new List<double>();
+        string[] parts = input.Split(',');
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            string trimmed = parts[i].Trim();
+            if (trimmed.Length == 0) { continue; }
+
+            double val = 0.0;
+            if (!double.TryParse(trimmed, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out val))
+            {
+                return null;
+            }
+            result.Add(val);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Parsing lista int da stringa separata da virgola
+    /// </summary>
+    /// <param name="input">Stringa con valori separati da virgola</param>
+    /// <returns>Lista di int oppure null se parsing fallisce</returns>
+    private List<int> ParseIntList(string input)
+    {
+        List<int> result = new List<int>();
+        string[] parts = input.Split(',');
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            string trimmed = parts[i].Trim();
+            if (trimmed.Length == 0) { continue; }
+
+            int val = 0;
+            if (!int.TryParse(trimmed, out val))
+            {
+                return null;
+            }
+            result.Add(val);
+        }
+
+        return result;
+    }
+}

@@ -1,0 +1,440 @@
+<div class="dialog-overlay visible" @onclick="OnClose">
+    <div class="dialog-box" style="min-width: 70ch;" @onclick:stopPropagation="true">
+        <div class="dialog-title">Configurazione</div>
+        <div class="dialog-body">
+            @* Cartelle *@
+            <div class="form-section">== Cartelle ==</div>
+            <div class="form-row">
+                <span class="form-label">Source:</span>
+                <input class="form-input" @bind="_sourceFolder" />
+                <span class="btn-browse" @onclick="() => BrowseFolder(0)">[ .. ]</span>
+            </div>
+            <div class="form-row">
+                <span class="form-label">Lingua:</span>
+                <input class="form-input" @bind="_languageFolder" />
+                <span class="btn-browse" @onclick="() => BrowseFolder(1)">[ .. ]</span>
+            </div>
+            <div class="form-row">
+                <span class="form-label">Destinazione:</span>
+                <input class="form-input" @bind="_destFolder" />
+                <span class="btn-browse" @onclick="() => BrowseFolder(2)">[ .. ]</span>
+            </div>
+            <div class="form-row">
+                <span class="tui-toggle" @onclick="() => _overwrite = !_overwrite">@(_overwrite ? "[X]" : "[ ]") Sovrascrivi sorgente</span>
+            </div>
+            <div class="form-row">
+                <span class="tui-toggle" @onclick="() => _recursive = !_recursive">@(_recursive ? "[X]" : "[ ]") Ricorsivo</span>
+            </div>
+
+            @* Lingua e Tracce *@
+            <div class="form-section">== Lingua e Tracce ==</div>
+            <div class="form-row">
+                <span class="form-label">Lingua target:</span>
+                <input class="form-input" @bind="_targetLang" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Codec audio:</span>
+                <input class="form-input" @bind="_audioCodec" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Mantieni audio:</span>
+                <input class="form-input" @bind="_keepSrcAudio" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Mantieni codec:</span>
+                <input class="form-input" @bind="_keepSrcCodec" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Mantieni sub:</span>
+                <input class="form-input" @bind="_keepSrcSub" />
+            </div>
+            <div class="form-row">
+                <span class="tui-toggle" @onclick="() => _subOnly = !_subOnly">@(_subOnly ? "[X]" : "[ ]") Solo sottotitoli</span>
+                <span class="tui-toggle" style="margin-left: 2ch;" @onclick="() => _audioOnly = !_audioOnly">@(_audioOnly ? "[X]" : "[ ]") Solo audio</span>
+            </div>
+
+            @* Sincronizzazione *@
+            <div class="form-section">== Sincronizzazione ==</div>
+            <div class="form-row">
+                <span class="tui-toggle" @onclick="ToggleFrameSync">@(_frameSync ? "[X]" : "[ ]") Frame-sync (confronto visivo)</span>
+            </div>
+            <div class="form-row">
+                <span class="tui-toggle" @onclick="ToggleDeepAnalysis">@(_deepAnalysis ? "[X]" : "[ ]") Deep analysis (analisi completa)</span>
+            </div>
+            <div class="form-row">
+                <span class="form-label">Delay audio:</span>
+                <input class="form-input" style="width: 8ch;" @bind="_audioDelay" /> <span style="margin-left: 0.5ch;">ms</span>
+            </div>
+            <div class="form-row">
+                <span class="form-label">Delay sub:</span>
+                <input class="form-input" style="width: 8ch;" @bind="_subDelay" /> <span style="margin-left: 0.5ch;">ms</span>
+            </div>
+
+            @* Matching *@
+            <div class="form-section">== Matching ==</div>
+            <div class="form-row">
+                <span class="form-label">Pattern match:</span>
+                <input class="form-input" @bind="_matchPattern" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Estensioni:</span>
+                <input class="form-input" @bind="_extensions" />
+            </div>
+
+            @* Post-Processing *@
+            <div class="form-section">== Post-Processing ==</div>
+            <div class="form-row">
+                <span class="form-label">Converti audio:</span>
+                <select class="form-input" style="width: 12ch;" @bind="_convertFormat">
+                    <option value="0">No</option>
+                    <option value="1">FLAC</option>
+                    <option value="2">Opus</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <span class="tui-toggle" @onclick="() => _renameAllTracks = !_renameAllTracks">@(_renameAllTracks ? "[X]" : "[ ]") Rinomina tutte le tracce audio</span>
+            </div>
+            <div class="form-row">
+                <span class="form-label">Encoding video:</span>
+                <select class="form-input" style="width: 30ch;" @bind="_encodingProfile">
+                    <option value="">(nessuno)</option>
+                    @for (int i = 0; i < AppSettingsService.Instance.Settings.EncodingProfiles.Count; i++)
+                    {
+                        <option value="@AppSettingsService.Instance.Settings.EncodingProfiles[i].Name">@AppSettingsService.Instance.Settings.EncodingProfiles[i].Name</option>
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="dialog-footer">
+            <button @onclick="Apply">OK</button>
+            <button @onclick="OnClose">Annulla</button>
+        </div>
+    </div>
+</div>
+
+@* Dialog browse cartella *@
+@if (_showBrowse)
+{
+    <FolderBrowserDialog InitialPath="@_browseInitialPath"
+                          OnClose="CloseBrowse"
+                          OnSelect="ApplyBrowse" />
+}
+
+@code {
+    /// <summary>
+    /// Opzioni correnti da precompilare
+    /// </summary>
+    [Parameter] public Options Options { get; set; }
+
+    /// <summary>
+    /// Evento chiusura dialog
+    /// </summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// Evento applicazione opzioni
+    /// </summary>
+    [Parameter] public EventCallback<Options> OnApply { get; set; }
+
+    /// <summary>
+    /// Flag: mostra dialog browse cartella
+    /// </summary>
+    private bool _showBrowse = false;
+
+    /// <summary>
+    /// Percorso iniziale per il dialog browse
+    /// </summary>
+    private string _browseInitialPath = "";
+
+    /// <summary>
+    /// Indice campo destinazione del browse: 0=source, 1=lingua, 2=dest
+    /// </summary>
+    private int _browseFieldIndex = -1;
+
+    /// <summary>
+    /// Cartella sorgente
+    /// </summary>
+    private string _sourceFolder = "";
+
+    /// <summary>
+    /// Cartella lingua
+    /// </summary>
+    private string _languageFolder = "";
+
+    /// <summary>
+    /// Cartella destinazione
+    /// </summary>
+    private string _destFolder = "";
+
+    /// <summary>
+    /// Flag sovrascrivi sorgente
+    /// </summary>
+    private bool _overwrite = false;
+
+    /// <summary>
+    /// Flag ricorsivo
+    /// </summary>
+    private bool _recursive = true;
+
+    /// <summary>
+    /// Lingua target (CSV)
+    /// </summary>
+    private string _targetLang = "";
+
+    /// <summary>
+    /// Codec audio (CSV)
+    /// </summary>
+    private string _audioCodec = "";
+
+    /// <summary>
+    /// Lingue audio sorgente da mantenere (CSV)
+    /// </summary>
+    private string _keepSrcAudio = "";
+
+    /// <summary>
+    /// Codec audio sorgente da mantenere (CSV)
+    /// </summary>
+    private string _keepSrcCodec = "";
+
+    /// <summary>
+    /// Sottotitoli sorgente da mantenere (CSV)
+    /// </summary>
+    private string _keepSrcSub = "";
+
+    /// <summary>
+    /// Flag solo sottotitoli
+    /// </summary>
+    private bool _subOnly = false;
+
+    /// <summary>
+    /// Flag solo audio
+    /// </summary>
+    private bool _audioOnly = false;
+
+    /// <summary>
+    /// Flag frame-sync
+    /// </summary>
+    private bool _frameSync = false;
+
+    /// <summary>
+    /// Flag deep analysis
+    /// </summary>
+    private bool _deepAnalysis = false;
+
+    /// <summary>
+    /// Delay audio in ms (stringa per binding input)
+    /// </summary>
+    private string _audioDelay = "0";
+
+    /// <summary>
+    /// Delay sottotitoli in ms (stringa per binding input)
+    /// </summary>
+    private string _subDelay = "0";
+
+    /// <summary>
+    /// Pattern matching episodi
+    /// </summary>
+    private string _matchPattern = @"S(\d+)E(\d+)";
+
+    /// <summary>
+    /// Estensioni file (CSV)
+    /// </summary>
+    private string _extensions = "mkv";
+
+    /// <summary>
+    /// Formato conversione: 0=No, 1=FLAC, 2=Opus
+    /// </summary>
+    private int _convertFormat = 0;
+
+    /// <summary>
+    /// Flag: rinomina tutte le tracce audio
+    /// </summary>
+    private bool _renameAllTracks = false;
+
+    /// <summary>
+    /// Nome profilo encoding selezionato, vuoto = nessuno
+    /// </summary>
+    private string _encodingProfile = "";
+
+    /// <summary>
+    /// Precompila campi dalle opzioni correnti
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        if (Options != null)
+        {
+            _sourceFolder = Options.SourceFolder;
+            _languageFolder = Options.LanguageFolder;
+            _destFolder = Options.DestinationFolder;
+            _overwrite = Options.Overwrite;
+            _recursive = Options.Recursive;
+            _targetLang = string.Join(",", Options.TargetLanguage);
+            _audioCodec = string.Join(",", Options.AudioCodec);
+            _keepSrcAudio = string.Join(",", Options.KeepSourceAudioLangs);
+            _keepSrcCodec = string.Join(",", Options.KeepSourceAudioCodec);
+            _keepSrcSub = string.Join(",", Options.KeepSourceSubtitleLangs);
+            _subOnly = Options.SubOnly;
+            _audioOnly = Options.AudioOnly;
+            _frameSync = Options.FrameSync;
+            _deepAnalysis = Options.DeepAnalysis;
+            _audioDelay = Options.AudioDelay.ToString();
+            _subDelay = Options.SubtitleDelay.ToString();
+            _matchPattern = Options.MatchPattern;
+            _extensions = string.Join(",", Options.FileExtensions);
+
+            if (string.Equals(Options.ConvertFormat, "flac", StringComparison.OrdinalIgnoreCase)) { _convertFormat = 1; }
+            else if (string.Equals(Options.ConvertFormat, "opus", StringComparison.OrdinalIgnoreCase)) { _convertFormat = 2; }
+            else { _convertFormat = 0; }
+
+            _renameAllTracks = Options.RenameAllTracks;
+
+            _encodingProfile = Options.EncodingProfileName;
+        }
+    }
+
+    /// <summary>
+    /// Applica le opzioni compilate e notifica il parent
+    /// </summary>
+    private void Apply()
+    {
+        Options opts = new Options();
+        int audioDelay = 0;
+        int subDelay = 0;
+        string[] parts = null;
+        string trimmed = "";
+
+        opts.SourceFolder = _sourceFolder;
+        opts.LanguageFolder = _languageFolder;
+        opts.DestinationFolder = _destFolder;
+        opts.Overwrite = _overwrite;
+        opts.Recursive = _recursive;
+
+        // Parsing CSV
+        ParseCsv(_targetLang, opts.TargetLanguage);
+        ParseCsv(_audioCodec, opts.AudioCodec);
+        ParseCsv(_keepSrcAudio, opts.KeepSourceAudioLangs);
+        ParseCsv(_keepSrcCodec, opts.KeepSourceAudioCodec);
+        ParseCsv(_keepSrcSub, opts.KeepSourceSubtitleLangs);
+
+        opts.SubOnly = _subOnly;
+        opts.AudioOnly = _audioOnly;
+        opts.FrameSync = _frameSync;
+        opts.DeepAnalysis = _deepAnalysis;
+
+        int.TryParse(_audioDelay, out audioDelay);
+        opts.AudioDelay = audioDelay;
+        int.TryParse(_subDelay, out subDelay);
+        opts.SubtitleDelay = subDelay;
+
+        opts.MatchPattern = _matchPattern;
+
+        // Estensioni
+        opts.FileExtensions.Clear();
+        parts = _extensions.Split(',');
+        for (int i = 0; i < parts.Length; i++)
+        {
+            trimmed = parts[i].Trim().TrimStart('.');
+            if (trimmed.Length > 0) { opts.FileExtensions.Add(trimmed); }
+        }
+
+        // Formato conversione
+        if (_convertFormat == 1) { opts.ConvertFormat = "flac"; }
+        else if (_convertFormat == 2) { opts.ConvertFormat = "opus"; }
+        else { opts.ConvertFormat = ""; }
+
+        opts.RenameAllTracks = _renameAllTracks;
+
+        // Path mkvmerge da AppSettings (gestito nel dialog Percorsi tool)
+        opts.MkvMergePath = AppSettingsService.Instance.Settings.Tools.MkvMergePath.Length > 0 ? AppSettingsService.Instance.Settings.Tools.MkvMergePath : "mkvmerge";
+        opts.EncodingProfileName = _encodingProfile;
+
+        OnApply.InvokeAsync(opts);
+    }
+
+    /// <summary>
+    /// Parsa stringa CSV e popola lista
+    /// </summary>
+    /// <param name="text">Testo CSV</param>
+    /// <param name="list">Lista destinazione</param>
+    private void ParseCsv(string text, List<string> list)
+    {
+        string[] parts = null;
+        string trimmed = "";
+
+        list.Clear();
+        if (text != null && text.Length > 0)
+        {
+            parts = text.Split(',');
+            for (int i = 0; i < parts.Length; i++)
+            {
+                trimmed = parts[i].Trim();
+                if (trimmed.Length > 0) { list.Add(trimmed); }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Apre il dialog browse cartella per il campo specificato
+    /// </summary>
+    /// <param name="fieldIndex">Indice campo: 0=source, 1=lingua, 2=dest</param>
+    private void BrowseFolder(int fieldIndex)
+    {
+        _browseFieldIndex = fieldIndex;
+
+        // Determina percorso iniziale dal campo corrente
+        if (fieldIndex == 0) { _browseInitialPath = _sourceFolder; }
+        else if (fieldIndex == 1) { _browseInitialPath = _languageFolder; }
+        else if (fieldIndex == 2) { _browseInitialPath = _destFolder; }
+
+        _showBrowse = true;
+    }
+
+    /// <summary>
+    /// Chiude il dialog browse cartella
+    /// </summary>
+    private void CloseBrowse()
+    {
+        _showBrowse = false;
+    }
+
+    /// <summary>
+    /// Applica il percorso selezionato dal dialog browse
+    /// </summary>
+    /// <param name="selectedPath">Percorso selezionato</param>
+    private void ApplyBrowse(string selectedPath)
+    {
+        _showBrowse = false;
+
+        if (selectedPath == null || selectedPath.Length == 0) { return; }
+
+        // Applica al campo corretto
+        if (_browseFieldIndex == 0) { _sourceFolder = selectedPath; }
+        else if (_browseFieldIndex == 1) { _languageFolder = selectedPath; }
+        else if (_browseFieldIndex == 2) { _destFolder = selectedPath; }
+    }
+
+    /// <summary>
+    /// Toggle frame-sync con mutua esclusione deep analysis
+    /// </summary>
+    private void ToggleFrameSync()
+    {
+        _frameSync = !_frameSync;
+        if (_frameSync && _deepAnalysis)
+        {
+            _deepAnalysis = false;
+        }
+    }
+
+    /// <summary>
+    /// Toggle deep analysis con mutua esclusione frame-sync
+    /// </summary>
+    private void ToggleDeepAnalysis()
+    {
+        _deepAnalysis = !_deepAnalysis;
+        if (_deepAnalysis && _frameSync)
+        {
+            _frameSync = false;
+        }
+    }
+
+}

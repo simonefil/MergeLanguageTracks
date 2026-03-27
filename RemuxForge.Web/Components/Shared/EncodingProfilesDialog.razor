@@ -1,0 +1,392 @@
+<div class="dialog-overlay visible" @onclick="OnClose">
+    <div class="dialog-box" style="min-width: 65ch;" @onclick:stopPropagation="true">
+        <div class="dialog-title">Profili Encoding Video</div>
+        <div class="dialog-body">
+
+            @* Lista profili *@
+            <div class="form-section">== Profili ==</div>
+            <div class="form-row">
+                <select class="form-input" style="width: 30ch;" @onchange="OnProfileSelected">
+                    @for (int i = 0; i < _profiles.Count; i++)
+                    {
+                        int idx = i;
+                        <option value="@idx" selected="@(idx == _selectedIdx)">@_profiles[i].Name</option>
+                    }
+                </select>
+                <button style="margin-left: 1ch;" @onclick="AddProfile">Nuovo</button>
+                <button style="margin-left: 1ch;" @onclick="DeleteProfile">Elimina</button>
+            </div>
+
+            @if (_editing != null)
+            {
+                @* Nome profilo *@
+                <div class="form-section">== Impostazioni ==</div>
+                <div class="form-row">
+                    <span class="form-label">Nome:</span>
+                    <input class="form-input" @bind="_editing.Name" />
+                </div>
+
+                @* Codec *@
+                <div class="form-row">
+                    <span class="form-label">Codec:</span>
+                    <select class="form-input" style="width: 20ch;" value="@_editing.Codec" @onchange="OnCodecChanged">
+                        @for (int i = 0; i < EncodingDefaults.CODECS.Length; i++)
+                        {
+                            <option value="@EncodingDefaults.CODECS[i]">@EncodingDefaults.CODECS[i]</option>
+                        }
+                    </select>
+                </div>
+
+                @* Preset *@
+                <div class="form-row">
+                    <span class="form-label">Preset:</span>
+                    <select class="form-input" style="width: 20ch;" @bind="_editing.Preset">
+                        @foreach (string p in EncodingDefaults.GetPresets(_editing.Codec))
+                        {
+                            <option value="@p">@p</option>
+                        }
+                    </select>
+                </div>
+
+                @* Tune *@
+                <div class="form-row">
+                    <span class="form-label">Tune:</span>
+                    <select class="form-input" style="width: 30ch;" @bind="_editing.Tune">
+                        @foreach (string t in EncodingDefaults.GetTunes(_editing.Codec))
+                        {
+                            <option value="@t">@t</option>
+                        }
+                    </select>
+                </div>
+
+                @* Profile (solo x264/x265) *@
+                @if (EncodingDefaults.HasProfile(_editing.Codec))
+                {
+                    <div class="form-row">
+                        <span class="form-label">Profile:</span>
+                        <select class="form-input" style="width: 20ch;" @bind="_editing.Profile">
+                            @foreach (string pr in EncodingDefaults.GetProfiles(_editing.Codec))
+                            {
+                                <option value="@pr">@pr</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                @* Bit depth *@
+                <div class="form-row">
+                    <span class="form-label">Bit depth:</span>
+                    <select class="form-input" style="width: 30ch;" @bind="_editing.BitDepth">
+                        @foreach (string bd in EncodingDefaults.GetBitDepths(_editing.Codec))
+                        {
+                            <option value="@bd">@bd</option>
+                        }
+                    </select>
+                </div>
+
+                @* Rate mode *@
+                <div class="form-row">
+                    <span class="form-label">Rate mode:</span>
+                    <select class="form-input" style="width: 12ch;" value="@_editing.RateMode" @onchange="OnRateModeChanged">
+                        @foreach (string rm in EncodingDefaults.GetRateModes(_editing.Codec))
+                        {
+                            <option value="@rm">@rm</option>
+                        }
+                    </select>
+                </div>
+
+                @* CRF/QP (solo se rate mode = crf o qp) *@
+                @if (_editing.RateMode == "crf" || _editing.RateMode == "qp")
+                {
+                    <div class="form-row">
+                        <span class="form-label">@(_editing.RateMode == "qp" ? "QP:" : "CRF:")</span>
+                        <input class="form-input" style="width: 6ch;" @bind="_crfQpStr" />
+                        <span style="margin-left: 1ch; color: var(--foreground2);">Range: 0-@EncodingDefaults.GetMaxCrf(_editing.Codec)</span>
+                    </div>
+                }
+
+                @* Bitrate (solo se rate mode = bitrate) *@
+                @if (_editing.RateMode == "bitrate")
+                {
+                    <div class="form-row">
+                        <span class="form-label">Bitrate (kbps):</span>
+                        <input class="form-input" style="width: 10ch;" @bind="_bitrateStr" />
+                    </div>
+
+                    @* Passes (solo x264/x265 in bitrate) *@
+                    @if (EncodingDefaults.HasMultiPass(_editing.Codec))
+                    {
+                        <div class="form-row">
+                            <span class="form-label">Passate:</span>
+                            <select class="form-input" style="width: 6ch;" @bind="_editing.Passes">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </div>
+                    }
+                }
+
+                @* Film grain (solo svtav1) *@
+                @if (EncodingDefaults.HasFilmGrain(_editing.Codec))
+                {
+                    <div class="form-row">
+                        <span class="form-label">Film grain:</span>
+                        <input class="form-input" style="width: 6ch;" @bind="_filmGrainStr" />
+                        <span style="margin-left: 1ch; color: var(--foreground2);">0 = disabilitato, 1-50</span>
+                    </div>
+                    <div class="form-row">
+                        <span class="tui-toggle" @onclick="() => _editing.FilmGrainDenoise = !_editing.FilmGrainDenoise">@(_editing.FilmGrainDenoise ? "[X]" : "[ ]") Film grain denoise</span>
+                    </div>
+                }
+
+                @* Extra params *@
+                <div class="form-row">
+                    <span class="form-label">Extra params:</span>
+                    <textarea class="form-input" rows="3" @bind="_editing.ExtraParams"></textarea>
+                </div>
+            }
+            else
+            {
+                <div class="form-row" style="color: var(--foreground2);">Nessun profilo. Premere [Nuovo] per crearne uno.</div>
+            }
+        </div>
+        <div class="dialog-footer">
+            <button @onclick="Save">OK</button>
+            <button @onclick="OnClose">Annulla</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Evento chiusura dialog
+    /// </summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// Lista profili in modifica
+    /// </summary>
+    private List<EncodingProfile> _profiles;
+
+    /// <summary>
+    /// Indice profilo selezionato
+    /// </summary>
+    private int _selectedIdx;
+
+    /// <summary>
+    /// Profilo in modifica (riferimento al profilo clonato)
+    /// </summary>
+    private EncodingProfile _editing;
+
+    /// <summary>
+    /// CRF/QP come stringa per binding input
+    /// </summary>
+    private string _crfQpStr;
+
+    /// <summary>
+    /// Bitrate come stringa per binding input
+    /// </summary>
+    private string _bitrateStr;
+
+    /// <summary>
+    /// Film grain come stringa per binding input
+    /// </summary>
+    private string _filmGrainStr;
+
+    /// <summary>
+    /// Carica profili clonati da AppSettings
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        // Clona profili per editing locale
+        this._profiles = new List<EncodingProfile>();
+        for (int i = 0; i < AppSettingsService.Instance.Settings.EncodingProfiles.Count; i++)
+        {
+            this._profiles.Add(AppSettingsService.Instance.Settings.EncodingProfiles[i].Clone());
+        }
+
+        this._selectedIdx = -1;
+        this._editing = null;
+        this._crfQpStr = "";
+        this._bitrateStr = "";
+        this._filmGrainStr = "";
+
+        // Seleziona primo profilo se esiste
+        if (this._profiles.Count > 0)
+        {
+            this._selectedIdx = 0;
+            this.LoadEditing();
+        }
+    }
+
+    /// <summary>
+    /// Gestisce cambio profilo selezionato nel dropdown
+    /// </summary>
+    /// <param name="e">Argomenti evento change</param>
+    private void OnProfileSelected(ChangeEventArgs e)
+    {
+        int idx = 0;
+
+        // Salva profilo corrente prima di cambiare
+        this.SaveEditing();
+
+        if (int.TryParse(e.Value.ToString(), out idx))
+        {
+            this._selectedIdx = idx;
+            this.LoadEditing();
+        }
+    }
+
+    /// <summary>
+    /// Gestisce cambio codec: resetta campi ai default del nuovo codec
+    /// </summary>
+    /// <param name="e">Argomenti evento change</param>
+    private void OnCodecChanged(ChangeEventArgs e)
+    {
+        string newCodec = e.Value.ToString();
+
+        this._editing.Codec = newCodec;
+        this._editing.Preset = EncodingDefaults.GetPresets(newCodec)[0];
+        this._editing.Tune = EncodingDefaults.GetTunes(newCodec)[0];
+        this._editing.BitDepth = EncodingDefaults.GetBitDepths(newCodec)[0];
+        this._editing.RateMode = EncodingDefaults.GetRateModes(newCodec)[0];
+        this._editing.CrfQp = EncodingDefaults.GetDefaultCrf(newCodec);
+        this._editing.Bitrate = 0;
+        this._editing.Passes = 1;
+        this._editing.FilmGrain = 0;
+        this._editing.FilmGrainDenoise = false;
+
+        // Resetta profile per codec che lo supportano
+        if (EncodingDefaults.HasProfile(newCodec))
+        {
+            this._editing.Profile = "default";
+        }
+        else
+        {
+            this._editing.Profile = "";
+        }
+
+        this._crfQpStr = this._editing.CrfQp.ToString();
+        this._bitrateStr = "0";
+        this._filmGrainStr = "0";
+    }
+
+    /// <summary>
+    /// Gestisce cambio rate mode: resetta valori correlati
+    /// </summary>
+    /// <param name="e">Argomenti evento change</param>
+    private void OnRateModeChanged(ChangeEventArgs e)
+    {
+        this._editing.RateMode = e.Value.ToString();
+
+        if (this._editing.RateMode == "crf" || this._editing.RateMode == "qp")
+        {
+            this._editing.CrfQp = EncodingDefaults.GetDefaultCrf(this._editing.Codec);
+            this._crfQpStr = this._editing.CrfQp.ToString();
+        }
+        else
+        {
+            this._editing.Bitrate = 0;
+            this._bitrateStr = "0";
+        }
+    }
+
+    /// <summary>
+    /// Carica i campi del profilo selezionato nell'editor
+    /// </summary>
+    private void LoadEditing()
+    {
+        if (this._selectedIdx >= 0 && this._selectedIdx < this._profiles.Count)
+        {
+            this._editing = this._profiles[this._selectedIdx];
+            this._crfQpStr = this._editing.CrfQp.ToString();
+            this._bitrateStr = this._editing.Bitrate.ToString();
+            this._filmGrainStr = this._editing.FilmGrain.ToString();
+        }
+        else
+        {
+            this._editing = null;
+        }
+    }
+
+    /// <summary>
+    /// Salva i valori stringa nel profilo corrente
+    /// </summary>
+    private void SaveEditing()
+    {
+        int val = 0;
+
+        if (this._editing == null)
+        {
+            return;
+        }
+
+        if (int.TryParse(this._crfQpStr, out val)) { this._editing.CrfQp = val; }
+        if (int.TryParse(this._bitrateStr, out val)) { this._editing.Bitrate = val; }
+        if (int.TryParse(this._filmGrainStr, out val)) { this._editing.FilmGrain = val; }
+    }
+
+    /// <summary>
+    /// Aggiunge un nuovo profilo con valori di default
+    /// </summary>
+    private void AddProfile()
+    {
+        // Salva profilo corrente
+        this.SaveEditing();
+
+        EncodingProfile newProfile = new EncodingProfile();
+        newProfile.Name = "Nuovo profilo " + (this._profiles.Count + 1);
+        this._profiles.Add(newProfile);
+        this._selectedIdx = this._profiles.Count - 1;
+        this.LoadEditing();
+    }
+
+    /// <summary>
+    /// Elimina il profilo selezionato
+    /// </summary>
+    private void DeleteProfile()
+    {
+        if (this._selectedIdx < 0 || this._selectedIdx >= this._profiles.Count)
+        {
+            return;
+        }
+
+        this._profiles.RemoveAt(this._selectedIdx);
+
+        // Riposiziona selezione
+        if (this._profiles.Count == 0)
+        {
+            this._selectedIdx = -1;
+            this._editing = null;
+        }
+        else if (this._selectedIdx >= this._profiles.Count)
+        {
+            this._selectedIdx = this._profiles.Count - 1;
+        }
+
+        this.LoadEditing();
+    }
+
+    /// <summary>
+    /// Salva tutti i profili in AppSettings e chiude il dialog
+    /// </summary>
+    private void Save()
+    {
+        // Salva profilo corrente
+        this.SaveEditing();
+
+        // Sostituisci lista profili in AppSettings
+        AppSettingsService.Instance.Settings.EncodingProfiles.Clear();
+        for (int i = 0; i < this._profiles.Count; i++)
+        {
+            // Ignora profili senza nome
+            if (this._profiles[i].Name.Length > 0)
+            {
+                AppSettingsService.Instance.Settings.EncodingProfiles.Add(this._profiles[i]);
+            }
+        }
+
+        AppSettingsService.Instance.Save();
+        this.OnClose.InvokeAsync();
+    }
+}

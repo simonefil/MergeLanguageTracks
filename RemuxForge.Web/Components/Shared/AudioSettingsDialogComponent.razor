@@ -1,0 +1,117 @@
+<div class="dialog-overlay visible" @onclick="OnClose">
+    <div class="dialog-box" style="min-width: 40ch;" @onclick:stopPropagation="true">
+        <div class="dialog-title">Impostazioni Conversione Audio</div>
+        <div class="dialog-body">
+            <div class="form-section">== FLAC ==</div>
+            <div class="form-row">
+                <span class="form-label">Compressione (0-12):</span>
+                <input class="form-input" style="width: 6ch;" @bind="_flacCompression" />
+            </div>
+
+            <div class="form-section">== Opus (bitrate kbps) ==</div>
+            <div class="form-row">
+                <span class="form-label">Mono (1ch):</span>
+                <input class="form-input" style="width: 8ch;" @bind="_opusMono" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Stereo (2ch):</span>
+                <input class="form-input" style="width: 8ch;" @bind="_opusStereo" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Surround 5.1:</span>
+                <input class="form-input" style="width: 8ch;" @bind="_opusS51" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Surround 7.1:</span>
+                <input class="form-input" style="width: 8ch;" @bind="_opusS71" />
+            </div>
+            <div class="form-row" style="color: var(--foreground2);">
+                Range: @AppSettingsModel.OPUS_BITRATE_MIN-@AppSettingsModel.OPUS_BITRATE_MAX kbps
+            </div>
+        </div>
+        @if (_validationError.Length > 0)
+        {
+            <div style="padding: 0.5em 1em; color: var(--color-error); white-space: pre-line;">@_validationError</div>
+        }
+        <div class="dialog-footer">
+            <button @onclick="Save">OK</button>
+            <button @onclick="OnClose">Annulla</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Evento chiusura dialog
+    /// </summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// Livello compressione FLAC (stringa per binding input)
+    /// </summary>
+    private string _flacCompression = "";
+
+    /// <summary>
+    /// Bitrate Opus mono (stringa per binding input)
+    /// </summary>
+    private string _opusMono = "";
+
+    /// <summary>
+    /// Bitrate Opus stereo (stringa per binding input)
+    /// </summary>
+    private string _opusStereo = "";
+
+    /// <summary>
+    /// Bitrate Opus surround 5.1 (stringa per binding input)
+    /// </summary>
+    private string _opusS51 = "";
+
+    /// <summary>
+    /// Bitrate Opus surround 7.1 (stringa per binding input)
+    /// </summary>
+    private string _opusS71 = "";
+
+    /// <summary>
+    /// Messaggio errore validazione
+    /// </summary>
+    private string _validationError = "";
+
+    /// <summary>
+    /// Carica valori correnti da AppSettings
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        _flacCompression = AppSettingsService.Instance.Settings.Flac.CompressionLevel.ToString();
+        _opusMono = AppSettingsService.Instance.Settings.Opus.Bitrate.Mono.ToString();
+        _opusStereo = AppSettingsService.Instance.Settings.Opus.Bitrate.Stereo.ToString();
+        _opusS51 = AppSettingsService.Instance.Settings.Opus.Bitrate.Surround51.ToString();
+        _opusS71 = AppSettingsService.Instance.Settings.Opus.Bitrate.Surround71.ToString();
+    }
+
+    /// <summary>
+    /// Salva impostazioni audio con validazione, non chiude se errore
+    /// </summary>
+    private void Save()
+    {
+        int val = 0;
+
+        // Parsing valori nel model
+        if (int.TryParse(_flacCompression, out val)) { AppSettingsService.Instance.Settings.Flac.CompressionLevel = val; }
+        if (int.TryParse(_opusMono, out val)) { AppSettingsService.Instance.Settings.Opus.Bitrate.Mono = val; }
+        if (int.TryParse(_opusStereo, out val)) { AppSettingsService.Instance.Settings.Opus.Bitrate.Stereo = val; }
+        if (int.TryParse(_opusS51, out val)) { AppSettingsService.Instance.Settings.Opus.Bitrate.Surround51 = val; }
+        if (int.TryParse(_opusS71, out val)) { AppSettingsService.Instance.Settings.Opus.Bitrate.Surround71 = val; }
+
+        // Valida
+        string errorMessage;
+        if (!AppSettingsService.Instance.ValidateAudio(out errorMessage))
+        {
+            _validationError = errorMessage;
+            return;
+        }
+
+        _validationError = "";
+        AppSettingsService.Instance.Save();
+        OnClose.InvokeAsync();
+    }
+}

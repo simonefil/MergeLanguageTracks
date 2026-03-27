@@ -1,0 +1,124 @@
+@page "/"
+@rendermode InteractiveServer
+@inject MergeOrchestrator Orchestrator
+@implements IAsyncDisposable
+
+<div class="rf-layout">
+
+    @* Barra Menu *@
+    <MenuBarComponent OnScan="DoScan"
+                       OnAnalyzeSelected="DoAnalyzeSelected"
+                       OnAnalyzeAll="DoAnalyzeAll"
+                       OnSkip="DoToggleSkip"
+                       OnMergeSelected="DoMergeSelected"
+                       OnMergeAll="DoMergeAll"
+                       OnShowConfig="ShowConfig"
+                       OnShowToolPaths="ShowToolPaths"
+                       OnShowAudioSettings="ShowAudioSettings"
+                       OnShowAdvancedSettings="ShowAdvancedSettings"
+                       OnShowEncodingProfiles="ShowEncodingProfiles"
+                       OnShowHelp="ShowHelp"
+                       OnShowInfo="ShowInfo"
+                       OnShowPipeline="ShowPipeline"
+                       OnThemeChanged="ChangeTheme"
+                       CurrentTheme="@_currentTheme" />
+
+    @* Area Pannelli *@
+    <div class="panels-area">
+        <EpisodeTableComponent Records="@_records"
+                                SelectedIndex="@Orchestrator.SelectedIndex"
+                                OnRowSelected="SelectRow"
+                                OnContextMenu="ShowContextMenu" />
+        <DetailPanelComponent Record="@_selectedRecord" />
+    </div>
+
+    @* Pannello Log *@
+    <LogPanelComponent LogText="@Orchestrator.LogText" JsModule="@_jsModule" />
+
+    @* Barra di Stato *@
+    <StatusBarComponent OnScan="DoScan"
+                         OnAnalyzeSelected="DoAnalyzeSelected"
+                         OnAnalyzeAll="DoAnalyzeAll"
+                         OnSkip="DoToggleSkip"
+                         OnMergeSelected="DoMergeSelected"
+                         OnMergeAll="DoMergeAll"
+                         OnShowConfig="ShowConfig"
+                         OnShowHelp="ShowHelp" />
+</div>
+
+@* Dialog Configurazione *@
+@if (_showConfig)
+{
+    <ConfigDialogComponent Options="@Orchestrator.CurrentOptions"
+                            OnClose="CloseConfig"
+                            OnApply="ApplyConfig" />
+}
+
+@* Dialog Percorsi Tool *@
+@if (_showToolPaths)
+{
+    <ToolPathsDialogComponent OnClose="CloseToolPaths" />
+}
+
+@* Dialog Impostazioni Audio *@
+@if (_showAudioSettings)
+{
+    <AudioSettingsDialogComponent OnClose="CloseAudioSettings" />
+}
+
+@* Dialog Impostazioni Avanzate *@
+@if (_showAdvancedSettings)
+{
+    <AdvancedSettingsDialogComponent OnClose="CloseAdvancedSettings" />
+}
+
+@* Dialog Delay *@
+@if (_showDelay && _selectedRecord != null)
+{
+    <DelayDialogComponent Record="@_selectedRecord"
+                           OnClose="CloseDelay"
+                           OnApply="ApplyDelay" />
+}
+
+@* Dialog Profili Encoding *@
+@if (_showEncodingProfiles)
+{
+    <EncodingProfilesDialog OnClose="CloseEncodingProfiles" />
+}
+
+@* Dialog Pipeline *@
+@if (_showPipeline)
+{
+    <PipelineDialogComponent Options="@Orchestrator.CurrentOptions" OnClose="ClosePipeline" />
+}
+
+@* Dialog Help *@
+@if (_showHelp)
+{
+    <HelpDialogComponent OnClose="CloseHelp" />
+}
+
+@* Dialog Info *@
+@if (_showInfo)
+{
+    <InfoDialogComponent OnClose="CloseInfo" />
+}
+
+@* Context Menu Episodio *@
+@if (_showContextMenu && _contextMenuItems != null)
+{
+    <ContextMenuComponent Items="@_contextMenuItems"
+                           X="@_contextMenuX"
+                           Y="@_contextMenuY"
+                           OnClose="CloseContextMenu"
+                           OnSelect="HandleContextMenuSelect" />
+}
+
+@* Dialog MediaInfo *@
+@if (_showMediaInfo)
+{
+    <MediaInfoDialogComponent Title="@_mediaInfoTitle"
+                               Report="@_mediaInfoReport"
+                               JsModule="@_jsModule"
+                               OnClose="CloseMediaInfo" />
+}

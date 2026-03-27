@@ -1,0 +1,14 @@
+services:
+  remuxforge:
+    image: draknodd/remuxforge:latest
+    container_name: remuxforge
+    restart: unless-stopped
+    user: "1000:1000"
+    ports:
+      - "5000:5000"
+    environment:
+      - REMUXFORGE_PORT=5000
+      - REMUXFORGE_DATA_DIR=/data
+    volumes:
+      - /srv:/data:rw
+      - /media:/media:rw

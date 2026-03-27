@@ -1,0 +1,37 @@
+<div class="log-panel">
+    <div class="rf-panel-title">Log</div>
+    <div class="rf-panel-body">
+        <pre>@LogText</pre>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Testo log da visualizzare
+    /// </summary>
+    [Parameter] public string LogText { get; set; }
+
+    /// <summary>
+    /// Modulo JS interop per auto-scroll
+    /// </summary>
+    [Parameter] public IJSObjectReference JsModule { get; set; }
+
+    /// <summary>
+    /// Auto-scroll del log alla fine dopo ogni render
+    /// </summary>
+    /// <param name="firstRender">True se primo render</param>
+    protected override async System.Threading.Tasks.Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (this.JsModule != null)
+        {
+            try
+            {
+                await this.JsModule.InvokeVoidAsync("scrollLogToBottom");
+            }
+            catch
+            {
+                // Ignora errori JS durante dispose
+            }
+        }
+    }
+}

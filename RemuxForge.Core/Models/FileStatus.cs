@@ -1,0 +1,17 @@
+namespace RemuxForge.Core
+{
+    /// <summary>
+    /// Stato di elaborazione di un file nel pipeline
+    /// </summary>
+    public enum FileStatus
+    {
+        Pending,
+        Analyzing,
+        Analyzed,
+        Processing,
+        Encoding,
+        Done,
+        Error,
+        Skipped
+    }
+}

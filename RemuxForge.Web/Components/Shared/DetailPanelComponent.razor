@@ -1,0 +1,169 @@
+<div class="rf-panel">
+    <div class="rf-panel-title">Dettaglio</div>
+    <div class="rf-panel-body">
+        <div class="detail-content">@(Record != null ? BuildDetail() : "Selezionare un episodio.")</div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Record selezionato da visualizzare
+    /// </summary>
+    [Parameter] public FileProcessingRecord Record { get; set; }
+
+    /// <summary>
+    /// Costruisce il testo dettaglio per il record selezionato
+    /// </summary>
+    /// <returns>Stringa con dettaglio completo</returns>
+    private string BuildDetail()
+    {
+        string result = "";
+
+        if (Record == null)
+        {
+            return result;
+        }
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(512);
+
+        // Intestazione
+        sb.Append("--- ").Append(Record.EpisodeId).Append(" [").Append(Utils.GetStatusText(Record.Status)).Append("] ---\n\n");
+
+        // File sorgente
+        sb.Append("FILE SORGENTE\n");
+        sb.Append("  ").Append(Record.SourceFileName).Append('\n');
+        sb.Append("  Dimensione: ").Append(Utils.FormatSize(Record.SourceSize)).Append('\n');
+        sb.Append('\n');
+
+        // File lingua
+        sb.Append("FILE LINGUA\n");
+        sb.Append("  ").Append(Record.LangFileName.Length > 0 ? Record.LangFileName : "(nessuno)").Append('\n');
+        if (Record.LangSize > 0)
+        {
+            sb.Append("  Dimensione: ").Append(Utils.FormatSize(Record.LangSize)).Append('\n');
+        }
+
+        // Tracce sorgente (tutte)
+        sb.Append("\nTRACCE SORGENTE\n");
+        sb.Append("  Audio: ").Append(Utils.FormatTrackList(Record.SourceAudioTracks)).Append('\n');
+        sb.Append("  Sub:   ").Append(Utils.FormatTrackList(Record.SourceSubTracks)).Append('\n');
+
+        // Tracce sorgente da tenere (solo se filtri attivi)
+        if (Record.KeptSourceAudioIds.Count > 0 || Record.KeptSourceSubIds.Count > 0)
+        {
+            sb.Append("\nTRACCE SORGENTE DA TENERE\n");
+            sb.Append("  Audio: ").Append(Utils.FormatTrackListByIds(Record.SourceAudioTracks, Record.KeptSourceAudioIds)).Append('\n');
+            sb.Append("  Sub:   ").Append(Utils.FormatTrackListByIds(Record.SourceSubTracks, Record.KeptSourceSubIds)).Append('\n');
+        }
+
+        // Tracce da importare dal file lingua
+        if (Record.ImportedAudioTracks.Count > 0 || Record.ImportedSubTracks.Count > 0)
+        {
+            sb.Append("\nTRACCE DA IMPORTARE\n");
+            sb.Append("  Audio: ").Append(Utils.FormatImportedTrackList(Record.ImportedAudioTracks, Record.DisplayConvertFormat)).Append('\n');
+            sb.Append("  Sub:   ").Append(Utils.FormatTrackList(Record.ImportedSubTracks)).Append('\n');
+        }
+
+        // Risultato finale
+        bool filterAudio = (Record.KeptSourceAudioIds.Count > 0);
+        bool filterSub = (Record.KeptSourceSubIds.Count > 0);
+        if (Record.ImportedAudioTracks.Count > 0 || Record.ImportedSubTracks.Count > 0 || filterAudio || filterSub)
+        {
+            sb.Append("\nRISULTATO FINALE\n");
+            sb.Append("  Audio: ").Append(Utils.FormatResultTrackList(Record.SourceAudioTracks, Record.KeptSourceAudioIds, Record.ImportedAudioTracks, Record.DisplayConvertFormat, filterAudio)).Append('\n');
+            sb.Append("  Sub:   ").Append(Utils.FormatResultTrackList(Record.SourceSubTracks, Record.KeptSourceSubIds, Record.ImportedSubTracks, "", filterSub)).Append('\n');
+        }
+
+        // Sincronizzazione
+        sb.Append("\nSINCRONIZZAZIONE\n");
+        sb.Append("  Delay audio: ").Append(Utils.FormatDelay(Record.AudioDelayApplied)).Append('\n');
+        sb.Append("  Delay sub:   ").Append(Utils.FormatDelay(Record.SubDelayApplied)).Append('\n');
+        if (Record.StretchFactor.Length > 0)
+        {
+            sb.Append("  Stretch:     ").Append(Record.StretchFactor).Append('\n');
+        }
+        if (Record.SpeedCorrectionApplied)
+        {
+            sb.Append("  Correzione velocita': applicata\n");
+        }
+        if (Record.DeepAnalysisApplied && Record.DeepAnalysisMap != null)
+        {
+            sb.Append("  Deep analysis:       applicata\n");
+            sb.Append("  Operazioni edit:     ").Append(Record.DeepAnalysisMap.Operations.Count).Append('\n');
+            for (int i = 0; i < Record.DeepAnalysisMap.Operations.Count; i++)
+            {
+                RemuxForge.Core.EditOperation op = Record.DeepAnalysisMap.Operations[i];
+                sb.Append("    ").Append(i + 1).Append(". ");
+                sb.Append(op.Type).Append(" @ lang ");
+                sb.Append((op.LangTimestampMs / 1000.0).ToString("F1")).Append("s, ");
+                sb.Append("durata ").Append(op.DurationMs).Append("ms\n");
+            }
+            sb.Append("  Match scene cuts:    ");
+            sb.Append(Record.DeepAnalysisMap.MatchedCuts).Append('/');
+            sb.Append(Record.DeepAnalysisMap.SourceCutsAnalyzed).Append('\n');
+            sb.Append("  MSE baseline:        ");
+            sb.Append(Record.DeepAnalysisMap.BaselineMse.ToString("F1")).Append('\n');
+        }
+
+        // Errore
+        if (Record.ErrorMessage.Length > 0)
+        {
+            sb.Append("\nERRORE\n");
+            sb.Append("  ").Append(Record.ErrorMessage).Append('\n');
+        }
+        if (Record.SkipReason.Length > 0)
+        {
+            sb.Append("\nSALTATO\n");
+            sb.Append("  ").Append(Record.SkipReason).Append('\n');
+        }
+
+        // Tempi elaborazione
+        if (Record.SpeedCorrectionTimeMs > 0 || Record.FrameSyncTimeMs > 0 || Record.DeepAnalysisTimeMs > 0 || Record.MergeTimeMs > 0)
+        {
+            sb.Append("\nTEMPI ELABORAZIONE\n");
+            if (Record.SpeedCorrectionTimeMs > 0) { sb.Append("  Correzione: ").Append(Record.SpeedCorrectionTimeMs).Append(" ms\n"); }
+            if (Record.FrameSyncTimeMs > 0) { sb.Append("  Frame-sync: ").Append(Record.FrameSyncTimeMs).Append(" ms\n"); }
+            if (Record.DeepAnalysisTimeMs > 0) { sb.Append("  Deep analysis: ").Append(Record.DeepAnalysisTimeMs).Append(" ms\n"); }
+            if (Record.MergeTimeMs > 0) { sb.Append("  Merge:      ").Append(Record.MergeTimeMs).Append(" ms\n"); }
+        }
+
+        // Risultato
+        if (Record.ResultSize > 0)
+        {
+            sb.Append("\nRISULTATO\n");
+            sb.Append("  Dimensione: ").Append(Utils.FormatSize(Record.ResultSize)).Append('\n');
+        }
+
+        // Encoding post-merge
+        if (Record.EncodingProfileName.Length > 0)
+        {
+            sb.Append("\nENCODING\n");
+            sb.Append("  Profilo: ").Append(Record.EncodingProfileName).Append('\n');
+            if (Record.EncodedSize > 0 && Record.ResultSize > 0)
+            {
+                long riduzione = 100 - (Record.EncodedSize * 100 / Record.ResultSize);
+                sb.Append("  Dimensione: ").Append(Utils.FormatSize(Record.ResultSize)).Append(" -> ").Append(Utils.FormatSize(Record.EncodedSize));
+                sb.Append(" (riduzione ").Append(riduzione).Append("%)\n");
+            }
+            if (Record.EncodingTimeMs > 0)
+            {
+                sb.Append("  Tempo: ").Append(Record.EncodingTimeMs).Append(" ms\n");
+            }
+            if (Record.EncodingCommand.Length > 0)
+            {
+                sb.Append("  Comando: ").Append(Record.EncodingCommand).Append('\n');
+            }
+        }
+
+        // Comando merge
+        if (Record.MergeCommand.Length > 0)
+        {
+            sb.Append("\nCOMANDO MERGE\n");
+            sb.Append("  ").Append(Record.MergeCommand).Append('\n');
+        }
+
+        result = sb.ToString();
+        return result;
+    }
+
+}
