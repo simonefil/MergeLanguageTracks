@@ -19,12 +19,12 @@ namespace RemuxForge.Core
         /// <summary>
         /// Soglia minima differenza rapporto fps
         /// </summary>
-        private static double s_minSpeedRatioDiff;
+        private static double s_minSpeedRatioDiff = 0.001;
 
         /// <summary>
         /// Soglia massima differenza durata container per escludere telecine
         /// </summary>
-        private static double s_maxDurationDiffTelecine;
+        private static double s_maxDurationDiffTelecine = 0.005;
 
         #endregion
 
