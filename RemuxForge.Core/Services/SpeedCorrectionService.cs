@@ -14,20 +14,6 @@ namespace RemuxForge.Core
     /// </summary>
     public class SpeedCorrectionService : VideoSyncServiceBase
     {
-        #region Variabili statiche
-
-        /// <summary>
-        /// Soglia minima differenza rapporto fps
-        /// </summary>
-        private static double s_minSpeedRatioDiff = 0.001;
-
-        /// <summary>
-        /// Soglia massima differenza durata container per escludere telecine
-        /// </summary>
-        private static double s_maxDurationDiffTelecine = 0.005;
-
-        #endregion
-
         #region Variabili di classe
 
         /// <summary>
@@ -109,8 +95,6 @@ namespace RemuxForge.Core
             this._sourceStartSec = cfg.SourceStartSec;
             this._sourceDurationSec = cfg.SourceDurationSec;
             this._langDurationSec = cfg.LangDurationSec;
-            s_minSpeedRatioDiff = cfg.MinSpeedRatioDiff;
-            s_maxDurationDiffTelecine = cfg.MaxDurationDiffTelecine;
 
             this._initialDelayMs = 0;
             this._stretchFactor = "";
@@ -142,6 +126,9 @@ namespace RemuxForge.Core
             double ratioDiff = 0.0;
             double durationRatio = 0.0;
             double durationDiff = 0.0;
+            SpeedCorrectionConfig cfg = AppSettingsService.Instance.Settings.Advanced.SpeedCorrection;
+            double minSpeedRatioDiff = cfg.MinSpeedRatioDiff;
+            double maxDurationDiffTelecine = cfg.MaxDurationDiffTelecine;
 
             // Cerca default_duration per tracce video
             sourceDefaultDuration = Utils.GetVideoDefaultDuration(sourceInfo.Tracks);
@@ -153,7 +140,7 @@ namespace RemuxForge.Core
                 speedRatio = (double)sourceDefaultDuration / langDefaultDuration;
                 ratioDiff = Math.Abs(speedRatio - 1.0);
 
-                if (ratioDiff >= s_minSpeedRatioDiff)
+                if (ratioDiff >= minSpeedRatioDiff)
                 {
                     // Imposta fps solo se differenza significativa
                     sourceFps = 1000000000.0 / sourceDefaultDuration;
@@ -166,7 +153,7 @@ namespace RemuxForge.Core
                         durationRatio = (double)sourceInfo.ContainerDurationNs / langInfo.ContainerDurationNs;
                         durationDiff = Math.Abs(durationRatio - 1.0);
 
-                        if (durationDiff < s_maxDurationDiffTelecine)
+                        if (durationDiff < maxDurationDiffTelecine)
                         {
                             // Durate quasi identiche: probabile soft telecine o metadata errata
                             ConsoleHelper.Write(LogSection.Speed, LogLevel.Notice, "  FPS diversi (" + sourceFps.ToString("F3", CultureInfo.InvariantCulture) + " vs " + langFps.ToString("F3", CultureInfo.InvariantCulture) + ") ma durata container identica (diff " + (durationDiff * 100).ToString("F2", CultureInfo.InvariantCulture) + "%) - probabile soft telecine, speed correction saltata");
