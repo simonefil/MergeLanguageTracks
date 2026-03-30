@@ -801,7 +801,6 @@ I nuovi campi aggiunti in aggiornamenti successivi vengono integrati automaticam
       "OffsetProbeMinSsim": 0.7,
       "MinOffsetChangeMs": 500,
       "MinConsecutiveStable": 5,
-      "BaselineSampleCount": 20,
       "SceneThreshold": 0.3,
       "MatchToleranceMs": 250,
       "WideProbeToleranceSec": 15.0,

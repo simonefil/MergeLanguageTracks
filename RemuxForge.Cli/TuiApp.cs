@@ -3752,10 +3752,6 @@ namespace RemuxForge.Cli
             TextField tfMinConsecStable = new TextField() { Text = cfg.MinConsecutiveStable.ToString(), X = 30, Y = y, Width = 10, SchemeName = "Input" };
             y++;
 
-            Label lblBaselineSample = new Label() { Text = "BaselineSampleCount:", X = 1, Y = y, SchemeName = "Dialog" };
-            TextField tfBaselineSample = new TextField() { Text = cfg.BaselineSampleCount.ToString(), X = 30, Y = y, Width = 10, SchemeName = "Input" };
-            y++;
-
             Label lblSceneThreshold = new Label() { Text = "SceneThreshold:", X = 1, Y = y, SchemeName = "Dialog" };
             TextField tfSceneThreshold = new TextField() { Text = cfg.SceneThreshold.ToString(CultureInfo.InvariantCulture), X = 30, Y = y, Width = 10, SchemeName = "Input" };
             y++;
@@ -3795,7 +3791,7 @@ namespace RemuxForge.Cli
             Label lblInitVotingCuts = new Label() { Text = "InitialVotingCuts:", X = 1, Y = y, SchemeName = "Dialog" };
             TextField tfInitVotingCuts = new TextField() { Text = cfg.InitialVotingCuts.ToString(), X = 30, Y = y, Width = 10, SchemeName = "Input" };
 
-            dialog.Add(lblHeader, lblCoarseFps, tfCoarseFps, lblDenseScanFps, tfDenseScanFps, lblDenseScanSsim, tfDenseScanSsim, lblDenseScanMinDip, tfDenseScanMinDip, lblLinearScanWindow, tfLinearScanWindow, lblLinearScanConfirm, tfLinearScanConfirm, lblVerifyDipSsim, tfVerifyDipSsim, lblProbeMargins, tfProbeMargins, lblProbeMinConsistent, tfProbeMinConsistent, lblOffsetProbeDur, tfOffsetProbeDur, lblOffsetProbeDeltas, tfOffsetProbeDeltas, lblOffsetProbeMinSsim, tfOffsetProbeMinSsim, lblMinOffsetChangeMs, tfMinOffsetChangeMs, lblMinConsecStable, tfMinConsecStable, lblBaselineSample, tfBaselineSample, lblSceneThreshold, tfSceneThreshold, lblMatchToleranceMs, tfMatchToleranceMs, lblWideProbe, tfWideProbe, lblSceneExtract, tfSceneExtract, lblGlobalVerifyPts, tfGlobalVerifyPts, lblGlobalVerifyRatio, tfGlobalVerifyRatio, lblVerifyMseMult, tfVerifyMseMult, lblInitOffsetRange, tfInitOffsetRange, lblInitOffsetStep, tfInitOffsetStep, lblInitVotingCuts, tfInitVotingCuts);
+            dialog.Add(lblHeader, lblCoarseFps, tfCoarseFps, lblDenseScanFps, tfDenseScanFps, lblDenseScanSsim, tfDenseScanSsim, lblDenseScanMinDip, tfDenseScanMinDip, lblLinearScanWindow, tfLinearScanWindow, lblLinearScanConfirm, tfLinearScanConfirm, lblVerifyDipSsim, tfVerifyDipSsim, lblProbeMargins, tfProbeMargins, lblProbeMinConsistent, tfProbeMinConsistent, lblOffsetProbeDur, tfOffsetProbeDur, lblOffsetProbeDeltas, tfOffsetProbeDeltas, lblOffsetProbeMinSsim, tfOffsetProbeMinSsim, lblMinOffsetChangeMs, tfMinOffsetChangeMs, lblMinConsecStable, tfMinConsecStable, lblSceneThreshold, tfSceneThreshold, lblMatchToleranceMs, tfMatchToleranceMs, lblWideProbe, tfWideProbe, lblSceneExtract, tfSceneExtract, lblGlobalVerifyPts, tfGlobalVerifyPts, lblGlobalVerifyRatio, tfGlobalVerifyRatio, lblVerifyMseMult, tfVerifyMseMult, lblInitOffsetRange, tfInitOffsetRange, lblInitOffsetStep, tfInitOffsetStep, lblInitVotingCuts, tfInitVotingCuts);
 
             // Esegui dialog modale
             this._app.Run(dialog);
@@ -3883,10 +3879,6 @@ namespace RemuxForge.Cli
                 if (int.TryParse(tfMinConsecStable.Text, out tempInt))
                 {
                     cfg.MinConsecutiveStable = tempInt;
-                }
-                if (int.TryParse(tfBaselineSample.Text, out tempInt))
-                {
-                    cfg.BaselineSampleCount = tempInt;
                 }
                 if (int.TryParse(tfMatchToleranceMs.Text, out tempInt))
                 {

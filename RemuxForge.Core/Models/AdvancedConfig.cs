@@ -198,7 +198,7 @@ namespace RemuxForge.Core
             this.SourceStartSec = 1;
             this.SourceDurationSec = 120;
             this.LangDurationSec = 180;
-            this.MinValidPoints = 10;
+            this.MinValidPoints = 5;
         }
 
         #endregion
@@ -259,7 +259,6 @@ namespace RemuxForge.Core
             this.OffsetProbeMinSsim = 0.7;
             this.MinOffsetChangeMs = 500;
             this.MinConsecutiveStable = 5;
-            this.BaselineSampleCount = 20;
             this.SceneThreshold = 0.3;
             this.MatchToleranceMs = 250;
             this.WideProbeToleranceSec = 15.0;
@@ -345,11 +344,6 @@ namespace RemuxForge.Core
         /// Numero minimo di punti consecutivi stabili per confermare un segmento
         /// </summary>
         public int MinConsecutiveStable { get; set; }
-
-        /// <summary>
-        /// Numero di campioni per calcolo baseline SSIM/MSE
-        /// </summary>
-        public int BaselineSampleCount { get; set; }
 
         /// <summary>
         /// Soglia scene change passata a ffmpeg (0.0-1.0)

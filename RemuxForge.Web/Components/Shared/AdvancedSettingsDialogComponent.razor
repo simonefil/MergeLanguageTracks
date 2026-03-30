@@ -190,10 +190,6 @@
                     <input class="form-input" style="width: 10ch;" @bind="_daMinConsecutiveStable" />
                 </div>
                 <div class="form-row">
-                    <span class="form-label">BaselineSampleCount:</span>
-                    <input class="form-input" style="width: 10ch;" @bind="_daBaselineSampleCount" />
-                </div>
-                <div class="form-row">
                     <span class="form-label">SceneThreshold:</span>
                     <input class="form-input" style="width: 10ch;" @bind="_daSceneThreshold" />
                 </div>
@@ -488,11 +484,6 @@
     private string _daMinConsecutiveStable = "";
 
     /// <summary>
-    /// Numero campioni baseline
-    /// </summary>
-    private string _daBaselineSampleCount = "";
-
-    /// <summary>
     /// Soglia scene change ffmpeg
     /// </summary>
     private string _daSceneThreshold = "";
@@ -631,7 +622,6 @@
         _daProbeMinConsistentPoints = adv.DeepAnalysis.ProbeMinConsistentPoints.ToString();
         _daMinOffsetChangeMs = adv.DeepAnalysis.MinOffsetChangeMs.ToString();
         _daMinConsecutiveStable = adv.DeepAnalysis.MinConsecutiveStable.ToString();
-        _daBaselineSampleCount = adv.DeepAnalysis.BaselineSampleCount.ToString();
         _daMatchToleranceMs = adv.DeepAnalysis.MatchToleranceMs.ToString();
         _daSceneExtractTimeoutMs = adv.DeepAnalysis.SceneExtractTimeoutMs.ToString();
         _daGlobalVerifyPoints = adv.DeepAnalysis.GlobalVerifyPoints.ToString();
@@ -714,7 +704,6 @@
         if (int.TryParse(_daProbeMinConsistentPoints, out intVal)) { adv.DeepAnalysis.ProbeMinConsistentPoints = intVal; }
         if (int.TryParse(_daMinOffsetChangeMs, out intVal)) { adv.DeepAnalysis.MinOffsetChangeMs = intVal; }
         if (int.TryParse(_daMinConsecutiveStable, out intVal)) { adv.DeepAnalysis.MinConsecutiveStable = intVal; }
-        if (int.TryParse(_daBaselineSampleCount, out intVal)) { adv.DeepAnalysis.BaselineSampleCount = intVal; }
         if (int.TryParse(_daMatchToleranceMs, out intVal)) { adv.DeepAnalysis.MatchToleranceMs = intVal; }
         if (int.TryParse(_daSceneExtractTimeoutMs, out intVal)) { adv.DeepAnalysis.SceneExtractTimeoutMs = intVal; }
         if (int.TryParse(_daGlobalVerifyPoints, out intVal)) { adv.DeepAnalysis.GlobalVerifyPoints = intVal; }

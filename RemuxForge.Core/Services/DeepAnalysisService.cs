@@ -91,11 +91,6 @@ namespace RemuxForge.Core
         private int _minConsecutiveStable;
 
         /// <summary>
-        /// Numero di coppie per calcolo MSE baseline nella verifica globale
-        /// </summary>
-        private int _baselineSampleCount;
-
-        /// <summary>
         /// Soglia ffmpeg scene detection
         /// </summary>
         private double _sceneThreshold;
@@ -175,7 +170,6 @@ namespace RemuxForge.Core
             this._offsetProbeMinSsim = cfg.OffsetProbeMinSsim;
             this._minOffsetChangeMs = cfg.MinOffsetChangeMs;
             this._minConsecutiveStable = cfg.MinConsecutiveStable;
-            this._baselineSampleCount = cfg.BaselineSampleCount;
             this._sceneThreshold = cfg.SceneThreshold;
             this._matchToleranceMs = cfg.MatchToleranceMs;
             this._wideProbeToleranceSec = cfg.WideProbeToleranceSec;

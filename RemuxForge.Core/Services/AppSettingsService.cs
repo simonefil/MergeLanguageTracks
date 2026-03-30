@@ -545,7 +545,6 @@ namespace RemuxForge.Core
             da.OffsetProbeMinSsim = this.ClampDouble(da.OffsetProbeMinSsim, 0.0, 1.0);
             da.MinOffsetChangeMs = this.ClampInt(da.MinOffsetChangeMs, 1, 60000);
             da.MinConsecutiveStable = this.ClampInt(da.MinConsecutiveStable, 1, 1000);
-            da.BaselineSampleCount = this.ClampInt(da.BaselineSampleCount, 1, 1000);
             da.SceneThreshold = this.ClampDouble(da.SceneThreshold, 0.0, 1.0);
             da.MatchToleranceMs = this.ClampInt(da.MatchToleranceMs, 1, 60000);
             da.WideProbeToleranceSec = this.ClampDouble(da.WideProbeToleranceSec, 0.1, 120.0);
