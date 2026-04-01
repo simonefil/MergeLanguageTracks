@@ -1383,18 +1383,18 @@ namespace RemuxForge.Core
             if (!done && this._opts.ConvertFormat.Length > 0 && this._ffmpegPath.Length > 0)
             {
                 this.ConvertLosslessTracks(record, sourceTracks, sourceAudioIds, audioTracks, convertedSourceTracks, convertedLangTracks);
+
+                // Salva ID tracce effettivamente convertite di codec (serve per rinominarle col formato target)
+                foreach (int convertedId in convertedLangTracks.Keys)
+                {
+                    codecConvertedLangIds.Add(convertedId);
+                }
             }
 
             // Deep analysis: applica EditMap alle tracce lang (taglia-cuci)
             if (!done && record.DeepAnalysisApplied && record.DeepAnalysisMap != null && record.DeepAnalysisMap.Operations.Count > 0 && this._ffmpegPath.Length > 0)
             {
                 ConsoleHelper.Write(LogSection.Deep, LogLevel.Phase, "  Applicazione taglia-cuci alle tracce lang...");
-
-                // Salva ID tracce effettivamente convertite di codec prima del taglia-cuci
-                foreach (int convertedId in convertedLangTracks.Keys)
-                {
-                    codecConvertedLangIds.Add(convertedId);
-                }
 
                 string tempFolder = AppSettingsService.Instance.GetTempFolder();
                 TrackSplitService splitService = new TrackSplitService(this._ffmpegPath, tempFolder);
@@ -1458,7 +1458,15 @@ namespace RemuxForge.Core
                 mergeReq.LanguageFile = this._needsMerge ? record.LangFilePath : "";
                 mergeReq.OutputFile = tempOutput;
                 mergeReq.SourceAudioIds = sourceAudioIds;
-                mergeReq.SourceAudioTracks = this.FilterTracksByIds(sourceTracks, sourceAudioIds);
+                // Se nessun filtro attivo, passa tutte le tracce audio source per rename
+                if (sourceAudioIds.Count > 0)
+                {
+                    mergeReq.SourceAudioTracks = this.FilterTracksByIds(sourceTracks, sourceAudioIds);
+                }
+                else if (this._opts.RenameAllTracks && sourceTracks != null)
+                {
+                    mergeReq.SourceAudioTracks = this.FilterTracksByType(sourceTracks, "audio");
+                }
                 mergeReq.SourceSubIds = sourceSubIds;
                 mergeReq.LangAudioTracks = audioTracks;
                 mergeReq.LangSubTracks = subtitleTracks;

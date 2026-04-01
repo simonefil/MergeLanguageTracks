@@ -305,18 +305,35 @@ namespace RemuxForge.Core
             }
 
             // Rinomina tracce audio sorgente non convertite (se flag attivo)
-            if (req.RenameAllTracks && sourceAudioKeep.Count > 0)
+            if (req.RenameAllTracks)
             {
-                for (int i = 0; i < sourceAudioKeep.Count; i++)
+                if (sourceAudioKeep.Count > 0)
                 {
-                    TrackInfo srcTrack = FindTrackById(req.SourceAudioTracks, sourceAudioKeep[i]);
-                    if (srcTrack != null)
+                    // Filtro attivo: rinomina solo le tracce selezionate
+                    for (int i = 0; i < sourceAudioKeep.Count; i++)
                     {
-                        string trackName = BuildOriginalTrackName(srcTrack);
+                        TrackInfo srcTrack = FindTrackById(req.SourceAudioTracks, sourceAudioKeep[i]);
+                        if (srcTrack != null)
+                        {
+                            string trackName = BuildOriginalTrackName(srcTrack);
+                            if (trackName.Length > 0)
+                            {
+                                mkvArgs.Add("--track-name");
+                                mkvArgs.Add(sourceAudioKeep[i] + ":" + trackName);
+                            }
+                        }
+                    }
+                }
+                else if (req.SourceAudioTracks != null)
+                {
+                    // Nessun filtro: rinomina tutte le tracce audio source
+                    for (int i = 0; i < req.SourceAudioTracks.Count; i++)
+                    {
+                        string trackName = BuildOriginalTrackName(req.SourceAudioTracks[i]);
                         if (trackName.Length > 0)
                         {
                             mkvArgs.Add("--track-name");
-                            mkvArgs.Add(sourceAudioKeep[i] + ":" + trackName);
+                            mkvArgs.Add(req.SourceAudioTracks[i].Id + ":" + trackName);
                         }
                     }
                 }
@@ -463,7 +480,8 @@ namespace RemuxForge.Core
                     mkvArgs.Add("-S");
                 }
 
-                // Percorso file lingua
+                // Percorso file lingua (senza chapters per evitare duplicati con quelli del source)
+                mkvArgs.Add("--no-chapters");
                 mkvArgs.Add(req.LanguageFile);
 
                 // File convertiti da lingua: aggiunti come input separati con delay/stretch
