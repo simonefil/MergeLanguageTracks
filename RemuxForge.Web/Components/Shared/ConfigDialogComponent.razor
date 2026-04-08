@@ -56,6 +56,9 @@
             @* Sincronizzazione *@
             <div class="form-section">== Sincronizzazione ==</div>
             <div class="form-row">
+                <span class="tui-toggle" @onclick="() => _speedCorrection = !_speedCorrection">@(_speedCorrection ? "[X]" : "[ ]") Speed correction (auto-detect)</span>
+            </div>
+            <div class="form-row">
                 <span class="tui-toggle" @onclick="ToggleFrameSync">@(_frameSync ? "[X]" : "[ ]") Frame-sync (confronto visivo)</span>
             </div>
             <div class="form-row">
@@ -212,6 +215,11 @@
     private bool _audioOnly = false;
 
     /// <summary>
+    /// Flag speed correction auto-detect
+    /// </summary>
+    private bool _speedCorrection = true;
+
+    /// <summary>
     /// Flag frame-sync
     /// </summary>
     private bool _frameSync = false;
@@ -275,6 +283,7 @@
             _keepSrcSub = string.Join(",", Options.KeepSourceSubtitleLangs);
             _subOnly = Options.SubOnly;
             _audioOnly = Options.AudioOnly;
+            _speedCorrection = Options.SpeedCorrection;
             _frameSync = Options.FrameSync;
             _deepAnalysis = Options.DeepAnalysis;
             _audioDelay = Options.AudioDelay.ToString();
@@ -318,6 +327,7 @@
 
         opts.SubOnly = _subOnly;
         opts.AudioOnly = _audioOnly;
+        opts.SpeedCorrection = _speedCorrection;
         opts.FrameSync = _frameSync;
         opts.DeepAnalysis = _deepAnalysis;
 

@@ -23,6 +23,7 @@ namespace RemuxForge.Core
             this.DestinationFolder = "";
             this.AudioDelay = 0;
             this.SubtitleDelay = 0;
+            this.SpeedCorrection = true;
             this.FrameSync = false;
             this.DeepAnalysis = false;
             this.AudioCodec = new List<string>();
@@ -326,6 +327,11 @@ namespace RemuxForge.Core
         /// Ritardo sottotitoli manuale in millisecondi (-sd, --subtitle-delay). Sommato all'offset frame-sync se abilitato
         /// </summary>
         public int SubtitleDelay { get; set; }
+
+        /// <summary>
+        /// Abilita rilevamento automatico mismatch velocita'. Default: true
+        /// </summary>
+        public bool SpeedCorrection { get; set; }
 
         /// <summary>
         /// Indica se il raffinamento frame sync e' abilitato (-fs, --framesync)

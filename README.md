@@ -773,7 +773,6 @@ I nuovi campi aggiunti in aggiornamenti successivi vengono integrati automaticam
       "VerifyLangRetrySec": 30
     },
     "SpeedCorrection": {
-      "AutoDetect": true,
       "SourceStartSec": 1,
       "SourceDurationSec": 120,
       "LangDurationSec": 180,

@@ -1876,6 +1876,10 @@ namespace RemuxForge.Cli
             Label lblSection3 = new Label() { Text = "== Sincronizzazione ==", X = 1, Y = y, SchemeName = "Highlight" };
             y++;
 
+            bool[] stSpeedCorrection;
+            Button cbSpeedCorrection = this.CreateToggleLabel("Speed correction (auto-detect)", this._opts.SpeedCorrection, 1, y, "Dialog", out stSpeedCorrection);
+            y++;
+
             bool[] stFrameSync;
             Button cbFrameSync = this.CreateToggleLabel("Frame-sync (confronto visivo)", this._opts.FrameSync, 1, y, "Dialog", out stFrameSync);
             y++;
@@ -1982,7 +1986,7 @@ namespace RemuxForge.Cli
             dialog.Add(
                 lblSection1, lblSource, tfSource, btnBrowseSource, lblLang, tfLang, btnBrowseLang, lblDest, tfDest, btnBrowseDest, cbOverwrite, cbRecursive,
                 lblSection2, lblTarget, tfTarget, lblCodec, tfCodec, lblKsa, tfKsa, lblKsac, tfKsac, lblKss, tfKss, cbSubOnly, cbAudioOnly,
-                lblSection3, cbFrameSync, cbDeepAnalysis, lblAudioDelay, tfAudioDelay, lblMs2, lblSubDelay, tfSubDelay, lblMs3,
+                lblSection3, cbSpeedCorrection, cbFrameSync, cbDeepAnalysis, lblAudioDelay, tfAudioDelay, lblMs2, lblSubDelay, tfSubDelay, lblMs3,
                 lblSection4, lblPattern, tfPattern, lblExt, tfExt,
                 lblSection5, lblConvert, ddConvert, cbRenameTracks, lblEncProfile, ddEncProfile
             );
@@ -2009,6 +2013,7 @@ namespace RemuxForge.Cli
 
                 this._opts.SubOnly = stSubOnly[0];
                 this._opts.AudioOnly = stAudioOnly[0];
+                this._opts.SpeedCorrection = stSpeedCorrection[0];
                 this._opts.FrameSync = stFrameSync[0];
                 this._opts.DeepAnalysis = stDeepAnalysis[0];
 
@@ -3456,7 +3461,7 @@ namespace RemuxForge.Cli
             {
                 Title = " Speed Correction ",
                 Width = 65,
-                Height = 16,
+                Height = 15,
                 BorderStyle = LineStyle.Double,
                 SchemeName = "Dialog"
             };
@@ -3470,11 +3475,6 @@ namespace RemuxForge.Cli
 
             // --- Intestazione ---
             Label lblHeader = new Label() { Text = "== Parametri Speed Correction ==", X = 1, Y = y, SchemeName = "Highlight" };
-            y++;
-
-            // --- Toggle auto-detect ---
-            bool[] stAutoDetect = null;
-            Button cbAutoDetect = this.CreateToggleLabel("Auto-detect mismatch velocita'", cfg.AutoDetect, 1, y, "Dialog", out stAutoDetect);
             y++;
 
             // --- Campi ---
@@ -3497,7 +3497,7 @@ namespace RemuxForge.Cli
             Label lblMaxDurDiffTelecine = new Label() { Text = "MaxDurationDiffTelecine:", X = 1, Y = y, SchemeName = "Dialog" };
             TextField tfMaxDurDiffTelecine = new TextField() { Text = cfg.MaxDurationDiffTelecine.ToString(CultureInfo.InvariantCulture), X = 30, Y = y, Width = 10, SchemeName = "Input" };
 
-            dialog.Add(lblHeader, cbAutoDetect, lblSourceStartSec, tfSourceStartSec, lblSourceDurationSec, tfSourceDurationSec, lblLangDurationSec, tfLangDurationSec, lblMinSpeedRatioDiff, tfMinSpeedRatioDiff, lblMaxDurDiffTelecine, tfMaxDurDiffTelecine);
+            dialog.Add(lblHeader, lblSourceStartSec, tfSourceStartSec, lblSourceDurationSec, tfSourceDurationSec, lblLangDurationSec, tfLangDurationSec, lblMinSpeedRatioDiff, tfMinSpeedRatioDiff, lblMaxDurDiffTelecine, tfMaxDurDiffTelecine);
 
             // Esegui dialog modale
             this._app.Run(dialog);
@@ -3515,9 +3515,6 @@ namespace RemuxForge.Cli
 
             if (accepted)
             {
-                // Toggle auto-detect
-                cfg.AutoDetect = stAutoDetect[0];
-
                 // Parsing valori int
                 if (int.TryParse(tfSourceStartSec.Text, out tempInt))
                 {

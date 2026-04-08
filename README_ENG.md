@@ -773,7 +773,6 @@ New fields added in subsequent updates are automatically merged without overwrit
       "VerifyLangRetrySec": 30
     },
     "SpeedCorrection": {
-      "AutoDetect": true,
       "SourceStartSec": 1,
       "SourceDurationSec": 120,
       "LangDurationSec": 180,
