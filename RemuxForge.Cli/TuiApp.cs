@@ -3456,7 +3456,7 @@ namespace RemuxForge.Cli
             {
                 Title = " Speed Correction ",
                 Width = 65,
-                Height = 15,
+                Height = 16,
                 BorderStyle = LineStyle.Double,
                 SchemeName = "Dialog"
             };
@@ -3470,6 +3470,11 @@ namespace RemuxForge.Cli
 
             // --- Intestazione ---
             Label lblHeader = new Label() { Text = "== Parametri Speed Correction ==", X = 1, Y = y, SchemeName = "Highlight" };
+            y++;
+
+            // --- Toggle auto-detect ---
+            bool[] stAutoDetect = null;
+            Button cbAutoDetect = this.CreateToggleLabel("Auto-detect mismatch velocita'", cfg.AutoDetect, 1, y, "Dialog", out stAutoDetect);
             y++;
 
             // --- Campi ---
@@ -3492,7 +3497,7 @@ namespace RemuxForge.Cli
             Label lblMaxDurDiffTelecine = new Label() { Text = "MaxDurationDiffTelecine:", X = 1, Y = y, SchemeName = "Dialog" };
             TextField tfMaxDurDiffTelecine = new TextField() { Text = cfg.MaxDurationDiffTelecine.ToString(CultureInfo.InvariantCulture), X = 30, Y = y, Width = 10, SchemeName = "Input" };
 
-            dialog.Add(lblHeader, lblSourceStartSec, tfSourceStartSec, lblSourceDurationSec, tfSourceDurationSec, lblLangDurationSec, tfLangDurationSec, lblMinSpeedRatioDiff, tfMinSpeedRatioDiff, lblMaxDurDiffTelecine, tfMaxDurDiffTelecine);
+            dialog.Add(lblHeader, cbAutoDetect, lblSourceStartSec, tfSourceStartSec, lblSourceDurationSec, tfSourceDurationSec, lblLangDurationSec, tfLangDurationSec, lblMinSpeedRatioDiff, tfMinSpeedRatioDiff, lblMaxDurDiffTelecine, tfMaxDurDiffTelecine);
 
             // Esegui dialog modale
             this._app.Run(dialog);
@@ -3510,6 +3515,9 @@ namespace RemuxForge.Cli
 
             if (accepted)
             {
+                // Toggle auto-detect
+                cfg.AutoDetect = stAutoDetect[0];
+
                 // Parsing valori int
                 if (int.TryParse(tfSourceStartSec.Text, out tempInt))
                 {

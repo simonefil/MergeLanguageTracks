@@ -143,6 +143,7 @@ namespace RemuxForge.Core
         /// </summary>
         public SpeedCorrectionConfig()
         {
+            this.AutoDetect = true;
             this.SourceStartSec = 1;
             this.SourceDurationSec = 120;
             this.LangDurationSec = 180;
@@ -153,6 +154,11 @@ namespace RemuxForge.Core
         #endregion
 
         #region Proprieta
+
+        /// <summary>
+        /// Abilita rilevamento automatico mismatch velocita'
+        /// </summary>
+        public bool AutoDetect { get; set; }
 
         /// <summary>
         /// Secondo di inizio estrazione source

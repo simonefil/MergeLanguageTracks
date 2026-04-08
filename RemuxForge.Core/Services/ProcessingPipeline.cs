@@ -612,8 +612,8 @@ namespace RemuxForge.Core
                 }
             }
 
-            // Rilevamento automatico mismatch velocita'
-            if (!done && sourceInfo != null && langInfo != null)
+            // Rilevamento automatico mismatch velocita' (se abilitato in config)
+            if (!done && sourceInfo != null && langInfo != null && AppSettingsService.Instance.Settings.Advanced.SpeedCorrection.AutoDetect)
             {
                 speedMismatch = SpeedCorrectionService.DetectSpeedMismatch(sourceInfo, langInfo, out detectedSourceFps, out detectedLangFps);
 

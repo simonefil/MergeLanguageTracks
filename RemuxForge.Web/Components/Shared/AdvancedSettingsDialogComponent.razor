@@ -84,6 +84,9 @@
             <details>
                 <summary class="form-section">Speed Correction</summary>
                 <div class="form-row">
+                    <span class="tui-toggle" @onclick="() => _scAutoDetect = !_scAutoDetect">@(_scAutoDetect ? "[X]" : "[ ]") Auto-detect mismatch velocita'</span>
+                </div>
+                <div class="form-row">
                     <span class="form-label">SourceStartSec:</span>
                     <input class="form-input" style="width: 10ch;" @bind="_scSourceStartSec" />
                 </div>
@@ -356,6 +359,11 @@
     #region Campi SpeedCorrection
 
     /// <summary>
+    /// Abilita rilevamento automatico mismatch velocita'
+    /// </summary>
+    private bool _scAutoDetect = true;
+
+    /// <summary>
     /// Secondo di inizio estrazione source
     /// </summary>
     private string _scSourceStartSec = "";
@@ -586,6 +594,9 @@
         _vsSceneCutThreshold = adv.VideoSync.SceneCutThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
         _vsFingerprintCorrelationThreshold = adv.VideoSync.FingerprintCorrelationThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
+        // SpeedCorrection — bool
+        _scAutoDetect = adv.SpeedCorrection.AutoDetect;
+
         // SpeedCorrection — interi
         _scSourceStartSec = adv.SpeedCorrection.SourceStartSec.ToString();
         _scSourceDurationSec = adv.SpeedCorrection.SourceDurationSec.ToString();
@@ -667,6 +678,9 @@
         if (double.TryParse(_vsSsimMaxThreshold, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.VideoSync.SsimMaxThreshold = dblVal; }
         if (double.TryParse(_vsSceneCutThreshold, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.VideoSync.SceneCutThreshold = dblVal; }
         if (double.TryParse(_vsFingerprintCorrelationThreshold, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.VideoSync.FingerprintCorrelationThreshold = dblVal; }
+
+        // SpeedCorrection — bool
+        adv.SpeedCorrection.AutoDetect = _scAutoDetect;
 
         // Parsing SpeedCorrection — interi
         if (int.TryParse(_scSourceStartSec, out intVal)) { adv.SpeedCorrection.SourceStartSec = intVal; }
