@@ -128,6 +128,10 @@
                     <span class="form-label">MinValidPoints:</span>
                     <input class="form-input" style="width: 10ch;" @bind="_fsMinValidPoints" />
                 </div>
+                <div class="form-row">
+                    <span class="form-label">GroupingToleranceFrames:</span>
+                    <input class="form-input" style="width: 10ch;" @bind="_fsGroupingToleranceFrames" />
+                </div>
             </details>
 
             @* Sezione Deep Analysis *@
@@ -417,6 +421,11 @@
     /// </summary>
     private string _fsMinValidPoints = "";
 
+    /// <summary>
+    /// Tolleranza raggruppamento offset in frame
+    /// </summary>
+    private string _fsGroupingToleranceFrames = "";
+
     #endregion
 
     #region Campi DeepAnalysis
@@ -618,6 +627,7 @@
         _fsSourceDurationSec = adv.FrameSync.SourceDurationSec.ToString();
         _fsLangDurationSec = adv.FrameSync.LangDurationSec.ToString();
         _fsMinValidPoints = adv.FrameSync.MinValidPoints.ToString();
+        _fsGroupingToleranceFrames = adv.FrameSync.GroupingToleranceFrames.ToString();
 
         // DeepAnalysis — double
         _daCoarseFps = adv.DeepAnalysis.CoarseFps.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -703,6 +713,7 @@
         if (int.TryParse(_fsSourceDurationSec, out intVal)) { adv.FrameSync.SourceDurationSec = intVal; }
         if (int.TryParse(_fsLangDurationSec, out intVal)) { adv.FrameSync.LangDurationSec = intVal; }
         if (int.TryParse(_fsMinValidPoints, out intVal)) { adv.FrameSync.MinValidPoints = intVal; }
+        if (int.TryParse(_fsGroupingToleranceFrames, out intVal)) { adv.FrameSync.GroupingToleranceFrames = intVal; }
 
         // Parsing DeepAnalysis — double
         if (double.TryParse(_daCoarseFps, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dblVal)) { adv.DeepAnalysis.CoarseFps = dblVal; }

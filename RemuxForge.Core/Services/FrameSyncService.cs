@@ -41,6 +41,11 @@ namespace RemuxForge.Core
         private int _initialMinValidPoints;
 
         /// <summary>
+        /// Tolleranza raggruppamento offset in numero di frame
+        /// </summary>
+        private int _groupingToleranceFrames;
+
+        /// <summary>
         /// Offset raffinato per ciascun punto di verifica
         /// </summary>
         private int[] _offsets;
@@ -87,6 +92,7 @@ namespace RemuxForge.Core
             this._sourceDurationSec = cfg.SourceDurationSec;
             this._langDurationSec = cfg.LangDurationSec;
             this._initialMinValidPoints = cfg.MinValidPoints;
+            this._groupingToleranceFrames = cfg.GroupingToleranceFrames;
 
             this._offsets = new int[this._numCheckPoints];
             this._ssimValues = new double[this._numCheckPoints];
@@ -191,6 +197,9 @@ namespace RemuxForge.Core
 
                     if (validCount >= this._initialMinValidPoints)
                     {
+                        // Tolleranza raggruppamento: frameInterval * numero frame configurato
+                        int groupingToleranceMs = frameIntervalMs * this._groupingToleranceFrames;
+
                         // Trova il gruppo di offset coerenti piu' grande
                         for (int i = 0; i < validOffsets.Count; i++)
                         {
@@ -201,7 +210,7 @@ namespace RemuxForge.Core
                             {
                                 int diff = Math.Abs(validOffsets[i] - validOffsets[j]);
 
-                                if (diff <= frameIntervalMs)
+                                if (diff <= groupingToleranceMs)
                                 {
                                     groupCount++;
                                     groupSum += validOffsets[j];

@@ -199,6 +199,7 @@ namespace RemuxForge.Core
             this.SourceDurationSec = 120;
             this.LangDurationSec = 180;
             this.MinValidPoints = 5;
+            this.GroupingToleranceFrames = 1;
         }
 
         #endregion
@@ -229,6 +230,11 @@ namespace RemuxForge.Core
         /// Numero minimo di punti validi richiesti
         /// </summary>
         public int MinValidPoints { get; set; }
+
+        /// <summary>
+        /// Tolleranza raggruppamento offset in frame (1 = 1 frame, 2 = 2 frame)
+        /// </summary>
+        public int GroupingToleranceFrames { get; set; }
 
         #endregion
     }

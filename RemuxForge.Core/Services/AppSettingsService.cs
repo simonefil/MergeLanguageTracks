@@ -531,6 +531,7 @@ namespace RemuxForge.Core
             fs.SourceDurationSec = this.ClampInt(fs.SourceDurationSec, 1, 3600);
             fs.LangDurationSec = this.ClampInt(fs.LangDurationSec, 1, 3600);
             fs.MinValidPoints = this.ClampInt(fs.MinValidPoints, 1, 1000);
+            fs.GroupingToleranceFrames = this.ClampInt(fs.GroupingToleranceFrames, 1, 10);
 
             // Sanitizzazione Advanced — DeepAnalysis
             DeepAnalysisConfig da = this._model.Advanced.DeepAnalysis;

@@ -3583,7 +3583,7 @@ namespace RemuxForge.Cli
             {
                 Title = " Frame Sync ",
                 Width = 65,
-                Height = 15,
+                Height = 16,
                 BorderStyle = LineStyle.Double,
                 SchemeName = "Dialog"
             };
@@ -3618,8 +3618,12 @@ namespace RemuxForge.Cli
 
             Label lblMinValidPoints = new Label() { Text = "MinValidPoints:", X = 1, Y = y, SchemeName = "Dialog" };
             TextField tfMinValidPoints = new TextField() { Text = cfg.MinValidPoints.ToString(), X = 30, Y = y, Width = 10, SchemeName = "Input" };
+            y++;
 
-            dialog.Add(lblHeader, lblMinDurationMs, tfMinDurationMs, lblSourceStartSec, tfSourceStartSec, lblSourceDurationSec, tfSourceDurationSec, lblLangDurationSec, tfLangDurationSec, lblMinValidPoints, tfMinValidPoints);
+            Label lblGroupingTolerance = new Label() { Text = "GroupingToleranceFrames:", X = 1, Y = y, SchemeName = "Dialog" };
+            TextField tfGroupingTolerance = new TextField() { Text = cfg.GroupingToleranceFrames.ToString(), X = 30, Y = y, Width = 10, SchemeName = "Input" };
+
+            dialog.Add(lblHeader, lblMinDurationMs, tfMinDurationMs, lblSourceStartSec, tfSourceStartSec, lblSourceDurationSec, tfSourceDurationSec, lblLangDurationSec, tfLangDurationSec, lblMinValidPoints, tfMinValidPoints, lblGroupingTolerance, tfGroupingTolerance);
 
             // Esegui dialog modale
             this._app.Run(dialog);
@@ -3657,6 +3661,10 @@ namespace RemuxForge.Cli
                 if (int.TryParse(tfMinValidPoints.Text, out tempInt))
                 {
                     cfg.MinValidPoints = tempInt;
+                }
+                if (int.TryParse(tfGroupingTolerance.Text, out tempInt))
+                {
+                    cfg.GroupingToleranceFrames = tempInt;
                 }
 
                 // Salva impostazioni
