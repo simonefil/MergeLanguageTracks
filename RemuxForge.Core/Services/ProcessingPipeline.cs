@@ -992,6 +992,7 @@ namespace RemuxForge.Core
                     mergeReq.StretchFactor = stretchFactor;
                     mergeReq.ConvertFormat = this._opts.ConvertFormat;
                     mergeReq.RenameAllTracks = this._opts.RenameAllTracks;
+                    mergeReq.SourceTitle = (sourceInfo != null) ? sourceInfo.ContainerTitle : "";
                     mergeReq.ConvertedSourceTracks = new Dictionary<int, string>();
                     mergeReq.ConvertedLangTracks = new Dictionary<int, string>();
                     mergeArgs = this._mkvService.BuildMergeArguments(mergeReq);
@@ -1049,7 +1050,7 @@ namespace RemuxForge.Core
             // Fase remux (merge e/o filtro tracce)
             if (!done && this._needsRemux)
             {
-                finalOutput = this.ExecuteRemuxPhase(record, sourceTracks, effectiveAudioDelay, effectiveSubDelay);
+                finalOutput = this.ExecuteRemuxPhase(record, sourceInfo, effectiveAudioDelay, effectiveSubDelay);
                 if (record.Status == FileStatus.Error)
                 {
                     done = true;
@@ -1306,12 +1307,13 @@ namespace RemuxForge.Core
         /// Esegue la fase remux: filtro tracce, raccolta lingua, conversione, merge
         /// </summary>
         /// <param name="record">Record del file</param>
-        /// <param name="sourceTracks">Tracce file sorgente</param>
+        /// <param name="sourceInfo">Info complete file sorgente (tracce, titolo container)</param>
         /// <param name="effectiveAudioDelay">Delay audio effettivo in ms</param>
         /// <param name="effectiveSubDelay">Delay sottotitoli effettivo in ms</param>
         /// <returns>Percorso output finale o stringa vuota se errore</returns>
-        private string ExecuteRemuxPhase(FileProcessingRecord record, List<TrackInfo> sourceTracks, int effectiveAudioDelay, int effectiveSubDelay)
+        private string ExecuteRemuxPhase(FileProcessingRecord record, MkvFileInfo sourceInfo, int effectiveAudioDelay, int effectiveSubDelay)
         {
+            List<TrackInfo> sourceTracks = (sourceInfo != null) ? sourceInfo.Tracks : null;
             string finalOutput = "";
             string tempOutput = "";
             List<int> sourceAudioIds = new List<int>();
@@ -1465,6 +1467,7 @@ namespace RemuxForge.Core
                 mergeReq.StretchFactor = stretchFactor;
                 mergeReq.ConvertFormat = this._opts.ConvertFormat;
                 mergeReq.RenameAllTracks = this._opts.RenameAllTracks;
+                mergeReq.SourceTitle = (sourceInfo != null) ? sourceInfo.ContainerTitle : "";
                 mergeReq.ConvertedSourceTracks = convertedSourceTracks;
                 mergeReq.ConvertedLangTracks = convertedLangTracks;
                 mergeReq.CodecConvertedLangIds = codecConvertedLangIds;

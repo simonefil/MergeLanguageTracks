@@ -15,19 +15,9 @@ namespace RemuxForge.Core
         #region Variabili di classe
 
         /// <summary>
-        /// Inizio estrazione sorgente in secondi
+        /// Riferimento alla configurazione SpeedCorrection (binding diretto, modifiche immediate)
         /// </summary>
-        private int _sourceStartSec;
-
-        /// <summary>
-        /// Durata segmento sorgente per ricerca delay
-        /// </summary>
-        private int _sourceDurationSec;
-
-        /// <summary>
-        /// Durata segmento lingua per ricerca delay
-        /// </summary>
-        private int _langDurationSec;
+        private SpeedCorrectionConfig _scConfig;
 
         /// <summary>
         /// Delay iniziale rilevato in ms
@@ -89,10 +79,7 @@ namespace RemuxForge.Core
         public SpeedCorrectionService(string ffmpegPath) : base(ffmpegPath, LogSection.Speed)
         {
             // Carica configurazione speed correction
-            SpeedCorrectionConfig cfg = AppSettingsService.Instance.Settings.Advanced.SpeedCorrection;
-            this._sourceStartSec = cfg.SourceStartSec;
-            this._sourceDurationSec = cfg.SourceDurationSec;
-            this._langDurationSec = cfg.LangDurationSec;
+            this._scConfig = AppSettingsService.Instance.Settings.Advanced.SpeedCorrection;
 
             this._initialDelayMs = 0;
             this._stretchFactor = "";
@@ -101,9 +88,9 @@ namespace RemuxForge.Core
             this._langFps = 0.0;
             this._inverseRatio = 0.0;
             this._executionTimeMs = 0;
-            this._verifyOffsets = new int[this._numCheckPoints];
-            this._verifySsimValues = new double[this._numCheckPoints];
-            this._verifyPointValid = new bool[this._numCheckPoints];
+            this._verifyOffsets = new int[this._vsConfig.NumCheckPoints];
+            this._verifySsimValues = new double[this._vsConfig.NumCheckPoints];
+            this._verifyPointValid = new bool[this._vsConfig.NumCheckPoints];
         }
 
         #endregion
@@ -189,7 +176,7 @@ namespace RemuxForge.Core
             stopwatch.Start();
 
             // Resetta risultati verifica
-            for (int i = 0; i < this._numCheckPoints; i++)
+            for (int i = 0; i < this._vsConfig.NumCheckPoints; i++)
             {
                 this._verifyOffsets[i] = int.MinValue;
                 this._verifySsimValues[i] = 0.0;
@@ -252,7 +239,7 @@ namespace RemuxForge.Core
             StringBuilder sb = new StringBuilder();
             int percentage = 0;
 
-            for (int p = 0; p < this._numCheckPoints; p++)
+            for (int p = 0; p < this._vsConfig.NumCheckPoints; p++)
             {
                 if (sb.Length > 0) { sb.Append(", "); }
                 percentage = (p + 1) * 10;
@@ -324,7 +311,7 @@ namespace RemuxForge.Core
             int sigStartLng = 0;
             double ssim = 0.0;
 
-            ConsoleHelper.Write(LogSection.Speed, LogLevel.Debug, "  Estrazione frame per ricerca delay (source " + this._sourceDurationSec + "s, lang " + this._langDurationSec + "s)...");
+            ConsoleHelper.Write(LogSection.Speed, LogLevel.Debug, "  Estrazione frame per ricerca delay (source " + this._scConfig.SourceDurationSec + "s, lang " + this._scConfig.LangDurationSec + "s)...");
 
             // Estrae segmenti in parallelo a fps nativo
             bool cropSrcCopy = this._cropSourceTo43;
@@ -333,7 +320,7 @@ namespace RemuxForge.Core
             {
                 List<byte[]> f;
                 double[] t;
-                this.ExtractSegment(sourceFileCopy, this._sourceStartSec * 1000, this._sourceDurationSec, 0, cropSrcCopy, out f, out t);
+                this.ExtractSegment(sourceFileCopy, this._scConfig.SourceStartSec * 1000, this._scConfig.SourceDurationSec, 0, cropSrcCopy, out f, out t);
                 sourceFrames = f;
                 sourceTimestampsMs = t;
             });
@@ -341,7 +328,7 @@ namespace RemuxForge.Core
             {
                 List<byte[]> f;
                 double[] t;
-                this.ExtractSegment(langFileCopy, 0, this._langDurationSec, 0, cropLngCopy, out f, out t);
+                this.ExtractSegment(langFileCopy, 0, this._scConfig.LangDurationSec, 0, cropLngCopy, out f, out t);
                 langFrames = f;
                 langTimestampsMs = t;
             });
@@ -351,11 +338,11 @@ namespace RemuxForge.Core
             langThread.Join();
 
             // Verifica frame sufficienti
-            if (sourceFrames == null || sourceFrames.Count < this._cutSignatureLength)
+            if (sourceFrames == null || sourceFrames.Count < this._vsConfig.CutSignatureLength)
             {
                 ConsoleHelper.Write(LogSection.Speed, LogLevel.Warning, "  Frame sorgente insufficienti: " + (sourceFrames != null ? sourceFrames.Count : 0));
             }
-            else if (langFrames == null || langFrames.Count < this._cutSignatureLength)
+            else if (langFrames == null || langFrames.Count < this._vsConfig.CutSignatureLength)
             {
                 ConsoleHelper.Write(LogSection.Speed, LogLevel.Warning, "  Frame lingua insufficienti: " + (langFrames != null ? langFrames.Count : 0));
             }
@@ -370,14 +357,14 @@ namespace RemuxForge.Core
                 // Filtra tagli con margine sufficiente per la firma
                 for (int i = 0; i < sourceCutsRaw.Count; i++)
                 {
-                    if (sourceCutsRaw[i] >= this._cutHalfWindow && sourceCutsRaw[i] + this._cutHalfWindow <= sourceFrames.Count)
+                    if (sourceCutsRaw[i] >= this._vsConfig.CutHalfWindow && sourceCutsRaw[i] + this._vsConfig.CutHalfWindow <= sourceFrames.Count)
                     {
                         validSourceCuts.Add(sourceCutsRaw[i]);
                     }
                 }
                 for (int i = 0; i < langCutsRaw.Count; i++)
                 {
-                    if (langCutsRaw[i] >= this._cutHalfWindow && langCutsRaw[i] + this._cutHalfWindow <= langFrames.Count)
+                    if (langCutsRaw[i] >= this._vsConfig.CutHalfWindow && langCutsRaw[i] + this._vsConfig.CutHalfWindow <= langFrames.Count)
                     {
                         validLangCuts.Add(langCutsRaw[i]);
                     }
@@ -387,7 +374,7 @@ namespace RemuxForge.Core
                 lngCutCount = validLangCuts.Count;
                 ConsoleHelper.Write(LogSection.Speed, LogLevel.Debug, "  Tagli rilevati: source=" + sourceCutsRaw.Count + " (" + srcCutCount + " utilizzabili), lang=" + langCutsRaw.Count + " (" + lngCutCount + " utilizzabili)");
 
-                if (srcCutCount >= this._minSceneCuts && lngCutCount >= this._minSceneCuts)
+                if (srcCutCount >= this._vsConfig.MinSceneCuts && lngCutCount >= this._vsConfig.MinSceneCuts)
                 {
                     // Genera langDelay candidati da tutte le coppie (sourceCut, langCut)
                     candidateCount = srcCutCount * lngCutCount;
@@ -458,14 +445,14 @@ namespace RemuxForge.Core
                         // Verifica solo se taglio lang entro 3 frame dalla posizione attesa
                         if (nearestLangCutIdx >= 0 && nearestDistMs <= nearestTolMs)
                         {
-                            sigStartSrc = validSourceCuts[s] - this._cutHalfWindow;
-                            sigStartLng = validLangCuts[nearestLangCutIdx] - this._cutHalfWindow;
+                            sigStartSrc = validSourceCuts[s] - this._vsConfig.CutHalfWindow;
+                            sigStartLng = validLangCuts[nearestLangCutIdx] - this._vsConfig.CutHalfWindow;
 
-                            if (sigStartLng >= 0 && sigStartLng + this._cutSignatureLength <= langFrames.Count)
+                            if (sigStartLng >= 0 && sigStartLng + this._vsConfig.CutSignatureLength <= langFrames.Count)
                             {
-                                ssim = this.ComputeSequenceSsim(sourceFrames, sigStartSrc, langFrames, sigStartLng, this._cutSignatureLength);
+                                ssim = this.ComputeSequenceSsim(sourceFrames, sigStartSrc, langFrames, sigStartLng, this._vsConfig.CutSignatureLength);
 
-                                if (ssim >= this._ssimThreshold && ssim <= this._ssimMaxThreshold)
+                                if (ssim >= this._vsConfig.SsimThreshold && ssim <= this._vsConfig.SsimMaxThreshold)
                                 {
                                     // Calcola langDelay verificato
                                     double actualLngMs = langTimestampsMs[validLangCuts[nearestLangCutIdx]];
@@ -481,7 +468,7 @@ namespace RemuxForge.Core
 
                     // Fallback: se SSIM insufficiente, ritenta con fingerprint temporale
                     // Il fingerprint confronta pattern di variazione inter-frame ed e' fps-indipendente
-                    if (verifiedCount < this._minSceneCuts)
+                    if (verifiedCount < this._vsConfig.MinSceneCuts)
                     {
                         ConsoleHelper.Write(LogSection.Speed, LogLevel.Notice, "  SSIM insufficiente, fallback a fingerprint temporale...");
                         verifiedDelays.Clear();
@@ -515,7 +502,7 @@ namespace RemuxForge.Core
                                 {
                                     double correlation = this.ComputeFingerprintCorrelation(srcFingerprint, lngFingerprint);
 
-                                    if (correlation >= this._fingerprintCorrelationThreshold)
+                                    if (correlation >= this._vsConfig.FingerprintCorrelationThreshold)
                                     {
                                         double actualLngMs = langTimestampsMs[validLangCuts[nearestLangCutIdx]];
                                         double actualDelay = (actualLngMs - srcCutMs) - driftComponent;
@@ -529,7 +516,7 @@ namespace RemuxForge.Core
                         ConsoleHelper.Write(LogSection.Speed, LogLevel.Debug, "  Tagli verificati fingerprint: " + verifiedCount + "/" + srcCutCount);
                     }
 
-                    if (verifiedDelays.Count >= this._minSceneCuts)
+                    if (verifiedDelays.Count >= this._vsConfig.MinSceneCuts)
                     {
                         // Mediana dei delay verificati
                         verifiedDelays.Sort();
@@ -544,7 +531,7 @@ namespace RemuxForge.Core
                             }
                         }
 
-                        if (consistentCount >= this._minSceneCuts)
+                        if (consistentCount >= this._vsConfig.MinSceneCuts)
                         {
                             result = (int)Math.Round(medianDelay);
                             ConsoleHelper.Write(LogSection.Speed, LogLevel.Debug, "  Delay iniziale: " + result + "ms (mediana di " + verifiedDelays.Count + " tagli, " + consistentCount + " consistenti)");
@@ -556,12 +543,12 @@ namespace RemuxForge.Core
                     }
                     else
                     {
-                        ConsoleHelper.Write(LogSection.Speed, LogLevel.Warning, "  Solo " + verifiedDelays.Count + " tagli verificati (minimo: " + this._minSceneCuts + ")");
+                        ConsoleHelper.Write(LogSection.Speed, LogLevel.Warning, "  Solo " + verifiedDelays.Count + " tagli verificati (minimo: " + this._vsConfig.MinSceneCuts + ")");
                     }
                 }
                 else
                 {
-                    ConsoleHelper.Write(LogSection.Speed, LogLevel.Warning, "  Tagli di scena insufficienti: source=" + srcCutCount + ", lang=" + lngCutCount + " (minimo: " + this._minSceneCuts + ")");
+                    ConsoleHelper.Write(LogSection.Speed, LogLevel.Warning, "  Tagli di scena insufficienti: source=" + srcCutCount + ", lang=" + lngCutCount + " (minimo: " + this._vsConfig.MinSceneCuts + ")");
                 }
             }
 
@@ -585,9 +572,9 @@ namespace RemuxForge.Core
             int retryCount = 0;
 
             // Limita ai punti disponibili
-            if (threadCount > this._numCheckPoints)
+            if (threadCount > this._vsConfig.NumCheckPoints)
             {
-                threadCount = this._numCheckPoints;
+                threadCount = this._vsConfig.NumCheckPoints;
             }
 
             // Primo passaggio con finestra base
@@ -599,14 +586,14 @@ namespace RemuxForge.Core
 
                 workers[w] = new Thread(() =>
                 {
-                    for (int p = workerIndex; p < this._numCheckPoints; p += threadCount)
+                    for (int p = workerIndex; p < this._vsConfig.NumCheckPoints; p += threadCount)
                     {
                         int pct = (p + 1) * 10;
                         int sourceTimestampMs = (int)((long)sourceDurationMs * pct / 100);
                         int expOffset = initialDelayMs + (int)Math.Round(sourceTimestampMs * (this._inverseRatio - 1.0));
 
                         double ssim = 0.0;
-                        int actualOffset = this.VerifyAtPoint(srcFile, lngFile, sourceTimestampMs, expOffset, this._verifySourceDurationSec, this._verifyLangDurationSec, out ssim);
+                        int actualOffset = this.VerifyAtPoint(srcFile, lngFile, sourceTimestampMs, expOffset, this._vsConfig.VerifySourceDurationSec, this._vsConfig.VerifyLangDurationSec, out ssim);
 
                         this._verifyOffsets[p] = actualOffset;
                         this._verifySsimValues[p] = ssim;
@@ -632,7 +619,7 @@ namespace RemuxForge.Core
             }
 
             // Retry con finestra allargata per i punti falliti
-            for (int p = 0; p < this._numCheckPoints; p++)
+            for (int p = 0; p < this._vsConfig.NumCheckPoints; p++)
             {
                 if (!this._verifyPointValid[p])
                 {
@@ -640,13 +627,13 @@ namespace RemuxForge.Core
                 }
             }
 
-            if (retryCount > 0 && retryCount < this._numCheckPoints)
+            if (retryCount > 0 && retryCount < this._vsConfig.NumCheckPoints)
             {
-                ConsoleHelper.Write(LogSection.Speed, LogLevel.Debug, "  Retry " + retryCount + " punti con finestra allargata (" + this._verifySourceRetrySec + "s/" + this._verifyLangRetrySec + "s)...");
+                ConsoleHelper.Write(LogSection.Speed, LogLevel.Debug, "  Retry " + retryCount + " punti con finestra allargata (" + this._vsConfig.VerifySourceRetrySec + "s/" + this._vsConfig.VerifyLangRetrySec + "s)...");
 
                 // Raccoglie indici dei punti falliti
                 List<int> failedPoints = new List<int>();
-                for (int p = 0; p < this._numCheckPoints; p++)
+                for (int p = 0; p < this._vsConfig.NumCheckPoints; p++)
                 {
                     if (!this._verifyPointValid[p])
                     {
@@ -678,7 +665,7 @@ namespace RemuxForge.Core
                             int expOffset = initialDelayMs + (int)Math.Round(sourceTimestampMs * (this._inverseRatio - 1.0));
 
                             double ssim = 0.0;
-                            int actualOffset = this.VerifyAtPoint(srcFile, lngFile, sourceTimestampMs, expOffset, this._verifySourceRetrySec, this._verifyLangRetrySec, out ssim);
+                            int actualOffset = this.VerifyAtPoint(srcFile, lngFile, sourceTimestampMs, expOffset, this._vsConfig.VerifySourceRetrySec, this._vsConfig.VerifyLangRetrySec, out ssim);
 
                             this._verifyOffsets[pointIndex] = actualOffset;
                             this._verifySsimValues[pointIndex] = ssim;
@@ -705,7 +692,7 @@ namespace RemuxForge.Core
             }
 
             // Log risultati
-            for (int p = 0; p < this._numCheckPoints; p++)
+            for (int p = 0; p < this._vsConfig.NumCheckPoints; p++)
             {
                 percentage = (p + 1) * 10;
                 expectedOffset = initialDelayMs + (int)Math.Round(((long)sourceDurationMs * percentage / 100) * (this._inverseRatio - 1.0));
@@ -736,14 +723,14 @@ namespace RemuxForge.Core
             }
 
             // Verifica numero minimo punti validi
-            if (validCount >= this._minValidPoints)
+            if (validCount >= this._vsConfig.MinValidPoints)
             {
                 success = true;
-                ConsoleHelper.Write(LogSection.Speed, LogLevel.Debug, "  Verifica superata: " + validCount + "/" + this._numCheckPoints + " punti validi");
+                ConsoleHelper.Write(LogSection.Speed, LogLevel.Debug, "  Verifica superata: " + validCount + "/" + this._vsConfig.NumCheckPoints + " punti validi");
             }
             else
             {
-                ConsoleHelper.Write(LogSection.Speed, LogLevel.Warning, "  Solo " + validCount + "/" + this._numCheckPoints + " punti validi (minimo: " + this._minValidPoints + ")");
+                ConsoleHelper.Write(LogSection.Speed, LogLevel.Warning, "  Solo " + validCount + "/" + this._vsConfig.NumCheckPoints + " punti validi (minimo: " + this._vsConfig.MinValidPoints + ")");
             }
 
             return success;
@@ -826,7 +813,7 @@ namespace RemuxForge.Core
             langThread.Join();
 
             // Verifica frame sufficienti
-            if (sourceFrames != null && sourceFrames.Count >= this._cutSignatureLength && langFrames != null && langFrames.Count >= this._cutSignatureLength)
+            if (sourceFrames != null && sourceFrames.Count >= this._vsConfig.CutSignatureLength && langFrames != null && langFrames.Count >= this._vsConfig.CutSignatureLength)
             {
                 // Rileva tagli in entrambi i segmenti
                 sourceCutsRaw = this.DetectSceneCuts(sourceFrames);
@@ -835,14 +822,14 @@ namespace RemuxForge.Core
                 // Filtra tagli con margine sufficiente
                 for (int i = 0; i < sourceCutsRaw.Count; i++)
                 {
-                    if (sourceCutsRaw[i] >= this._cutHalfWindow && sourceCutsRaw[i] + this._cutHalfWindow <= sourceFrames.Count)
+                    if (sourceCutsRaw[i] >= this._vsConfig.CutHalfWindow && sourceCutsRaw[i] + this._vsConfig.CutHalfWindow <= sourceFrames.Count)
                     {
                         validSourceCuts.Add(sourceCutsRaw[i]);
                     }
                 }
                 for (int i = 0; i < langCutsRaw.Count; i++)
                 {
-                    if (langCutsRaw[i] >= this._cutHalfWindow && langCutsRaw[i] + this._cutHalfWindow <= langFrames.Count)
+                    if (langCutsRaw[i] >= this._vsConfig.CutHalfWindow && langCutsRaw[i] + this._vsConfig.CutHalfWindow <= langFrames.Count)
                     {
                         validLangCuts.Add(langCutsRaw[i]);
                     }
@@ -876,14 +863,14 @@ namespace RemuxForge.Core
                     // Verifica solo se taglio lang entro 3 frame dalla posizione attesa
                     if (nearestLangCutIdx >= 0 && nearestDistMs <= nearestTolMs)
                     {
-                        sigStartSrc = validSourceCuts[s] - this._cutHalfWindow;
-                        sigStartLng = validLangCuts[nearestLangCutIdx] - this._cutHalfWindow;
+                        sigStartSrc = validSourceCuts[s] - this._vsConfig.CutHalfWindow;
+                        sigStartLng = validLangCuts[nearestLangCutIdx] - this._vsConfig.CutHalfWindow;
 
-                        if (sigStartLng >= 0 && sigStartLng + this._cutSignatureLength <= langFrames.Count)
+                        if (sigStartLng >= 0 && sigStartLng + this._vsConfig.CutSignatureLength <= langFrames.Count)
                         {
-                            ssim = this.ComputeSequenceSsim(sourceFrames, sigStartSrc, langFrames, sigStartLng, this._cutSignatureLength);
+                            ssim = this.ComputeSequenceSsim(sourceFrames, sigStartSrc, langFrames, sigStartLng, this._vsConfig.CutSignatureLength);
 
-                            if (ssim >= this._ssimThreshold && ssim <= this._ssimMaxThreshold)
+                            if (ssim >= this._vsConfig.SsimThreshold && ssim <= this._vsConfig.SsimMaxThreshold)
                             {
                                 // Offset grezzo al punto del taglio
                                 double actualLngMs = langTimestampsMs[validLangCuts[nearestLangCutIdx]];
@@ -933,7 +920,7 @@ namespace RemuxForge.Core
                             {
                                 double correlation = this.ComputeFingerprintCorrelation(srcFp, lngFp);
 
-                                if (correlation >= this._fingerprintCorrelationThreshold)
+                                if (correlation >= this._vsConfig.FingerprintCorrelationThreshold)
                                 {
                                     double actualLngMs = langTimestampsMs[validLangCuts[nearestLangCutIdx]];
                                     double rawOffset = actualLngMs - srcCutMs;

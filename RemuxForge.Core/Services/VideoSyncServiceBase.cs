@@ -26,104 +26,14 @@ namespace RemuxForge.Core
         #region Variabili di classe
 
         /// <summary>
-        /// Larghezza frame per confronto MSE
+        /// Riferimento alla configurazione VideoSync (binding diretto, modifiche immediate)
         /// </summary>
-        protected int _frameWidth;
+        protected VideoSyncConfig _vsConfig;
 
         /// <summary>
-        /// Altezza frame per confronto MSE
+        /// Riferimento alla configurazione Ffmpeg (binding diretto, modifiche immediate)
         /// </summary>
-        protected int _frameHeight;
-
-        /// <summary>
-        /// Dimensione in byte di un singolo frame grayscale (derivato: FrameWidth * FrameHeight)
-        /// </summary>
-        protected int _frameSize;
-
-        /// <summary>
-        /// Soglia MSE massima per match valido
-        /// </summary>
-        protected double _mseThreshold;
-
-        /// <summary>
-        /// Soglia MSE minima, sotto cui il match e' ambiguo
-        /// </summary>
-        protected double _mseMinThreshold;
-
-        /// <summary>
-        /// Soglia SSIM minima per match cross-file valido
-        /// </summary>
-        protected double _ssimThreshold;
-
-        /// <summary>
-        /// Soglia SSIM massima, sopra cui il match e' ambiguo (frame identici/neri)
-        /// </summary>
-        protected double _ssimMaxThreshold;
-
-        /// <summary>
-        /// Numero di punti di verifica
-        /// </summary>
-        protected int _numCheckPoints;
-
-        /// <summary>
-        /// Minimo punti verifica riusciti per sync valido
-        /// </summary>
-        protected int _minValidPoints;
-
-        /// <summary>
-        /// Soglia MSE tra frame consecutivi per rilevare taglio di scena
-        /// </summary>
-        protected double _sceneCutThreshold;
-
-        /// <summary>
-        /// Frame prima e dopo il taglio per la firma
-        /// </summary>
-        protected int _cutHalfWindow;
-
-        /// <summary>
-        /// Lunghezza firma taglio di scena (2 * CutHalfWindow)
-        /// </summary>
-        protected int _cutSignatureLength;
-
-        /// <summary>
-        /// Lunghezza fingerprint temporale (derivato: CutSignatureLength - 1)
-        /// </summary>
-        protected int _fingerprintLength;
-
-        /// <summary>
-        /// Soglia minima correlazione Pearson per match fingerprint temporale
-        /// </summary>
-        protected double _fingerprintCorrelationThreshold;
-
-        /// <summary>
-        /// Minimo tagli di scena richiesti per analisi
-        /// </summary>
-        protected int _minSceneCuts;
-
-        /// <summary>
-        /// Distanza minima in frame tra due tagli consecutivi
-        /// </summary>
-        protected int _minCutSpacingFrames;
-
-        /// <summary>
-        /// Durata segmento source per verifica punto in secondi
-        /// </summary>
-        protected int _verifySourceDurationSec;
-
-        /// <summary>
-        /// Durata segmento lang per verifica punto in secondi
-        /// </summary>
-        protected int _verifyLangDurationSec;
-
-        /// <summary>
-        /// Durata segmento source per retry verifica in secondi
-        /// </summary>
-        protected int _verifySourceRetrySec;
-
-        /// <summary>
-        /// Durata segmento lang per retry verifica in secondi
-        /// </summary>
-        protected int _verifyLangRetrySec;
+        protected FfmpegConfig _ffmpegConfig;
 
         /// <summary>
         /// Percorso eseguibile ffmpeg
@@ -145,11 +55,6 @@ namespace RemuxForge.Core
         /// </summary>
         protected bool _cropLangTo43;
 
-        /// <summary>
-        /// Abilita accelerazione hardware ffmpeg (-hwaccel auto)
-        /// </summary>
-        protected bool _useHwaccel;
-
         #endregion
 
         #region Costruttore
@@ -163,32 +68,10 @@ namespace RemuxForge.Core
         {
             this._ffmpegPath = ffmpegPath;
             this._logSection = logSection;
-
-            // Carica parametri da configurazione
-            VideoSyncConfig cfg = AppSettingsService.Instance.Settings.Advanced.VideoSync;
-            this._frameWidth = cfg.FrameWidth;
-            this._frameHeight = cfg.FrameHeight;
-            this._frameSize = cfg.FrameWidth * cfg.FrameHeight;
-            this._mseThreshold = cfg.MseThreshold;
-            this._mseMinThreshold = cfg.MseMinThreshold;
-            this._ssimThreshold = cfg.SsimThreshold;
-            this._ssimMaxThreshold = cfg.SsimMaxThreshold;
-            this._numCheckPoints = cfg.NumCheckPoints;
-            this._minValidPoints = cfg.MinValidPoints;
-            this._sceneCutThreshold = cfg.SceneCutThreshold;
-            this._cutHalfWindow = cfg.CutHalfWindow;
-            this._cutSignatureLength = cfg.CutSignatureLength;
-            this._fingerprintLength = cfg.CutSignatureLength - 1;
-            this._fingerprintCorrelationThreshold = cfg.FingerprintCorrelationThreshold;
-            this._minSceneCuts = cfg.MinSceneCuts;
-            this._minCutSpacingFrames = cfg.MinCutSpacingFrames;
-            this._verifySourceDurationSec = cfg.VerifySourceDurationSec;
-            this._verifyLangDurationSec = cfg.VerifyLangDurationSec;
-            this._verifySourceRetrySec = cfg.VerifySourceRetrySec;
-            this._verifyLangRetrySec = cfg.VerifyLangRetrySec;
+            this._vsConfig = AppSettingsService.Instance.Settings.Advanced.VideoSync;
+            this._ffmpegConfig = AppSettingsService.Instance.Settings.Advanced.Ffmpeg;
             this._cropSourceTo43 = false;
             this._cropLangTo43 = false;
-            this._useHwaccel = AppSettingsService.Instance.Settings.Advanced.Ffmpeg.HardwareAcceleration;
         }
 
         #endregion
@@ -233,6 +116,7 @@ namespace RemuxForge.Core
             string endFormatted = "";
             string resolution = "";
             string filterChain = "";
+            int frameSize = this._vsConfig.FrameWidth * this._vsConfig.FrameHeight;
             Stream stdoutStream = null;
             bool reading = true;
             byte[] frameData = null;
@@ -256,7 +140,7 @@ namespace RemuxForge.Core
                 endSec = startSec + durationSec;
                 startFormatted = startSec.ToString("F3", CultureInfo.InvariantCulture);
                 endFormatted = endSec.ToString("F3", CultureInfo.InvariantCulture);
-                resolution = this._frameWidth + "x" + this._frameHeight;
+                resolution = this._vsConfig.FrameWidth + "x" + this._vsConfig.FrameHeight;
 
                 // fps filter applicato quando viene richiesto un target fps (scan coarse a memoria limitata)
                 // Il filtro fps resampla correttamente anche su sorgente VFR producendo griglia regolare
@@ -268,7 +152,7 @@ namespace RemuxForge.Core
                 process.StartInfo.FileName = this._ffmpegPath;
                 process.StartInfo.ArgumentList.Add("-nostdin");
                 process.StartInfo.ArgumentList.Add("-hide_banner");
-                if (this._useHwaccel)
+                if (this._ffmpegConfig.HardwareAcceleration)
                 {
                     process.StartInfo.ArgumentList.Add("-hwaccel");
                     process.StartInfo.ArgumentList.Add("auto");
@@ -354,13 +238,13 @@ namespace RemuxForge.Core
 
                 while (reading)
                 {
-                    frameData = new byte[this._frameSize];
+                    frameData = new byte[frameSize];
                     totalRead = 0;
 
                     // Legge esattamente _frameSize byte per ogni frame
-                    while (totalRead < this._frameSize)
+                    while (totalRead < frameSize)
                     {
-                        bytesRead = stdoutStream.Read(frameData, totalRead, this._frameSize - totalRead);
+                        bytesRead = stdoutStream.Read(frameData, totalRead, frameSize - totalRead);
                         if (bytesRead == 0)
                         {
                             reading = false;
@@ -370,7 +254,7 @@ namespace RemuxForge.Core
                     }
 
                     // Aggiunge il frame solo se completo
-                    if (totalRead == this._frameSize)
+                    if (totalRead == frameSize)
                     {
                         frames.Add(frameData);
                     }
@@ -627,14 +511,14 @@ namespace RemuxForge.Core
         {
             List<int> cuts = new List<int>();
             double interMse = 0.0;
-            int lastCutIdx = -this._minCutSpacingFrames;
+            int lastCutIdx = -this._vsConfig.MinCutSpacingFrames;
 
             for (int i = 0; i < frames.Count - 1; i++)
             {
                 interMse = this.ComputeMse(frames[i], frames[i + 1]);
 
                 // Taglio se MSE supera soglia e distanza minima dal taglio precedente
-                if (interMse > this._sceneCutThreshold && (i + 1 - lastCutIdx) >= this._minCutSpacingFrames)
+                if (interMse > this._vsConfig.SceneCutThreshold && (i + 1 - lastCutIdx) >= this._vsConfig.MinCutSpacingFrames)
                 {
                     cuts.Add(i + 1);
                     lastCutIdx = i + 1;
@@ -654,14 +538,15 @@ namespace RemuxForge.Core
         protected double[] ComputeTemporalFingerprint(List<byte[]> frames, int cutIndex)
         {
             double[] fingerprint = null;
-            int startIdx = cutIndex - this._cutHalfWindow;
+            int startIdx = cutIndex - this._vsConfig.CutHalfWindow;
+            int fingerprintLength = this._vsConfig.CutSignatureLength - 1;
 
             // Verifica che la finestra sia interamente contenuta nei frame
-            if (startIdx >= 0 && startIdx + this._cutSignatureLength <= frames.Count)
+            if (startIdx >= 0 && startIdx + this._vsConfig.CutSignatureLength <= frames.Count)
             {
-                fingerprint = new double[this._fingerprintLength];
+                fingerprint = new double[fingerprintLength];
 
-                for (int i = 0; i < this._fingerprintLength; i++)
+                for (int i = 0; i < fingerprintLength; i++)
                 {
                     fingerprint[i] = this.ComputeMse(frames[startIdx + i], frames[startIdx + i + 1]);
                 }
@@ -687,18 +572,19 @@ namespace RemuxForge.Core
             double diff1 = 0.0;
             double diff2 = 0.0;
             double denominator = 0.0;
+            int fingerprintLength = this._vsConfig.CutSignatureLength - 1;
 
             // Calcola medie
-            for (int i = 0; i < this._fingerprintLength; i++)
+            for (int i = 0; i < fingerprintLength; i++)
             {
                 mean1 += fp1[i];
                 mean2 += fp2[i];
             }
-            mean1 /= this._fingerprintLength;
-            mean2 /= this._fingerprintLength;
+            mean1 /= fingerprintLength;
+            mean2 /= fingerprintLength;
 
             // Calcola numeratore e denominatore della correlazione
-            for (int i = 0; i < this._fingerprintLength; i++)
+            for (int i = 0; i < fingerprintLength; i++)
             {
                 diff1 = fp1[i] - mean1;
                 diff2 = fp2[i] - mean2;

@@ -16,6 +16,7 @@ namespace RemuxForge.Core
         {
             this.Tracks = new List<TrackInfo>();
             this.ContainerDurationNs = 0;
+            this.ContainerTitle = "";
         }
 
         #endregion
@@ -31,6 +32,11 @@ namespace RemuxForge.Core
         /// Durata del container in nanosecondi, come riportata da mkvmerge -J
         /// </summary>
         public long ContainerDurationNs { get; set; }
+
+        /// <summary>
+        /// Titolo del segmento MKV (container title), stringa vuota se assente
+        /// </summary>
+        public string ContainerTitle { get; set; }
 
         #endregion
     }

@@ -33,6 +33,7 @@ namespace RemuxForge.Core
             this.ConvertedLangTracks = new Dictionary<int, string>();
             this.ProcessedLangSubTracks = new Dictionary<int, string>();
             this.CodecConvertedLangIds = new HashSet<int>();
+            this.SourceTitle = "";
         }
 
         #endregion
@@ -136,6 +137,11 @@ namespace RemuxForge.Core
         /// ID tracce lang effettivamente convertite di codec (non solo processate da taglia-cuci)
         /// </summary>
         public HashSet<int> CodecConvertedLangIds { get; set; }
+
+        /// <summary>
+        /// Titolo segmento del file sorgente (container title), stringa vuota se assente
+        /// </summary>
+        public string SourceTitle { get; set; }
 
         #endregion
     }

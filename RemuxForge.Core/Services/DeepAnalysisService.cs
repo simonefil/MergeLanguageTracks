@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Threading;
 
@@ -18,127 +17,9 @@ namespace RemuxForge.Core
         #region Variabili di classe
 
         /// <summary>
-        /// FPS per estrazione fase grossa (2 frame/sec)
+        /// Riferimento alla configurazione DeepAnalysis (binding diretto, modifiche immediate)
         /// </summary>
-        private double _coarseFps;
-
-        /// <summary>
-        /// FPS per scansione densa transizioni (1 frame/sec)
-        /// </summary>
-        private double _denseScanFps;
-
-        /// <summary>
-        /// Soglia SSIM sotto cui si considera dip nella scansione densa
-        /// </summary>
-        private double _denseScanSsimThreshold;
-
-        /// <summary>
-        /// Minimo frame consecutivi sotto soglia per confermare dip
-        /// </summary>
-        private int _denseScanMinDipFrames;
-
-        /// <summary>
-        /// Finestra scansione lineare di conferma attorno al punto binaria (secondi, per lato)
-        /// </summary>
-        private double _linearScanWindowSec;
-
-        /// <summary>
-        /// Frame consecutivi per conferma crossover nella scansione lineare
-        /// </summary>
-        private int _linearScanConfirmFrames;
-
-        /// <summary>
-        /// Soglia SSIM per dip in verifica regioni (molto piu' restrittiva di DENSE_SCAN)
-        /// Deve essere bassa per catturare solo transizioni reali (frame neri, scene diverse)
-        /// e ignorare rumore da scene cuts e compressione
-        /// </summary>
-        private double _verifyDipSsimThreshold;
-
-        /// <summary>
-        /// Punti di probing multi-point dopo il dip (secondi dopo il dip).
-        /// Tre punti distanziati per eliminare falsi positivi da scene cuts
-        /// </summary>
-        private double[] _probeMultiMarginsSec;
-
-        /// <summary>
-        /// Minimo punti di probing consistenti per confermare cambio offset
-        /// </summary>
-        private int _probeMinConsistentPoints;
-
-        /// <summary>
-        /// Durata segmento per probing offset in secondi
-        /// </summary>
-        private double _offsetProbeDurationSec;
-
-        /// <summary>
-        /// Offset candidati da testare nel probing (ms, aggiunti all'offset corrente)
-        /// </summary>
-        private int[] _offsetProbeDeltas;
-
-        /// <summary>
-        /// Soglia SSIM minima per accettare un offset candidato nel probing
-        /// </summary>
-        private double _offsetProbeMinSsim;
-
-        /// <summary>
-        /// Differenza minima offset per considerare un cambio reale (ms)
-        /// </summary>
-        private int _minOffsetChangeMs;
-
-        /// <summary>
-        /// Minimo match consecutivi con stesso offset per conferma cambio
-        /// </summary>
-        private int _minConsecutiveStable;
-
-        /// <summary>
-        /// Soglia ffmpeg scene detection
-        /// </summary>
-        private double _sceneThreshold;
-
-        /// <summary>
-        /// Tolleranza match scene cuts (ms)
-        /// </summary>
-        private int _matchToleranceMs;
-
-        /// <summary>
-        /// Tolleranza ampia per ricerca probe cambio offset (secondi)
-        /// </summary>
-        private double _wideProbeToleranceSec;
-
-        /// <summary>
-        /// Timeout estrazione scene cuts per singolo file (ms)
-        /// </summary>
-        private int _sceneExtractTimeoutMs;
-
-        /// <summary>
-        /// Numero di punti di verifica globale
-        /// </summary>
-        private int _globalVerifyPoints;
-
-        /// <summary>
-        /// Percentuale minima di punti che devono verificare per validazione
-        /// </summary>
-        private double _globalVerifyMinRatio;
-
-        /// <summary>
-        /// Moltiplicatore MSE baseline per soglia di verifica
-        /// </summary>
-        private double _verifyMseMultiplier;
-
-        /// <summary>
-        /// Range ricerca offset iniziale in secondi
-        /// </summary>
-        private int _initialOffsetRangeSec;
-
-        /// <summary>
-        /// Step ricerca offset iniziale in secondi
-        /// </summary>
-        private double _initialOffsetStepSec;
-
-        /// <summary>
-        /// Numero di source cuts iniziali per voting offset
-        /// </summary>
-        private int _initialVotingCuts;
+        private DeepAnalysisConfig _daConfig;
 
         /// <summary>
         /// Tempo di esecuzione analisi in ms
@@ -155,31 +36,7 @@ namespace RemuxForge.Core
         /// <param name="ffmpegPath">Percorso eseguibile ffmpeg</param>
         public DeepAnalysisService(string ffmpegPath) : base(ffmpegPath, LogSection.Deep)
         {
-            DeepAnalysisConfig cfg = AppSettingsService.Instance.Settings.Advanced.DeepAnalysis;
-            this._coarseFps = cfg.CoarseFps;
-            this._denseScanFps = cfg.DenseScanFps;
-            this._denseScanSsimThreshold = cfg.DenseScanSsimThreshold;
-            this._denseScanMinDipFrames = cfg.DenseScanMinDipFrames;
-            this._linearScanWindowSec = cfg.LinearScanWindowSec;
-            this._linearScanConfirmFrames = cfg.LinearScanConfirmFrames;
-            this._verifyDipSsimThreshold = cfg.VerifyDipSsimThreshold;
-            this._probeMultiMarginsSec = cfg.ProbeMultiMarginsSec.ToArray();
-            this._probeMinConsistentPoints = cfg.ProbeMinConsistentPoints;
-            this._offsetProbeDurationSec = cfg.OffsetProbeDurationSec;
-            this._offsetProbeDeltas = cfg.OffsetProbeDeltas.ToArray();
-            this._offsetProbeMinSsim = cfg.OffsetProbeMinSsim;
-            this._minOffsetChangeMs = cfg.MinOffsetChangeMs;
-            this._minConsecutiveStable = cfg.MinConsecutiveStable;
-            this._sceneThreshold = cfg.SceneThreshold;
-            this._matchToleranceMs = cfg.MatchToleranceMs;
-            this._wideProbeToleranceSec = cfg.WideProbeToleranceSec;
-            this._sceneExtractTimeoutMs = cfg.SceneExtractTimeoutMs;
-            this._globalVerifyPoints = cfg.GlobalVerifyPoints;
-            this._globalVerifyMinRatio = cfg.GlobalVerifyMinRatio;
-            this._verifyMseMultiplier = cfg.VerifyMseMultiplier;
-            this._initialOffsetRangeSec = cfg.InitialOffsetRangeSec;
-            this._initialOffsetStepSec = cfg.InitialOffsetStepSec;
-            this._initialVotingCuts = cfg.InitialVotingCuts;
+            this._daConfig = AppSettingsService.Instance.Settings.Advanced.DeepAnalysis;
             this._analysisTimeMs = 0;
         }
 
@@ -221,7 +78,7 @@ namespace RemuxForge.Core
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Phase, "  Fase 2: Estrazione scene cuts...");
             this.ExtractAllSceneCuts(sourceFile, langFile, out sourceCuts, out langCuts);
 
-            if (sourceCuts == null || langCuts == null || sourceCuts.Count < this._minSceneCuts || langCuts.Count < this._minSceneCuts)
+            if (sourceCuts == null || langCuts == null || sourceCuts.Count < this._vsConfig.MinSceneCuts || langCuts.Count < this._vsConfig.MinSceneCuts)
             {
                 ConsoleHelper.Write(LogSection.Deep, LogLevel.Error, "  Scene cuts insufficienti: source=" + (sourceCuts != null ? sourceCuts.Count : 0) + ", lang=" + (langCuts != null ? langCuts.Count : 0));
                 stopwatch.Stop();
@@ -387,7 +244,7 @@ namespace RemuxForge.Core
             int endIdx = 0;
             string ptsStr = "";
             double ptsTime = 0.0;
-            string thresholdStr = this._sceneThreshold.ToString("F2", CultureInfo.InvariantCulture);
+            string thresholdStr = this._daConfig.SceneThreshold.ToString("F2", CultureInfo.InvariantCulture);
 
             try
             {
@@ -395,7 +252,7 @@ namespace RemuxForge.Core
                 process.StartInfo.FileName = this._ffmpegPath;
                 process.StartInfo.ArgumentList.Add("-nostdin");
                 process.StartInfo.ArgumentList.Add("-hide_banner");
-                if (this._useHwaccel)
+                if (this._ffmpegConfig.HardwareAcceleration)
                 {
                     process.StartInfo.ArgumentList.Add("-hwaccel");
                     process.StartInfo.ArgumentList.Add("auto");
@@ -446,7 +303,7 @@ namespace RemuxForge.Core
                 stdoutThread.Join();
 
                 // Attendi termine con timeout
-                if (!process.WaitForExit(this._sceneExtractTimeoutMs))
+                if (!process.WaitForExit(this._daConfig.SceneExtractTimeoutMs))
                 {
                     ConsoleHelper.Write(LogSection.Deep, LogLevel.Warning, "  Timeout estrazione scene cuts: " + Path.GetFileName(filePath));
                     // Kill best-effort: il processo potrebbe essere gia' terminato
@@ -493,7 +350,7 @@ namespace RemuxForge.Core
             double candidateOffset = 0.0;
             int regionMatchCount = 0;
             OffsetRegion currentRegion = null;
-            double toleranceSec = this._matchToleranceMs / 1000.0;
+            double toleranceSec = this._daConfig.MatchToleranceMs / 1000.0;
             List<double> regionOffsets = new List<double>();
 
             matchedCuts = 0;
@@ -539,19 +396,19 @@ namespace RemuxForge.Core
                     actualOffset = sourceCuts[i] - closestLangTime;
                     offsetDiff = Math.Abs(actualOffset - currentOffset) * 1000.0;
 
-                    if (offsetDiff > this._minOffsetChangeMs)
+                    if (offsetDiff > this._daConfig.MinOffsetChangeMs)
                     {
                         // Potenziale cambio offset
-                        if (consecutiveNew == 0 || Math.Abs(actualOffset - candidateOffset) * 1000.0 < this._matchToleranceMs)
+                        if (consecutiveNew == 0 || Math.Abs(actualOffset - candidateOffset) * 1000.0 < this._daConfig.MatchToleranceMs)
                         {
                             // Stesso candidato
                             if (consecutiveNew == 0) { candidateOffset = actualOffset; }
                             consecutiveNew++;
 
-                            if (consecutiveNew >= this._minConsecutiveStable)
+                            if (consecutiveNew >= this._daConfig.MinConsecutiveStable)
                             {
                                 // Cambio confermato: chiudi regione con mediana offset
-                                currentRegion.EndSrcSec = sourceCuts[i - this._minConsecutiveStable + 1];
+                                currentRegion.EndSrcSec = sourceCuts[i - this._daConfig.MinConsecutiveStable + 1];
                                 currentRegion.MatchCount = regionMatchCount;
                                 if (regionOffsets.Count > 0)
                                 {
@@ -566,7 +423,7 @@ namespace RemuxForge.Core
 
                                 // Nuova regione
                                 currentRegion = new OffsetRegion();
-                                currentRegion.StartSrcSec = sourceCuts[i - this._minConsecutiveStable + 1];
+                                currentRegion.StartSrcSec = sourceCuts[i - this._daConfig.MinConsecutiveStable + 1];
                                 currentRegion.OffsetMs = currentOffset * 1000.0;
                                 regionMatchCount = consecutiveNew;
                                 matchedCuts += consecutiveNew;
@@ -605,10 +462,10 @@ namespace RemuxForge.Core
                         if (candidateMatch >= 0.0)
                         {
                             consecutiveNew++;
-                            if (consecutiveNew >= this._minConsecutiveStable)
+                            if (consecutiveNew >= this._daConfig.MinConsecutiveStable)
                             {
                                 // Cambio confermato: chiudi regione con mediana offset
-                                currentRegion.EndSrcSec = sourceCuts[i - this._minConsecutiveStable + 1];
+                                currentRegion.EndSrcSec = sourceCuts[i - this._daConfig.MinConsecutiveStable + 1];
                                 currentRegion.MatchCount = regionMatchCount;
                                 if (regionOffsets.Count > 0)
                                 {
@@ -623,7 +480,7 @@ namespace RemuxForge.Core
 
                                 // Nuova regione
                                 currentRegion = new OffsetRegion();
-                                currentRegion.StartSrcSec = sourceCuts[i - this._minConsecutiveStable + 1];
+                                currentRegion.StartSrcSec = sourceCuts[i - this._daConfig.MinConsecutiveStable + 1];
                                 currentRegion.OffsetMs = currentOffset * 1000.0;
                                 regionMatchCount = consecutiveNew;
                                 matchedCuts += consecutiveNew;
@@ -639,12 +496,12 @@ namespace RemuxForge.Core
                     else
                     {
                         // Nessun candidato: probe con tolleranza ampia per scoprire nuovo offset
-                        double wideMatch = this.FindClosestCut(langCuts, expectedLangTime, this._wideProbeToleranceSec);
+                        double wideMatch = this.FindClosestCut(langCuts, expectedLangTime, this._daConfig.WideProbeToleranceSec);
                         if (wideMatch >= 0.0)
                         {
                             double probeOffset = sourceCuts[i] - wideMatch;
                             double probeDiff = Math.Abs(probeOffset - currentOffset) * 1000.0;
-                            if (probeDiff > this._minOffsetChangeMs)
+                            if (probeDiff > this._daConfig.MinOffsetChangeMs)
                             {
                                 candidateOffset = probeOffset;
                                 consecutiveNew = 1;
@@ -687,14 +544,14 @@ namespace RemuxForge.Core
             int votes = 0;
             double expectedLang = 0.0;
             double closestLang = 0.0;
-            double toleranceSec = this._matchToleranceMs / 1000.0;
-            int cutsToTest = Math.Min(this._initialVotingCuts, sourceCuts.Count);
-            int steps = (int)(this._initialOffsetRangeSec * 2 / this._initialOffsetStepSec);
+            double toleranceSec = this._daConfig.MatchToleranceMs / 1000.0;
+            int cutsToTest = Math.Min(this._daConfig.InitialVotingCuts, sourceCuts.Count);
+            int steps = (int)(this._daConfig.InitialOffsetRangeSec * 2 / this._daConfig.InitialOffsetStepSec);
 
             // Testa range di offset da -30s a +30s con step 0.5s
             for (int s = 0; s <= steps; s++)
             {
-                testOffset = -this._initialOffsetRangeSec + s * this._initialOffsetStepSec;
+                testOffset = -this._daConfig.InitialOffsetRangeSec + s * this._daConfig.InitialOffsetStepSec;
                 votes = 0;
 
                 for (int i = 0; i < cutsToTest; i++)
@@ -917,7 +774,7 @@ namespace RemuxForge.Core
             double[] sourceTimestampsMs = null;
             List<byte[]> langFrames = null;
             double[] langTimestampsMs = null;
-            double frameIntervalMs = 1000.0 / this._denseScanFps;
+            double frameIntervalMs = 1000.0 / this._daConfig.DenseScanFps;
             double toleranceMs = frameIntervalMs * 2.0;
             double srcRelMs = 0.0;
             double targetLangMs = 0.0;
@@ -925,7 +782,7 @@ namespace RemuxForge.Core
             double nearestDistMs = 0.0;
 
             // Estrai frame source con timestamps reali
-            this.ExtractSegment(sourceFile, (int)(regionStart * 1000), duration, this._denseScanFps, this._cropSourceTo43, out srcFrames, out sourceTimestampsMs);
+            this.ExtractSegment(sourceFile, (int)(regionStart * 1000), duration, this._daConfig.DenseScanFps, this._cropSourceTo43, out srcFrames, out sourceTimestampsMs);
             if (srcFrames.Count < 4)
             {
                 ConsoleHelper.Write(LogSection.Deep, LogLevel.Warning, "    FindDips: estrazione source fallita (" + srcFrames.Count + " frame su " + duration.ToString("F0", CultureInfo.InvariantCulture) + "s attesi)");
@@ -938,7 +795,7 @@ namespace RemuxForge.Core
             if (langStart < 0.0) { langStart = 0.0; }
 
             // Estrai frame lang con timestamps reali
-            this.ExtractSegment(langFile, (int)(langStart * 1000), duration, this._denseScanFps, this._cropLangTo43, out langFrames, out langTimestampsMs);
+            this.ExtractSegment(langFile, (int)(langStart * 1000), duration, this._daConfig.DenseScanFps, this._cropLangTo43, out langFrames, out langTimestampsMs);
 
             if (langFrames.Count < 4 || langTimestampsMs.Length < 4)
             {
@@ -976,23 +833,23 @@ namespace RemuxForge.Core
             }
 
             // Cerca cluster di frame con SSIM sotto soglia restrittiva
-            // (usa this._verifyDipSsimThreshold, molto piu' bassa di this._denseScanSsimThreshold,
+            // (usa this._daConfig.VerifyDipSsimThreshold, molto piu' bassa di this._daConfig.DenseScanSsimThreshold,
             // per evitare falsi positivi da scene cuts e compressione)
             for (int i = 0; i < maxIdx; i++)
             {
-                if (ssimValues[i] < this._verifyDipSsimThreshold)
+                if (ssimValues[i] < this._daConfig.VerifyDipSsimThreshold)
                 {
                     if (consecutiveLow == 0) { dipStartIdx = i; }
                     consecutiveLow++;
 
-                    if (consecutiveLow >= this._denseScanMinDipFrames)
+                    if (consecutiveLow >= this._daConfig.DenseScanMinDipFrames)
                     {
                         // Posizione reale del dip dal pts del frame sorgente (non da fps assunto)
                         double dipSrc = sourceTimestampsMs[dipStartIdx] / 1000.0;
                         dips.Add(dipSrc);
 
                         // Salta avanti per non trovare lo stesso dip piu' volte
-                        while (i < maxIdx && ssimValues[i] < this._verifyDipSsimThreshold) { i++; }
+                        while (i < maxIdx && ssimValues[i] < this._daConfig.VerifyDipSsimThreshold) { i++; }
                         consecutiveLow = 0;
                         dipStartIdx = -1;
                     }
@@ -1022,7 +879,7 @@ namespace RemuxForge.Core
         private double ProbeOffsetAfterDip(string sourceFile, string langFile, double dipSrcSec, double currentOffsetMs, double inverseRatio)
         {
             double result = currentOffsetMs;
-            int numPoints = this._probeMultiMarginsSec.Length;
+            int numPoints = this._daConfig.ProbeMultiMarginsSec.Count;
             int[] winningDeltas = new int[numPoints];
             double[] winningSsims = new double[numPoints];
             int validPoints = 0;
@@ -1044,8 +901,8 @@ namespace RemuxForge.Core
 
             // Pre-filtro veloce: testa l'offset corrente al primo punto di probe
             // Se SSIM >= soglia, l'offset corrente funziona ancora => falso positivo
-            probePointSrc = dipSrcSec + this._probeMultiMarginsSec[0];
-            this.ExtractSegment(sourceFile, (int)(probePointSrc * 1000), this._offsetProbeDurationSec, 0.0, this._cropSourceTo43, out preFilterSrc, out preFilterSrcTs);
+            probePointSrc = dipSrcSec + this._daConfig.ProbeMultiMarginsSec[0];
+            this.ExtractSegment(sourceFile, (int)(probePointSrc * 1000), this._daConfig.OffsetProbeDurationSec, 0.0, this._cropSourceTo43, out preFilterSrc, out preFilterSrcTs);
             if (preFilterSrc.Count >= 2)
             {
                 double currentOffsetSec = currentOffsetMs / 1000.0;
@@ -1054,13 +911,13 @@ namespace RemuxForge.Core
 
                 if (langPos >= 0.0)
                 {
-                    this.ExtractSegment(langFile, (int)(langPos * 1000), this._offsetProbeDurationSec, 0.0, this._cropLangTo43, out preFilterLang, out preFilterLangTs);
+                    this.ExtractSegment(langFile, (int)(langPos * 1000), this._daConfig.OffsetProbeDurationSec, 0.0, this._cropLangTo43, out preFilterLang, out preFilterLangTs);
                     if (preFilterLang.Count >= 2)
                     {
                         avgSsim = this.ComputeTimestampMatchedSsim(preFilterSrc, preFilterSrcTs, preFilterLang, preFilterLangTs);
 
                         // Offset corrente funziona ancora: falso positivo, esci subito
-                        if (avgSsim >= this._offsetProbeMinSsim) { return result; }
+                        if (avgSsim >= this._daConfig.OffsetProbeMinSsim) { return result; }
                     }
                 }
             }
@@ -1068,18 +925,18 @@ namespace RemuxForge.Core
             // Offset corrente non funziona piu': cerca il nuovo con multi-point
             for (int p = 0; p < numPoints; p++)
             {
-                probePointSrc = dipSrcSec + this._probeMultiMarginsSec[p];
+                probePointSrc = dipSrcSec + this._daConfig.ProbeMultiMarginsSec[p];
                 bestSsim = 0.0;
                 bestDelta = 0;
 
                 // Estrai frame source al punto di probe
-                this.ExtractSegment(sourceFile, (int)(probePointSrc * 1000), this._offsetProbeDurationSec, 0.0, this._cropSourceTo43, out srcFrames, out srcFramesTs);
+                this.ExtractSegment(sourceFile, (int)(probePointSrc * 1000), this._daConfig.OffsetProbeDurationSec, 0.0, this._cropSourceTo43, out srcFrames, out srcFramesTs);
                 if (srcFrames.Count < 2) { continue; }
 
                 // Testa ogni offset candidato
-                for (int d = 0; d < this._offsetProbeDeltas.Length; d++)
+                for (int d = 0; d < this._daConfig.OffsetProbeDeltas.Count; d++)
                 {
-                    candidateOffsetMs = currentOffsetMs + this._offsetProbeDeltas[d];
+                    candidateOffsetMs = currentOffsetMs + this._daConfig.OffsetProbeDeltas[d];
                     candidateOffsetSec = candidateOffsetMs / 1000.0;
 
                     // Posizione lang col candidato
@@ -1088,7 +945,7 @@ namespace RemuxForge.Core
                     if (langPos < 0.0) { continue; }
 
                     // Estrai frame lang
-                    this.ExtractSegment(langFile, (int)(langPos * 1000), this._offsetProbeDurationSec, 0.0, this._cropLangTo43, out langFrames, out langFramesTs);
+                    this.ExtractSegment(langFile, (int)(langPos * 1000), this._daConfig.OffsetProbeDurationSec, 0.0, this._cropLangTo43, out langFrames, out langFramesTs);
                     if (langFrames.Count < 2) { continue; }
 
                     // SSIM medio con matching per tempo relativo (robusto a VFR)
@@ -1097,7 +954,7 @@ namespace RemuxForge.Core
                     if (avgSsim > bestSsim)
                     {
                         bestSsim = avgSsim;
-                        bestDelta = this._offsetProbeDeltas[d];
+                        bestDelta = this._daConfig.OffsetProbeDeltas[d];
                     }
                 }
 
@@ -1108,7 +965,7 @@ namespace RemuxForge.Core
             }
 
             // Richiede almeno 2 punti validi
-            if (validPoints < this._probeMinConsistentPoints) { return result; }
+            if (validPoints < this._daConfig.ProbeMinConsistentPoints) { return result; }
 
             // Verifica consenso: stesso delta vincente in tutti i punti validi
             // e SSIM >= soglia in tutti
@@ -1118,7 +975,7 @@ namespace RemuxForge.Core
             for (int p = 0; p < validPoints; p++)
             {
                 if (winningDeltas[p] != consensusDelta) { consistent = false; break; }
-                if (winningSsims[p] < this._offsetProbeMinSsim) { consistent = false; break; }
+                if (winningSsims[p] < this._daConfig.OffsetProbeMinSsim) { consistent = false; break; }
             }
 
             // Accetta solo se tutti i punti concordano sullo stesso delta
@@ -1293,7 +1150,7 @@ namespace RemuxForge.Core
             double[] sourceTimestampsMs = null;
             List<byte[]> langOldFrames = null;
             double[] langTimestampsMs = null;
-            double frameIntervalMs = 1000.0 / this._denseScanFps;
+            double frameIntervalMs = 1000.0 / this._daConfig.DenseScanFps;
             double toleranceMs = frameIntervalMs * 2.0;
             double srcRelMs = 0.0;
             double targetLangMs = 0.0;
@@ -1301,7 +1158,7 @@ namespace RemuxForge.Core
             double nearestDistMs = 0.0;
 
             // Estrai frame source a fps fisso per l'intera regione
-            this.ExtractSegment(sourceFile, (int)(searchStartSrc * 1000), duration, this._denseScanFps, this._cropSourceTo43, out srcFrames, out sourceTimestampsMs);
+            this.ExtractSegment(sourceFile, (int)(searchStartSrc * 1000), duration, this._daConfig.DenseScanFps, this._cropSourceTo43, out srcFrames, out sourceTimestampsMs);
             if (srcFrames.Count < 4)
             {
                 ConsoleHelper.Write(LogSection.Deep, LogLevel.Warning, "    DenseScan: estrazione source fallita (" + srcFrames.Count + " frame su " + duration.ToString("F0", CultureInfo.InvariantCulture) + "s attesi)");
@@ -1314,7 +1171,7 @@ namespace RemuxForge.Core
             if (langStartOld < 0.0) { langStartOld = 0.0; }
 
             // Estrai frame lang col vecchio offset alla stessa fps
-            this.ExtractSegment(langFile, (int)(langStartOld * 1000), duration, this._denseScanFps, this._cropLangTo43, out langOldFrames, out langTimestampsMs);
+            this.ExtractSegment(langFile, (int)(langStartOld * 1000), duration, this._daConfig.DenseScanFps, this._cropLangTo43, out langOldFrames, out langTimestampsMs);
 
             if (langOldFrames.Count < 4 || langTimestampsMs.Length < 4)
             {
@@ -1323,7 +1180,7 @@ namespace RemuxForge.Core
             }
 
             maxIdx = srcFrames.Count;
-            ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione densa: " + maxIdx + " frame a " + this._denseScanFps.ToString("F0", CultureInfo.InvariantCulture) + "fps su " + duration.ToString("F0", CultureInfo.InvariantCulture) + "s");
+            ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione densa: " + maxIdx + " frame a " + this._daConfig.DenseScanFps.ToString("F0", CultureInfo.InvariantCulture) + "fps su " + duration.ToString("F0", CultureInfo.InvariantCulture) + "s");
 
             // Calcola SSIM abbinando ogni frame source al frame lang piu' vicino per tempo relativo
             // (robusto a VFR: usa timestamps reali da showinfo invece di assumere indici allineati)
@@ -1354,16 +1211,16 @@ namespace RemuxForge.Core
             // Cerca primo cluster di frame con SSIM sotto soglia
             for (int i = 0; i < maxIdx; i++)
             {
-                if (ssimValues[i] < this._denseScanSsimThreshold)
+                if (ssimValues[i] < this._daConfig.DenseScanSsimThreshold)
                 {
                     if (consecutiveLow == 0) { dipStartIdx = i; }
                     consecutiveLow++;
 
-                    if (consecutiveLow >= this._denseScanMinDipFrames)
+                    if (consecutiveLow >= this._daConfig.DenseScanMinDipFrames)
                     {
                         // Posizione reale dal pts del frame sorgente (non da fps assunto)
                         result = sourceTimestampsMs[dipStartIdx] / 1000.0;
-                        ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione densa: dip a src " + result.ToString("F1", CultureInfo.InvariantCulture) + "s (frame " + dipStartIdx + "/" + maxIdx + ", " + consecutiveLow + " frame SSIM<" + this._denseScanSsimThreshold.ToString("F1", CultureInfo.InvariantCulture) + ")");
+                        ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione densa: dip a src " + result.ToString("F1", CultureInfo.InvariantCulture) + "s (frame " + dipStartIdx + "/" + maxIdx + ", " + consecutiveLow + " frame SSIM<" + this._daConfig.DenseScanSsimThreshold.ToString("F1", CultureInfo.InvariantCulture) + ")");
                         return result;
                     }
                 }
@@ -1392,7 +1249,7 @@ namespace RemuxForge.Core
         /// <summary>
         /// Scansione lineare differenziale di conferma attorno al punto trovato dalla binaria.
         /// Cerca il primo frame dove SSIM col nuovo offset supera SSIM col vecchio offset
-        /// per almeno this._linearScanConfirmFrames consecutivi
+        /// per almeno this._daConfig.LinearScanConfirmFrames consecutivi
         /// </summary>
         /// <param name="sourceFile">Percorso file source</param>
         /// <param name="langFile">Percorso file lang</param>
@@ -1404,9 +1261,9 @@ namespace RemuxForge.Core
         private double LinearScanConfirm(string sourceFile, string langFile, double approximateSrc, double oldOffsetSec, double newOffsetSec, double inverseRatio)
         {
             double result = approximateSrc;
-            double scanStart = approximateSrc - this._linearScanWindowSec;
+            double scanStart = approximateSrc - this._daConfig.LinearScanWindowSec;
             if (scanStart < 0.0) { scanStart = 0.0; }
-            double scanDuration = this._linearScanWindowSec * 2.0;
+            double scanDuration = this._daConfig.LinearScanWindowSec * 2.0;
             List<byte[]> srcFrames = null;
             double[] sourceTimestampsMs = null;
             List<byte[]> langOldFrames = null;
@@ -1446,7 +1303,7 @@ namespace RemuxForge.Core
             toleranceMs = 100.0;
 
             // Scorri e trova il primo frame dove old offset smette di funzionare
-            // (SSIM_old < 0.5) per almeno this._linearScanConfirmFrames consecutivi.
+            // (SSIM_old < 0.5) per almeno this._daConfig.LinearScanConfirmFrames consecutivi.
             // Matching per tempo relativo: robusto a VFR
             int consecutiveBad = 0;
             int crossoverIdx = -1;
@@ -1470,7 +1327,7 @@ namespace RemuxForge.Core
                     }
                     consecutiveBad++;
 
-                    if (consecutiveBad >= this._linearScanConfirmFrames)
+                    if (consecutiveBad >= this._daConfig.LinearScanConfirmFrames)
                     {
                         // Posizione reale dal pts del frame sorgente
                         result = sourceTimestampsMs[crossoverIdx] / 1000.0;
@@ -1532,13 +1389,13 @@ namespace RemuxForge.Core
             baselineMse = 0.0;
 
             // Calcola step tra punti di verifica
-            stepMs = sourceDurationMs / (double)(this._globalVerifyPoints + 1);
+            stepMs = sourceDurationMs / (double)(this._daConfig.GlobalVerifyPoints + 1);
 
             // Tolleranza matching: 2 intervalli di frame a coarse fps
-            toleranceMs = (1000.0 / this._coarseFps) * 2.0;
+            toleranceMs = (1000.0 / this._daConfig.CoarseFps) * 2.0;
 
             // Prima passata: raccolta MSE di tutti i punti
-            for (int p = 1; p <= this._globalVerifyPoints; p++)
+            for (int p = 1; p <= this._daConfig.GlobalVerifyPoints; p++)
             {
                 srcPointMs = stepMs * p;
 
@@ -1555,8 +1412,8 @@ namespace RemuxForge.Core
                 if (langPointMs < 0.0) { continue; }
 
                 // Estrai pochi frame per confronto rapido con timestamps reali
-                this.ExtractSegment(sourceFile, (int)srcPointMs, 2, this._coarseFps, this._cropSourceTo43, out srcFrames, out srcFramesTs);
-                this.ExtractSegment(langFile, (int)langPointMs, 2, this._coarseFps, this._cropLangTo43, out langFrames, out langFramesTs);
+                this.ExtractSegment(sourceFile, (int)srcPointMs, 2, this._daConfig.CoarseFps, this._cropSourceTo43, out srcFrames, out srcFramesTs);
+                this.ExtractSegment(langFile, (int)langPointMs, 2, this._daConfig.CoarseFps, this._cropLangTo43, out langFrames, out langFramesTs);
 
                 if (srcFrames.Count > 0 && langFrames.Count > 0 && srcFramesTs.Length > 0 && langFramesTs.Length > 0)
                 {
@@ -1593,11 +1450,11 @@ namespace RemuxForge.Core
                 baselineMse = totalMse / pointsChecked;
             }
 
-            // Soglia dinamica: baseline * moltiplicatore, con floor a this._mseThreshold
-            dynamicThreshold = baselineMse * this._verifyMseMultiplier;
-            if (dynamicThreshold < this._mseThreshold)
+            // Soglia dinamica: baseline * moltiplicatore, con floor a this._vsConfig.MseThreshold
+            dynamicThreshold = baselineMse * this._daConfig.VerifyMseMultiplier;
+            if (dynamicThreshold < this._vsConfig.MseThreshold)
             {
-                dynamicThreshold = this._mseThreshold;
+                dynamicThreshold = this._vsConfig.MseThreshold;
             }
 
             // Seconda passata: conta punti validi con soglia dinamica
@@ -1611,7 +1468,7 @@ namespace RemuxForge.Core
 
             // Verifica: almeno 80% dei punti devono essere sotto soglia dinamica
             double ratio = (pointsChecked > 0) ? (double)validPoints / pointsChecked : 0.0;
-            verified = (ratio >= this._globalVerifyMinRatio);
+            verified = (ratio >= this._daConfig.GlobalVerifyMinRatio);
 
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Verifica: " + validPoints + "/" + pointsChecked + " punti OK (MSE baseline=" + baselineMse.ToString("F1", CultureInfo.InvariantCulture) + ", soglia=" + dynamicThreshold.ToString("F1", CultureInfo.InvariantCulture) + ", max=" + maxMse.ToString("F1", CultureInfo.InvariantCulture) + ")");
 

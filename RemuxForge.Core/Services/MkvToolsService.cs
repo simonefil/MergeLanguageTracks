@@ -101,6 +101,13 @@ namespace RemuxForge.Core
                             {
                                 result.ContainerDurationNs = durationEl.GetInt64();
                             }
+
+                            // Parsing titolo segmento
+                            if (containerPropsEl.TryGetProperty("title", out JsonElement titleEl))
+                            {
+                                result.ContainerTitle = titleEl.GetString();
+                                if (result.ContainerTitle == null) { result.ContainerTitle = ""; }
+                            }
                         }
                     }
 
@@ -273,6 +280,10 @@ namespace RemuxForge.Core
             // File output
             mkvArgs.Add("-o");
             mkvArgs.Add(req.OutputFile);
+
+            // Imposta titolo segmento dal file sorgente (previene copia dal file lingua)
+            mkvArgs.Add("--title");
+            mkvArgs.Add(req.SourceTitle);
 
             // Separa tracce audio sorgente: non convertite (dal file) vs convertite (file separati)
             if (req.FilterSourceAudio)
