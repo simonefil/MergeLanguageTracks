@@ -361,3 +361,7 @@ MigrationBackup/
 /RemuxForge.bbcode
 /tests
 /MergeLanguageTracks.bbcode
+
+# Local RemuxForge analysis/test artifacts
+/tools/
+/.remux-forge/

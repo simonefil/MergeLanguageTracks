@@ -1,0 +1,31 @@
+<div class="form-row">
+    <span class="form-label">@Label</span>
+    <input class="form-input" style="@("width: " + Width + ";")" value="@Value" @oninput="OnInput" />
+</div>
+
+@code {
+    /// <summary>
+    /// Etichetta campo
+    /// </summary>
+    [Parameter] public string Label { get; set; } = "";
+
+    /// <summary>
+    /// Valore testuale
+    /// </summary>
+    [Parameter] public string Value { get; set; } = "";
+
+    /// <summary>
+    /// Callback cambio valore
+    /// </summary>
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>
+    /// Larghezza input
+    /// </summary>
+    [Parameter] public string Width { get; set; } = "10ch";
+
+    private void OnInput(ChangeEventArgs args)
+    {
+        ValueChanged.InvokeAsync(args.Value != null ? args.Value.ToString() : "");
+    }
+}

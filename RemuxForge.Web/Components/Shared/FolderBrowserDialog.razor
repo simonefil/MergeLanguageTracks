@@ -28,7 +28,7 @@
                 </div>
             </div>
 
-            @* Tabella 4 colonne come OpenDialog TUI *@
+            @* Tabella 4 colonne come dialog browser *@
             <div class="browse-list">
                 <table class="browse-table">
                     <thead>
@@ -171,7 +171,7 @@
     /// <summary>
     /// Indice corrente nell'autocomplete
     /// </summary>
-    private int _autocompleteIndex = 0;
+    private int _autocompleteIndex;
 
     /// <summary>
     /// Directory parent usata per la sessione autocomplete corrente
@@ -181,7 +181,7 @@
     /// <summary>
     /// Flag: directory iniziale gia' caricata
     /// </summary>
-    private bool _loaded = false;
+    private bool _loaded;
 
     #endregion
 
@@ -240,7 +240,7 @@
 
         this._loaded = true;
 
-        if (InitialPath != null && InitialPath.Length > 0)
+        if (!string.IsNullOrEmpty(InitialPath))
         {
             if (System.IO.Directory.Exists(InitialPath))
             {
@@ -250,7 +250,7 @@
             {
                 // Percorso file: usa la cartella parent
                 string dir = System.IO.Path.GetDirectoryName(InitialPath);
-                _currentPath = dir != null && dir.Length > 0 ? dir : GetDefaultRoot();
+                _currentPath = !string.IsNullOrEmpty(dir) ? dir : GetDefaultRoot();
             }
             else
             {
@@ -425,11 +425,11 @@
     {
         if (_sortAsc)
         {
-            _allEntries.Sort((DirEntry a, DirEntry b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+            _allEntries.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         }
         else
         {
-            _allEntries.Sort((DirEntry a, DirEntry b) => string.Compare(b.Name, a.Name, StringComparison.OrdinalIgnoreCase));
+            _allEntries.Sort((a, b) => string.Compare(b.Name, a.Name, StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -449,7 +449,7 @@
     /// <param name="args">Evento change</param>
     private void HandleFilterInput(ChangeEventArgs args)
     {
-        _filterText = args.Value.ToString();
+        _filterText = args.Value != null ? args.Value.ToString() : "";
         this.ApplyFilterInternal();
     }
 
@@ -460,7 +460,7 @@
     {
         _selectedIndex = -1;
 
-        if (_filterText == null || _filterText.Length == 0)
+        if (string.IsNullOrEmpty(_filterText))
         {
             _entries = new List<DirEntry>(_allEntries);
             return;
@@ -488,7 +488,7 @@
     /// <param name="args">Evento change</param>
     private void HandlePathInput(ChangeEventArgs args)
     {
-        _editPath = args.Value.ToString();
+        _editPath = args.Value != null ? args.Value.ToString() : "";
 
         // Azzera autocomplete quando l'utente digita
         _autocompleteMatches.Clear();
@@ -545,8 +545,8 @@
 
         // Parsa input: separa directory parent e prefisso
         string input = _editPath.TrimEnd('/', '\\');
-        string parentDir = "";
-        string prefix = "";
+        string parentDir;
+        string prefix;
         int lastSep = input.LastIndexOfAny(new char[] { '/', '\\' });
 
         if (lastSep >= 0)
@@ -631,7 +631,6 @@
         {
             int len = Math.Min(result.Length, strings[i].Length);
             int j = 0;
-
             while (j < len && char.ToLowerInvariant(result[j]) == char.ToLowerInvariant(strings[i][j]))
             {
                 j++;
@@ -676,7 +675,7 @@
     /// <returns>Stringa formattata</returns>
     private static string FormatFileSize(long bytes)
     {
-        string result = "";
+        string result;
 
         if (bytes >= 1073741824)
         {

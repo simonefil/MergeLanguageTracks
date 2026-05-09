@@ -1,7 +1,7 @@
-/* Main layout - 4 rows: menu bar, panels area, log panel, status bar */
+/* Main layout - menu bar, panels area, log panel, progress panel, status bar */
 .rf-layout {
     display: grid;
-    grid-template-rows: 1lh 3fr 2fr 1lh;
+    grid-template-rows: 1lh 3fr 2fr 2lh 1lh;
     height: 100vh;
     width: 100vw;
     overflow: hidden;
@@ -58,6 +58,76 @@
     font-size: inherit;
     white-space: pre-wrap;
     word-break: break-all;
+}
+
+/* Progress panel */
+.progress-panel {
+    display: grid;
+    grid-template-rows: 1lh 1lh;
+    min-height: 0;
+    overflow: hidden;
+    border-left: 2px double var(--foreground2);
+    border-right: 2px double var(--foreground2);
+    border-top: 1px solid var(--foreground2);
+    background-color: var(--background0);
+}
+
+.progress-panel.inactive .progress-fill {
+    width: 0 !important;
+}
+
+.progress-panel.inactive .progress-value {
+    color: var(--foreground2);
+}
+
+.progress-line {
+    display: grid;
+    grid-template-columns: 10ch minmax(12ch, 1fr) minmax(28ch, 44ch);
+    align-items: center;
+    gap: 1ch;
+    padding: 0 1ch;
+    line-height: 1lh;
+    min-width: 0;
+}
+
+.progress-label {
+    color: var(--foreground2);
+    white-space: nowrap;
+}
+
+.progress-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.progress-track {
+    position: relative;
+    height: 1lh;
+    overflow: hidden;
+    border: 1px solid var(--foreground2);
+    background-color: var(--background0);
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: var(--background2);
+    transition: width 120ms linear;
+}
+
+.progress-track.indeterminate .progress-fill {
+    animation: progress-indeterminate 1.1s linear infinite;
+}
+
+@keyframes progress-indeterminate {
+    0% {
+        margin-left: -35%;
+    }
+
+    100% {
+        margin-left: 100%;
+    }
 }
 
 /* ============================================================
@@ -258,7 +328,7 @@
     box-shadow: 2px 2px 0 var(--background3);
 }
 
-/* Dialog fullscreen (quasi) - stile TUI Dim.Fill(4)/Dim.Fill(2) */
+/* Dialog fullscreen (quasi) - stile dialog fullscreen */
 .dialog-box.dialog-fullscreen {
     left: 2ch;
     top: 1lh;
@@ -270,7 +340,7 @@
     max-height: unset;
 }
 
-/* Dialog browse cartella - stile OpenDialog Terminal.Gui */
+/* Dialog browse cartella - stile dialog browser */
 .dialog-box.dialog-browse {
     width: 80vw;
     height: 70vh;
@@ -339,7 +409,7 @@
     min-height: 0;
 }
 
-/* Tabella browse - 4 colonne come OpenDialog TUI */
+/* Tabella browse - 4 colonne come dialog browser */
 .browse-table {
     width: 100%;
     border-collapse: collapse;
@@ -462,7 +532,7 @@
     flex-shrink: 0;
 }
 
-/* TUI-style buttons with brackets */
+/* UI buttons with brackets */
 .dialog-box button,
 .rf-dialog button {
     background: none;
@@ -550,7 +620,7 @@ textarea.form-input {
     cursor: pointer;
 }
 
-/* Radio toggle buttons (matching TUI style) */
+/* Radio toggle buttons */
 .radio-group {
     display: flex;
     gap: 1ch;
@@ -576,15 +646,15 @@ textarea.form-input {
 }
 
 /* ============================================================
-   TUI-style toggle checkbox [ ] / [X]
+   UI toggle checkbox [ ] / [X]
    ============================================================ */
-.tui-toggle {
+.ui-toggle {
     cursor: pointer;
     user-select: none;
     white-space: nowrap;
 }
 
-.tui-toggle:hover {
+.ui-toggle:hover {
     background-color: var(--background2);
 }
 
@@ -609,7 +679,7 @@ textarea.form-input {
 }
 
 /* ============================================================
-   WebTUI override: rimuovi bordi griglia TUI dalla episode table
+   WebTUI override: rimuovi bordi griglia dalla episode table
    ============================================================ */
 .episode-table:before {
     display: none !important;
@@ -656,7 +726,7 @@ textarea.form-input {
 .ctx-menu-item {
     padding: 0.25em 1ch;
     cursor: pointer;
-    color: var(--foreground);
+    color: var(--foreground0);
     white-space: nowrap;
 }
 

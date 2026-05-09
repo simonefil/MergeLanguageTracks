@@ -1,0 +1,16 @@
+<details>
+    <summary class="form-section">@Title</summary>
+    @ChildContent
+</details>
+
+@code {
+    /// <summary>
+    /// Titolo sezione
+    /// </summary>
+    [Parameter] public string Title { get; set; } = "";
+
+    /// <summary>
+    /// Contenuto della sezione
+    /// </summary>
+    [Parameter] public RenderFragment ChildContent { get; set; }
+}

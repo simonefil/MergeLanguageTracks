@@ -1,0 +1,25 @@
+<div class="form-row">
+    <span class="ui-toggle" @onclick="Toggle">@((Value ? "[X]" : "[ ]") + " " + Label)</span>
+</div>
+
+@code {
+    /// <summary>
+    /// Etichetta toggle
+    /// </summary>
+    [Parameter] public string Label { get; set; } = "";
+
+    /// <summary>
+    /// Stato toggle
+    /// </summary>
+    [Parameter] public bool Value { get; set; }
+
+    /// <summary>
+    /// Callback cambio stato
+    /// </summary>
+    [Parameter] public EventCallback<bool> ValueChanged { get; set; }
+
+    private void Toggle()
+    {
+        ValueChanged.InvokeAsync(!Value);
+    }
+}

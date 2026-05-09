@@ -44,10 +44,10 @@ confirm_step "Restore client-side libraries?"
 echo "Restoring client-side libraries..."
 cd RemuxForge.Web && libman restore && cd ..
 
-# Build CLI/TUI for all targets
-confirm_step "Build CLI/TUI binaries for ${#RIDS[@]} platforms?"
+# Build CLI for all targets
+confirm_step "Build CLI binaries for ${#RIDS[@]} platforms?"
 for rid in "${RIDS[@]}"; do
-    echo "Building CLI/TUI $rid..."
+    echo "Building CLI $rid..."
 
     dotnet publish "$CLI_PROJECT" -c Release -r "$rid" --self-contained true \
         -p:PublishSingleFile=true \
@@ -60,7 +60,7 @@ for rid in "${RIDS[@]}"; do
     zip -r "../../../$ARTIFACTS_DIR/RemuxForge-Cli-$rid.zip" .
     cd ../../..
 
-    echo "CLI/TUI $rid done."
+    echo "CLI $rid done."
 done
 
 # Build WebUI for all targets

@@ -1,0 +1,120 @@
+<div class="progress-panel @(IsActive() ? "" : "inactive")">
+    <div class="progress-line">
+        <div class="progress-label">Globale</div>
+        <div class="progress-track @(IsGlobalIndeterminate() ? "indeterminate" : "")">
+            <div class="progress-fill" style="width: @(IsGlobalIndeterminate() ? 35 : GetGlobalPercent())%"></div>
+        </div>
+        <div class="progress-value">@BuildGlobalText()</div>
+    </div>
+    <div class="progress-line">
+        <div class="progress-label">Episodio</div>
+        <div class="progress-track @(IsCurrentIndeterminate() ? "indeterminate" : "")">
+            <div class="progress-fill" style="width: @(IsCurrentIndeterminate() ? 35 : GetCurrentPercent())%"></div>
+        </div>
+        <div class="progress-value">@BuildCurrentText()</div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Stato avanzamento da visualizzare
+    /// </summary>
+    [Parameter] public ProcessingProgressState Progress { get; set; }
+
+    /// <summary>
+    /// Testo barra globale
+    /// </summary>
+    private string BuildGlobalText()
+    {
+        if (!IsActive())
+        {
+            return "Pronto";
+        }
+
+        if (Progress.Total > 0)
+        {
+            return Progress.Operation + " " + Progress.Completed + "/" + Progress.Total + " " + Progress.GlobalPercent + "%";
+        }
+
+        return Progress.Operation;
+    }
+
+    /// <summary>
+    /// Testo barra episodio
+    /// </summary>
+    private string BuildCurrentText()
+    {
+        string result;
+
+        if (!IsActive())
+        {
+            return "Nessuna operazione in corso";
+        }
+
+        if (Progress.CurrentEpisode.Length > 0)
+        {
+            result = Progress.CurrentEpisode;
+        }
+        else
+        {
+            result = Progress.Operation;
+        }
+
+        if (Progress.Total > 1 && Progress.CurrentIndex > 0)
+        {
+            result = result + " [" + Progress.CurrentIndex + "/" + Progress.Total + "]";
+        }
+
+        if (Progress.CurrentStatus.Length > 0)
+        {
+            result = result + " - " + Progress.CurrentStatus;
+        }
+
+        if (!Progress.CurrentIndeterminate)
+        {
+            result = result + " " + Progress.CurrentPercent + "%";
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// True se lo stato e' attivo
+    /// </summary>
+    private bool IsActive()
+    {
+        return Progress != null && Progress.IsActive;
+    }
+
+    /// <summary>
+    /// Percentuale globale
+    /// </summary>
+    private int GetGlobalPercent()
+    {
+        return Progress != null ? Progress.GlobalPercent : 0;
+    }
+
+    /// <summary>
+    /// Percentuale episodio corrente
+    /// </summary>
+    private int GetCurrentPercent()
+    {
+        return Progress != null ? Progress.CurrentPercent : 0;
+    }
+
+    /// <summary>
+    /// True se la barra globale e' indeterminata
+    /// </summary>
+    private bool IsGlobalIndeterminate()
+    {
+        return IsActive() && Progress.GlobalIndeterminate;
+    }
+
+    /// <summary>
+    /// True se la barra episodio e' indeterminata
+    /// </summary>
+    private bool IsCurrentIndeterminate()
+    {
+        return IsActive() && Progress.CurrentIndeterminate;
+    }
+}

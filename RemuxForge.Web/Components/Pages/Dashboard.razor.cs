@@ -1,16 +1,17 @@
+using RemuxForge.Core.Configuration;
+using RemuxForge.Core.Media;
+using RemuxForge.Core.Models;
+using RemuxForge.Core.Tools;
+using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
-using Microsoft.JSInterop;
-using RemuxForge.Core;
-using RemuxForge.Web.Services;
 
 namespace RemuxForge.Web.Components.Pages
 {
     /// <summary>
-    /// Pagina principale Dashboard - replica il layout della TUI
+    /// Pagina principale Dashboard - dashboard operativa
     /// </summary>
     public partial class Dashboard : IAsyncDisposable
     {
@@ -169,6 +170,7 @@ namespace RemuxForge.Web.Components.Pages
             // Sottoscrivi eventi orchestratore
             this.Orchestrator.OnLog += this.HandleLog;
             this.Orchestrator.OnRecordsChanged += this.HandleRecordsChanged;
+            this.Orchestrator.OnProgressChanged += this.HandleProgressChanged;
         }
 
         /// <summary>
@@ -203,6 +205,7 @@ namespace RemuxForge.Web.Components.Pages
             {
                 this.Orchestrator.OnLog -= this.HandleLog;
                 this.Orchestrator.OnRecordsChanged -= this.HandleRecordsChanged;
+                this.Orchestrator.OnProgressChanged -= this.HandleProgressChanged;
             }
 
             // Dispose riferimento .NET per JS interop
@@ -262,6 +265,14 @@ namespace RemuxForge.Web.Components.Pages
         }
 
         /// <summary>
+        /// Gestisce aggiornamento avanzamento dall'orchestratore
+        /// </summary>
+        private void HandleProgressChanged()
+        {
+            this.InvokeAsync(() => this.StateHasChanged());
+        }
+
+        /// <summary>
         /// Gestisce scorciatoie da tastiera (invocato da JS interop)
         /// </summary>
         /// <param name="key">Tasto premuto</param>
@@ -271,6 +282,7 @@ namespace RemuxForge.Web.Components.Pages
         [JSInvokable("OnKeyDown")]
         public void HandleKeyDown(string key, bool ctrl, bool shift, bool alt)
         {
+            // Il binding JS passa anche i modifier: al momento le scorciatoie sono tasti funzione semplici
             if (key == "F1") { this.ShowHelp(); }
             else if (key == "F2") { this.ShowConfig(); }
             else if (key == "F5") { this.DoScan(); }
@@ -279,6 +291,7 @@ namespace RemuxForge.Web.Components.Pages
             else if (key == "F8") { this.DoToggleSkip(); }
             else if (key == "F9") { this.DoMergeSelected(); }
             else if (key == "F10") { this.DoMergeAll(); }
+            else if (key == "F12") { this.DoStop(); }
             else if (key == "Enter") { this.ShowContextMenuForSelected(); }
             else if (key == "Escape") { this.CloseAllDialogs(); }
 
@@ -341,7 +354,9 @@ namespace RemuxForge.Web.Components.Pages
         private void BuildContextMenu(FileProcessingRecord record)
         {
             // Verifica disponibilita' mediainfo
-            bool mediaInfoAvailable = (AppSettingsService.Instance.Settings.Tools.MediaInfoPath.Length > 0 && System.IO.File.Exists(AppSettingsService.Instance.Settings.Tools.MediaInfoPath));
+            bool mediaInfoAvailable = (AppSettingsService.Instance.Settings.Tools.MediaInfoPath.Length > 0
+                && System.IO.File.Exists(AppSettingsService.Instance.Settings.Tools.MediaInfoPath)
+                && MediaInfoProvider.IsCliExecutablePath(AppSettingsService.Instance.Settings.Tools.MediaInfoPath));
 
             this._contextMenuItems = new List<string>();
             this._contextMenuActions = new List<Action>();
@@ -451,6 +466,10 @@ namespace RemuxForge.Web.Components.Pages
             {
                 this.Orchestrator.Scan();
             }
+            else
+            {
+                this.Orchestrator.Log("Operazione in corso: scan non avviato");
+            }
         }
 
         /// <summary>
@@ -461,6 +480,14 @@ namespace RemuxForge.Web.Components.Pages
             if (!this.Orchestrator.IsBusy && this.Orchestrator.SelectedIndex >= 0)
             {
                 this.Orchestrator.AnalyzeFile(this.Orchestrator.SelectedIndex);
+            }
+            else if (this.Orchestrator.IsBusy)
+            {
+                this.Orchestrator.Log("Operazione in corso: analisi non avviata");
+            }
+            else
+            {
+                this.Orchestrator.Log("Selezionare un episodio da analizzare");
             }
         }
 
@@ -473,6 +500,10 @@ namespace RemuxForge.Web.Components.Pages
             {
                 this.Orchestrator.AnalyzeAll();
             }
+            else
+            {
+                this.Orchestrator.Log("Operazione in corso: analisi batch non avviata");
+            }
         }
 
         /// <summary>
@@ -483,6 +514,10 @@ namespace RemuxForge.Web.Components.Pages
             if (this.Orchestrator.SelectedIndex >= 0)
             {
                 this.Orchestrator.ToggleSkip(this.Orchestrator.SelectedIndex);
+            }
+            else
+            {
+                this.Orchestrator.Log("Selezionare un episodio da skippare");
             }
         }
 
@@ -495,6 +530,14 @@ namespace RemuxForge.Web.Components.Pages
             {
                 this.Orchestrator.MergeFile(this.Orchestrator.SelectedIndex);
             }
+            else if (this.Orchestrator.IsBusy)
+            {
+                this.Orchestrator.Log("Operazione in corso: merge non avviato");
+            }
+            else
+            {
+                this.Orchestrator.Log("Selezionare un episodio da processare");
+            }
         }
 
         /// <summary>
@@ -505,6 +548,25 @@ namespace RemuxForge.Web.Components.Pages
             if (!this.Orchestrator.IsBusy)
             {
                 this.Orchestrator.MergeAll();
+            }
+            else
+            {
+                this.Orchestrator.Log("Operazione in corso: merge batch non avviato");
+            }
+        }
+
+        /// <summary>
+        /// Richiede stop cooperativo dell'operazione corrente
+        /// </summary>
+        private void DoStop()
+        {
+            if (this.Orchestrator.IsBusy)
+            {
+                this.Orchestrator.RequestStop();
+            }
+            else
+            {
+                this.Orchestrator.Log("Nessuna operazione in corso da interrompere");
             }
         }
 
@@ -530,9 +592,16 @@ namespace RemuxForge.Web.Components.Pages
         /// <param name="opts">Nuove opzioni</param>
         private void ApplyConfig(Options opts)
         {
-            this._showConfig = false;
-            this.Orchestrator.ApplyOptions(opts);
-            this.Orchestrator.Log("Configurazione aggiornata");
+            string errorMessage;
+
+            if (this.Orchestrator.ApplyOptions(opts, out errorMessage))
+            {
+                this._showConfig = false;
+            }
+            else if (errorMessage.Length > 0)
+            {
+                this.Orchestrator.Log(errorMessage);
+            }
         }
 
         /// <summary>

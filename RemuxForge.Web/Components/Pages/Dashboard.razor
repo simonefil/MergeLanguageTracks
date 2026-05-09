@@ -12,6 +12,7 @@
                        OnSkip="DoToggleSkip"
                        OnMergeSelected="DoMergeSelected"
                        OnMergeAll="DoMergeAll"
+                       OnStop="DoStop"
                        OnShowConfig="ShowConfig"
                        OnShowToolPaths="ShowToolPaths"
                        OnShowAudioSettings="ShowAudioSettings"
@@ -35,6 +36,9 @@
     @* Pannello Log *@
     <LogPanelComponent LogText="@Orchestrator.LogText" JsModule="@_jsModule" />
 
+    @* Avanzamento *@
+    <ProgressPanelComponent Progress="@Orchestrator.Progress" />
+
     @* Barra di Stato *@
     <StatusBarComponent OnScan="DoScan"
                          OnAnalyzeSelected="DoAnalyzeSelected"
@@ -42,6 +46,7 @@
                          OnSkip="DoToggleSkip"
                          OnMergeSelected="DoMergeSelected"
                          OnMergeAll="DoMergeAll"
+                         OnStop="DoStop"
                          OnShowConfig="ShowConfig"
                          OnShowHelp="ShowHelp" />
 </div>

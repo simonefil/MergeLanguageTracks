@@ -7,6 +7,7 @@
     <span class="cmd-key" @onclick="OnSkip"><span class="key-label">F8</span>Skip</span>
     <span class="cmd-key" @onclick="OnMergeSelected"><span class="key-label">F9</span>Processa</span>
     <span class="cmd-key" @onclick="OnMergeAll"><span class="key-label">F10</span>Tutti</span>
+    <span class="cmd-key" @onclick="OnStop"><span class="key-label">F12</span>Stop</span>
 </div>
 
 @code {
@@ -39,6 +40,11 @@
     /// Evento merge tutti
     /// </summary>
     [Parameter] public EventCallback OnMergeAll { get; set; }
+
+    /// <summary>
+    /// Evento stop operazione
+    /// </summary>
+    [Parameter] public EventCallback OnStop { get; set; }
 
     /// <summary>
     /// Evento mostra configurazione

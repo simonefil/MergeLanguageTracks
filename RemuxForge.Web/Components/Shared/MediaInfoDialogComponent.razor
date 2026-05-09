@@ -1,10 +1,8 @@
-@using Microsoft.JSInterop
-
 <div class="dialog-overlay visible" @onclick="OnClose">
     <div class="dialog-box" style="min-width: 80ch; max-width: 100ch; max-height: 80vh;" @onclick:stopPropagation="true">
         <div class="dialog-title">MediaInfo: @Title</div>
         <div class="dialog-body" style="max-height: 60vh; overflow-y: auto;">
-            <pre style="white-space: pre-wrap; font-size: 0.9em; color: var(--foreground);">@(Report.Length > 0 ? Report : "Nessun report disponibile")</pre>
+            <pre style="white-space: pre-wrap; font-size: 0.9em; color: var(--foreground0);">@(Report.Length > 0 ? Report : "Nessun report disponibile")</pre>
         </div>
         <div class="dialog-footer">
             <button @onclick="CopyReport">Copia</button>

@@ -2,7 +2,7 @@
 
 Applicazione cross-platform per unire tracce audio e sottotitoli da file MKV in lingue diverse, con sincronizzazione automatica tra release con montaggio o velocita' differenti.
 
-Disponibile in tre modalita': CLI (riga di comando), TUI (interfaccia grafica terminale) e WebUI (interfaccia web).
+Disponibile in due modalita': CLI (riga di comando) e WebUI (interfaccia web).
 
 ## Funzionalita' principali
 
@@ -11,15 +11,25 @@ Disponibile in tre modalita': CLI (riga di comando), TUI (interfaccia grafica te
 - Filtro per lingua, codec audio, sottotitoli, sia in importazione che in mantenimento dal sorgente
 - Conversione audio lossless a FLAC o Opus durante il merge
 - Encoding video post-merge con profili personalizzabili (x264, x265, SVT-AV1)
-- Accelerazione GPU automatica per decodifica video nelle fasi di analisi
-- Tre interfacce: CLI scriptabile, TUI con Terminal.Gui, WebUI per browser e server headless
+- Accelerazione GPU opzionale per decodifica video nelle fasi di analisi
+- Due interfacce: CLI scriptabile e WebUI per browser e server headless
 - Deploy via Docker con supporto GPU opzionale
-- Temi grafici (8 temi per TUI, tema scuro/chiaro per WebUI)
+- Temi grafici scuro/chiaro per WebUI
 - Configurazione persistente in `appsettings.json` con auto-merge dei nuovi campi
+
+## Sincronizzazione
+
+RemuxForge usa tre percorsi distinti:
+
+- **Speed correction** corregge differenze di velocita' globali. Le modalita' sono `off`, `auto` e `manual`. `auto` viene bloccata se MediaInfo/ffprobe rileva VFR; in questi casi usare `manual` con stretch factor esplicito, per esempio `25025/24000`.
+- **Frame-sync** cerca un offset costante tra source e lingua. E' pensato per essere veloce e non corregge tagli o aggiunte locali.
+- **Deep analysis** e' il percorso pesante per sorgenti con edit diversi, tagli, aggiunte o drift locale. Usa una mappa timeline verificata e applica operazioni di taglia-cuci alle tracce importate. Frame-sync e deep analysis sono mutuamente esclusivi.
+
+Se una release ha sia speed mismatch sia edit locali, lo stretch globale va impostato manualmente e la correzione degli edit va lasciata a Deep analysis. Speed correction deve andare in fail-safe sui casi con edit locali invece di forzare un sync ambiguo.
 
 ## Requisiti
 
-- [MKVToolNix](https://mkvtoolnix.download/): mkvmerge deve essere nel PATH o configurato manualmente
+- [MKVToolNix](https://mkvtoolnix.download/): mkvmerge deve essere nel PATH o configurato manualmente. mkvextract e' richiesto per riscrivere sottotitoli bitmap PGS/VobSub in Deep Analysis.
 - [ffmpeg](https://ffmpeg.org/): necessario per sync, conversione audio e encoding video. Se mancante, puo' essere scaricato automaticamente dal menu Impostazioni > Percorsi tool (bottone "Scarica")
 - [mediainfo](https://mediainfo.sourceforge.net/): per il report dettagliato delle tracce (opzionale)
 - Locale UTF-8 su Linux (necessario per nomi file con caratteri non-ASCII)
@@ -35,14 +45,14 @@ Disponibile in tre modalita': CLI (riga di comando), TUI (interfaccia grafica te
 
 ## Installazione e avvio
 
-### Desktop: CLI e TUI
+### Desktop: CLI
 
 Scaricare l'archivio per la propria piattaforma dalla [pagina release](https://github.com/draknodd/RemuxForge/releases), estrarre ed eseguire.
 
-- **Windows**: doppio click su `RemuxForge.exe` per aprire la TUI. Per la CLI, aprire un terminale e lanciare con parametri
-- **Linux/macOS**: `chmod +x RemuxForge && ./RemuxForge` per la TUI. Per la CLI, lanciare con parametri
+- **Windows**: aprire un terminale e lanciare `RemuxForge.exe` con parametri
+- **Linux/macOS**: `chmod +x RemuxForge && ./RemuxForge` con parametri
 
-Lanciando senza parametri si apre la TUI. Con parametri si esegue in modalita' CLI.
+Lanciando senza parametri viene mostrato l'help CLI. Con parametri si esegue in modalita' CLI.
 
 ### Desktop: WebUI
 
@@ -89,7 +99,7 @@ services:
 
 ### Docker con accelerazione GPU
 
-La decodifica video durante le fasi di analisi (speed correction, frame-sync, deep analysis) puo' essere accelerata via GPU. ffmpeg usa `-hwaccel auto` e seleziona automaticamente il backend disponibile nel container.
+La decodifica video durante le fasi di analisi (speed correction, frame-sync, deep analysis) puo' essere accelerata via GPU se l'opzione avanzata `Hardware Acceleration` e' abilitata. Quando attiva, ffmpeg usa `-hwaccel auto` e seleziona automaticamente il backend disponibile nel container.
 
 **NVIDIA (NVDEC):**
 
@@ -136,10 +146,6 @@ docker run -d \
 | REMUXFORGE_DATA_DIR | Directory per configurazione e dati (.remux-forge) | Directory dell'eseguibile |
 | REMUXFORGE_LOG_FILE | Percorso file log. Se impostato, abilita il logging su file | Non attivo |
 
-## Interfaccia TUI
-
-Lanciando l'applicazione senza parametri si apre l'interfaccia grafica basata su Terminal.Gui, organizzata in tre pannelli: tabella episodi, dettaglio episodio selezionato, log in tempo reale. In alto la barra menu, in basso la barra di stato con i tasti rapidi.
-
 ![Interfaccia principale (tema Nord)](images/nord.png)
 
 ### Tasti rapidi
@@ -154,6 +160,7 @@ Lanciando l'applicazione senza parametri si apre l'interfaccia grafica basata su
 | F8 | Skip/Unskip episodio selezionato |
 | F9 | Merge episodio selezionato |
 | F10 | Merge tutti gli episodi analizzati |
+| F12 | Richiede stop dell'operazione corrente |
 | Enter | Menu contestuale episodio |
 | Ctrl+Q | Esci |
 
@@ -185,7 +192,7 @@ Il dialog di configurazione raggruppa tutte le opzioni di elaborazione:
 
 - **Cartelle**: Source, Lingua, Destinazione, con pulsante browse per ciascuna. Checkbox per sovrascrivere sorgente e ricerca ricorsiva
 - **Lingua e Tracce**: Lingua target, Codec audio, Keep source audio/codec/sub, Solo sottotitoli, Solo audio, Rinomina tracce
-- **Sincronizzazione**: Frame-sync (checkbox), Deep analysis (checkbox), Delay audio (ms), Delay sub (ms)
+- **Sincronizzazione**: Speed correction (`off`/`auto`/`manual` con stretch fisso), Frame-sync, Deep analysis, Delay audio (ms), Delay sub (ms). Frame-sync e Deep analysis sono esclusivi.
 - **Avanzate**: Pattern match (regex), Estensioni file, Converti audio (flac/opus), Profilo encoding
 
 ### Menu Impostazioni
@@ -193,7 +200,9 @@ Il dialog di configurazione raggruppa tutte le opzioni di elaborazione:
 - **Percorsi tool**: Percorsi di mkvmerge, ffmpeg, mediainfo e cartella file temporanei. I tool vengono cercati automaticamente all'avvio. ffmpeg puo' essere scaricato direttamente dall'interfaccia
 - **Conversione audio**: Livello compressione FLAC e bitrate Opus per layout canali (mono, stereo, 5.1, 7.1)
 - **Profili encoding**: Gestione profili di encoding video (aggiungi, modifica, elimina). I profili sono salvati in appsettings.json
-- **Avanzate**: Soglie e parametri algoritmici per video sync, speed correction, frame-sync, deep analysis, track split. Ogni sezione ha un pulsante Reset Defaults
+- **Avanzate**: tuning operativo essenziale per analisi, frame-sync, deep analysis, timeout e accelerazione hardware. Le sezioni Expert espongono solo le soglie principali; i parametri algoritmici interni restano nel file di configurazione.
+
+La WebUI mostra una doppia progress bar: avanzamento globale del batch e avanzamento dell'episodio corrente. La barra episodio espone i substep principali di speed correction, frame-sync, deep analysis, conversione, taglia-cuci e merge. Lo stato e' condiviso tra browser/tab collegati alla stessa istanza.
 
 ![Gestione profili encoding](images/encoding.png)
 
@@ -219,7 +228,7 @@ Disponibili 8 temi selezionabili dal menu Tema:
 
 ## Interfaccia WebUI
 
-Interfaccia web accessibile da browser, ideale per server headless, NAS o deploy Docker. Offre le stesse funzionalita' della TUI: configurazione, scan, analisi, merge, impostazioni tool, conversione audio, profili encoding, impostazioni avanzate, pipeline view, temi e guida.
+Interfaccia web accessibile da browser, ideale per server headless, NAS o deploy Docker. Offre le funzionalita' complete: configurazione, scan, analisi, merge, impostazioni tool, conversione audio, profili encoding, impostazioni avanzate, pipeline view, temi e guida.
 
 ![Configurazione WebUI](images/config-webui.png)
 
@@ -257,10 +266,13 @@ RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -fs
 |-------|------|-------------|
 | -fs | --framesync | Sincronizzazione tramite confronto visivo frame (scene-cut) |
 | -da | --deep-analysis | Analisi completa per file con edit diversi (mutuamente esclusiva con -fs) |
+| | --speed-correction | Modalita' correzione velocita': off, auto, manual. Default: off |
+| | --stretch-factor | Fattore fisso per speed-correction manual, esempio 25025/24000 |
+| | --no-speed-correction | Compatibilita': disattiva la correzione velocita' |
 | -ad | --audio-delay | Delay manuale in ms per l'audio (sommato a frame-sync/speed se attivi) |
 | -sd | --subtitle-delay | Delay manuale in ms per i sottotitoli |
 
-La correzione velocita' (stretch) e' sempre automatica e non richiede parametri.
+La correzione velocita' e' disattivata di default. In `auto` viene usata solo quando i metadati CFR sono affidabili; con file VFR e' necessario impostare `manual` e un fattore esplicito.
 
 ### Filtri
 
@@ -300,24 +312,26 @@ La correzione velocita' (stretch) e' sempre automatica e non richiede parametri.
 
 ## Sincronizzazione
 
-Le release dello stesso contenuto possono differire per velocita' di riproduzione, taglio iniziale o montaggio interno. RemuxForge offre tre sistemi di sincronizzazione, tutti basati sull'analisi visiva dei frame video tramite ffmpeg. Se la GPU e' disponibile, la decodifica video viene accelerata automaticamente.
+Le release dello stesso contenuto possono differire per velocita' di riproduzione, taglio iniziale o montaggio interno. RemuxForge offre tre sistemi di sincronizzazione, tutti basati sull'analisi visiva dei frame video tramite ffmpeg. La decodifica GPU e' opzionale e disattivata di default.
 
 **Quale metodo usare:**
 
 | Situazione | Metodo | Opzione | Note |
 |------------|--------|---------|------|
 | Stessa release, solo lingua diversa | Nessuno (merge diretto) | | Le tracce sono gia' allineate |
-| PAL vs NTSC (25 vs 23.976 fps) | Correzione velocita' | Automatica | Sempre attiva, non richiede parametri |
+| PAL vs NTSC (25 vs 23.976 fps) | Correzione velocita' | `--speed-correction auto` su CFR, `manual --stretch-factor ...` su VFR | Default off; auto viene bloccata su VFR |
 | Offset costante (intro diversa, nero iniziale) | Frame-Sync | -fs | Calcola un delay fisso valido per tutto il file |
 | Scene tagliate o aggiunte nel mezzo del video | Deep Analysis | -da | Genera operazioni di taglia-cuci sulle tracce |
 
-Frame-Sync e Deep Analysis sono mutuamente esclusivi. La correzione velocita' e' sempre attiva e si combina con entrambi.
+Frame-Sync e Deep Analysis sono mutuamente esclusivi. La correzione velocita' e' indipendente e puo' essere `off`, `auto` o `manual`; su VFR la modalita' `auto` fallisce in modo controllato.
 
-### Correzione velocita' (automatica)
+### Correzione velocita' (off/auto/manual)
 
 Compensa la differenza tra release PAL (25 fps) e NTSC (23.976 fps), comune con serie TV e film europei. In queste situazioni l'audio di una versione e' leggermente piu' veloce dell'altra, e un merge diretto produrrebbe un desync crescente nel tempo.
 
-Il rilevamento avviene confrontando gli FPS dei due file tramite mkvmerge. Se la differenza e' trascurabile (meno dello 0.1%), non interviene. Se invece rileva un mismatch, procede con:
+La modalita' di default e' `off`. In `auto` il rilevamento confronta gli FPS dei due file tramite MediaInfo/mkvmerge e procede solo quando entrambi i file sono CFR affidabili. In `manual` il fattore viene indicato esplicitamente con `--stretch-factor`, ad esempio `25025/24000`, ed e' la modalita' corretta per sorgenti VFR o metadati ambigui.
+
+Quando la correzione e' attiva, il flusso procede con:
 
 1. Estrae i frame video iniziali da entrambi i file e li converte in immagini in scala di grigi a bassa risoluzione
 2. Individua i tagli scena (cambi di inquadratura) in entrambi i file, che sono identici in entrambe le versioni indipendentemente dalla lingua
@@ -325,13 +339,13 @@ Il rilevamento avviene confrontando gli FPS dei due file tramite mkvmerge. Se la
 4. Verifica il risultato in 9 punti distribuiti lungo il video (10%, 20%, ... 90%). Per ogni punto estrae un segmento breve, trova i tagli scena locali e conferma che il delay calcolato sia corretto. Servono almeno 5 punti validi su 9
 5. Applica il fattore di correzione tramite mkvmerge (time-stretching) alle tracce audio e sottotitoli importate, senza ricodifica
 
-Se uno dei file ha frame rate variabile (VFR), la correzione viene saltata automaticamente perche' il `default_duration` del container non e' affidabile.
+Se uno dei file ha frame rate variabile (VFR), la modalita' `auto` viene bloccata perche' il `default_duration` del container non e' affidabile. In questi casi va usato `manual` con un fattore deciso dall'utente.
 
 ### Frame-Sync
 
 Calcola un offset fisso per riallineare tracce quando sorgente e lingua hanno lo stesso FPS ma un taglio iniziale diverso (intro piu' lunga, secondi di nero, crediti diversi all'inizio).
 
-Attivabile con **-fs** da CLI o dal checkbox nella configurazione TUI/WebUI.
+Attivabile con **-fs** da CLI o dal checkbox nella configurazione WebUI.
 
 1. Estrae i frame iniziali da entrambi i file (2 minuti dal sorgente, 3 dalla lingua)
 2. Individua i tagli scena in entrambi i file
@@ -343,35 +357,39 @@ Frame-Sync non funziona se le differenze sono a meta' episodio (scene tagliate o
 
 ### Deep Analysis
 
-Sincronizzazione avanzata per file con montaggio diverso: scene aggiunte, rimosse o sostituite tra source e lang. A differenza del Frame-Sync che calcola un offset fisso, la Deep Analysis analizza l'intera traccia video e genera operazioni di taglia-cuci sulle tracce audio e sottotitoli.
+Sincronizzazione avanzata per file con montaggio diverso: scene aggiunte, rimosse o sostituite tra source e lang. A differenza del Frame-Sync che calcola un offset fisso, la Deep Analysis costruisce una mappa timeline verificata sull'intero video e genera operazioni di taglia-cuci sulle tracce importate.
 
-Attivabile con **-da** da CLI o dal checkbox nella configurazione TUI/WebUI. Mutuamente esclusiva con Frame-Sync.
+Attivabile con **-da** da CLI o dal checkbox nella configurazione WebUI. Mutuamente esclusiva con Frame-Sync.
 
 L'algoritmo opera in 5 fasi:
 
-1. **Stretch globale**: rileva la differenza di velocita' dai metadati del container (default_duration)
-2. **Estrazione scene**: analisi completa dei tagli scena di entrambi i file tramite ffmpeg
-3. **Matching**: abbina i tagli scena tra i due file, rilevando i punti dove l'offset cambia (scene aggiunte o rimosse)
-4. **Raffinamento**: nei punti di transizione, ricalcola l'offset alla risoluzione del frame rate nativo del video
-5. **Verifica**: controllo globale dell'allineamento su 30 punti distribuiti nel video
+1. **Stretch globale**: usa lo stretch manuale se configurato; lo stretch automatico viene consentito solo con metadati CFR affidabili
+2. **Ancore timeline**: estrae ancore audio/video lungo il file e costruisce una mappa degli offset locali
+3. **Mappa operazioni**: individua plateau e transizioni dove l'offset cambia, traducendoli in cut o insert
+4. **Raffinamento**: nei punti di transizione, ricalcola il cambio offset alla risoluzione del frame rate nativo del video
+5. **Verifica**: controllo globale dell'allineamento su punti distribuiti nel video prima di accettare la mappa
 
 Per ogni punto di disallineamento, genera le operazioni necessarie: inserimento di silenzi dove il sorgente ha contenuto extra, taglio di segmenti dove il lang ha contenuto extra.
 
-I codec audio senza encoder ffmpeg (TrueHD, DTS-HD MA, DTS:X) non possono essere processati con taglia-cuci e vengono importati con il solo delay iniziale.
+Le tracce audio importate vengono processate tramite estrazione segmenti, generazione silenzi e concat. I sottotitoli vengono riscritti nel formato nativo quando supportato: SRT, ASS/SSA, PGS/SUP e VobSub IDX/SUB. PGS e VobSub richiedono mkvextract disponibile nella stessa installazione MKVToolNix di mkvmerge.
+
+Deep Analysis e' fail-safe: se una traccia richiesta non puo' essere riscritta o validata, l'episodio fallisce invece di importare una traccia non editata. I codec audio senza encoder ffmpeg utilizzabile per taglia-cuci non vengono importati con fallback silenzioso.
 
 ### Delay manuale
 
-I parametri **-ad** (audio delay) e **-sd** (subtitle delay) specificano un offset in millisecondi che viene **sommato** al risultato di frame-sync o speed correction. Nella TUI/WebUI e' possibile impostare delay diversi per singolo episodio tramite il tasto Enter.
+I parametri **-ad** (audio delay) e **-sd** (subtitle delay) specificano un offset in millisecondi che viene **sommato** al risultato di frame-sync o speed correction. Nella WebUI e' possibile impostare delay diversi per singolo episodio.
 
 ## Conversione audio
 
-Converte le tracce audio lossless in FLAC o Opus durante il merge. Attivabile con **-cf flac** o **-cf opus** da CLI, oppure dal campo "Converti audio" nella configurazione TUI/WebUI.
+Converte le tracce audio lossless in FLAC o Opus durante il merge. Attivabile con **-cf flac** o **-cf opus** da CLI, oppure dal campo "Converti audio" nella configurazione WebUI.
 
 **Codec convertibili:** DTS-HD Master Audio, DTS-HD High Resolution, TrueHD, PCM, ALAC, MLP, FLAC.
 
 **Esclusi:** TrueHD Atmos e DTS:X perche' contengono metadati spaziali che verrebbero persi.
 
 La conversione si applica sia alle tracce sorgente mantenute tramite **-ksa**/**-ksac** sia alle tracce importate dal file lingua (solo se lossless). Se il formato target e' FLAC e la traccia e' gia' FLAC, la conversione viene saltata.
+
+La conversione richiesta e' fail-safe: se una traccia che deve essere convertita fallisce, l'episodio va in errore invece di usare automaticamente la traccia originale.
 
 **Bitrate di default:**
 
@@ -383,13 +401,13 @@ La conversione si applica sia alle tracce sorgente mantenute tramite **-ksa**/**
 | Opus 5.1 | kbps | 510 |
 | Opus 7.1 | kbps | 768 |
 
-I valori sono configurabili in `appsettings.json` o dal menu **Impostazioni > Conversione audio** nella TUI/WebUI.
+I valori sono configurabili in `appsettings.json` o dal menu **Impostazioni > Conversione audio** nella WebUI.
 
 ## Rinomina tracce
 
 Quando la conversione audio e' attiva (**-cf**), le tracce convertite vengono automaticamente rinominate con un titolo descrittivo che include codec, layout canali, bit depth, sample rate e bitrate. Questo avviene sempre, senza bisogno di opzioni aggiuntive.
 
-Con il flag **-rt** (o il checkbox "Rinomina tutte le tracce audio" in TUI/WebUI), la rinomina viene estesa anche alle tracce audio che non sono state convertite, sia dal file sorgente che dal file lingua. Utile per uniformare i nomi delle tracce nel file risultante quando i file originali hanno nomi inconsistenti o mancanti.
+Con il flag **-rt** (o il checkbox "Rinomina tutte le tracce audio" in WebUI), la rinomina viene estesa anche alle tracce audio che non sono state convertite, sia dal file sorgente che dal file lingua. Utile per uniformare i nomi delle tracce nel file risultante quando i file originali hanno nomi inconsistenti o mancanti.
 
 **Formato del nome generato:**
 
@@ -405,9 +423,9 @@ Il layout canali viene formattato come 1.0 (mono), 2.0 (stereo), 5.1, 7.1. Le in
 
 Dopo il merge e' possibile ricodificare il video con un profilo di encoding personalizzato. L'encoding avviene in-place sul file risultato tramite ffmpeg: il video viene ricodificato, audio e sottotitoli vengono copiati senza modifiche.
 
-Attivabile con **-ep "nome_profilo"** da CLI, oppure dal campo "Profilo encoding" nella configurazione TUI/WebUI.
+Attivabile con **-ep "nome_profilo"** da CLI, oppure dal campo "Profilo encoding" nella configurazione WebUI.
 
-I profili sono gestibili dal menu **Impostazioni > Profili encoding** nella TUI/WebUI (aggiungi, modifica, elimina) e vengono salvati in `appsettings.json`.
+I profili sono gestibili dal menu **Impostazioni > Profili encoding** nella WebUI (aggiungi, modifica, elimina) e vengono salvati in `appsettings.json`.
 
 **Codec supportati:**
 
@@ -455,7 +473,7 @@ L'encoding usa encoder software. L'accelerazione GPU si applica solo alla decodi
 
 ## Accelerazione GPU
 
-RemuxForge usa ffmpeg con `-hwaccel auto` per accelerare la **decodifica video** durante le fasi di analisi (correzione velocita', frame-sync, deep analysis). La GPU viene usata automaticamente se disponibile, senza bisogno di configurazione.
+RemuxForge puo' usare ffmpeg con `-hwaccel auto` per accelerare la **decodifica video** durante le fasi di analisi (correzione velocita', frame-sync, deep analysis). L'opzione e' disattivata di default e si abilita dalla WebUI in `Impostazioni Avanzate > Ffmpeg > Hardware Acceleration`.
 
 | Backend | Piattaforma | GPU |
 |---------|-------------|-----|
@@ -601,7 +619,7 @@ RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -da
 
 ## Report
 
-A fine elaborazione viene mostrato un report riassuntivo. In TUI/WebUI il dettaglio e' visibile nel pannello laterale di ciascun episodio.
+A fine elaborazione viene mostrato un report riassuntivo. In WebUI il dettaglio e' visibile nel pannello laterale di ciascun episodio.
 
 Da CLI il report mostra 3 tabelle:
 
@@ -784,7 +802,34 @@ I nuovi campi aggiunti in aggiornamenti successivi vengono integrati automaticam
       "SourceStartSec": 1,
       "SourceDurationSec": 120,
       "LangDurationSec": 180,
-      "MinValidPoints": 10
+      "MinValidPoints": 5,
+      "GroupingToleranceFrames": 1,
+      "MinEdgeCorrelation": 0.70,
+      "MinBlockCorrelation": 0.72,
+      "MinMotionCorrelation": 0.58,
+      "MinBlurredCorrelation": 0.70,
+      "MinHashSimilarity": 0.78,
+      "MinDescriptorVotes": 2,
+      "InitialMinMatchedCuts": 3,
+      "InitialMinScore": 0.62,
+      "CheckpointMinScore": 0.58,
+      "FinalMinConfidence": 0.35,
+      "InitialCheckpointDriftPenaltyFrames": 3,
+      "InitialCheckpointDriftRejectFrames": 12,
+      "InitialMinMargin": 0.05,
+      "CheckpointMinMargin": 0.04,
+      "StaticSegmentVarianceThreshold": 8.0,
+      "BlackFrameRatioThreshold": 0.92,
+      "AudioGlobalEnabled": true,
+      "AudioGlobalSampleRate": 8000,
+      "AudioGlobalWindowMs": 50,
+      "AudioGlobalSearchRangeMs": 30000,
+      "AudioGlobalCoarseStepMs": 100,
+      "AudioGlobalMinScore": 0.62,
+      "AudioGlobalMinMargin": 0.04,
+      "AudioGlobalMinCoverage": 0.55,
+      "AudioGlobalConfirmToleranceFrames": 2,
+      "AudioGlobalRejectToleranceFrames": 8
     },
     "DeepAnalysis": {
       "CoarseFps": 2.0,
@@ -814,6 +859,9 @@ I nuovi campi aggiunti in aggiornamenti successivi vengono integrati automaticam
     },
     "TrackSplit": {
       "FfmpegTimeoutMs": 300000
+    },
+    "Ffmpeg": {
+      "HardwareAcceleration": false
     }
   }
 }
@@ -826,14 +874,15 @@ I nuovi campi aggiunti in aggiornamenti successivi vengono integrati automaticam
 - **Opus.Bitrate**: bitrate Opus in kbps per layout canali (range: 64-768)
 - **Ui.Theme**: tema grafico selezionato. Temi validi: `dark`, `nord`, `dos-blue`, `matrix`, `cyberpunk`, `solarized-dark`, `solarized-light`, `cybergum`, `everforest`
 - **EncodingProfiles**: array di profili encoding video (vedi sezione Encoding video)
-- **Advanced**: parametri algoritmici di sincronizzazione. Configurabili dal menu Impostazioni > Avanzate, con pulsante Reset Defaults per ciascuna sotto-sezione. I valori di default sono calibrati per la maggior parte dei casi, da modificare solo se necessario
+- **Advanced**: parametri di sincronizzazione. La WebUI espone solo tuning operativo ed Expert essenziale; i parametri algoritmici interni restano modificabili dal file di configurazione. I valori di default sono calibrati per la maggior parte dei casi.
+- **Advanced.Ffmpeg.HardwareAcceleration**: abilita `-hwaccel auto` per le analisi video ffmpeg. Default: `false`
 
 ## Build da sorgente
 
 Richiede .NET 10 SDK.
 
 ```bash
-# Build CLI/TUI
+# Build CLI
 dotnet build RemuxForge.Cli -c Release
 
 # Build WebUI (richiede libman per le librerie client-side)
@@ -844,7 +893,7 @@ dotnet build RemuxForge.Web -c Release
 **Publish come eseguibile standalone (single file, compresso):**
 
 ```bash
-# CLI/TUI
+# CLI
 dotnet publish RemuxForge.Cli -c Release -r win-x64 --self-contained true
 dotnet publish RemuxForge.Cli -c Release -r linux-x64 --self-contained true
 dotnet publish RemuxForge.Cli -c Release -r linux-arm64 --self-contained true
@@ -864,6 +913,14 @@ dotnet publish RemuxForge.Web -c Release -r osx-arm64 --self-contained true
 ```bash
 docker build -t remuxforge .
 ```
+
+## Nota sull'uso di LLM
+
+Durante lo sviluppo di RemuxForge e' stato usato supporto basato su LLM per:
+
+- integrazione e aggiornamento della documentazione README
+- supporto al design e alla rifinitura della WebUI
+- assistenza in eventuali refactor estesi quando necessari
 
 ## Buy me a coffee!
 

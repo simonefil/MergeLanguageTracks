@@ -101,7 +101,7 @@
                     <div class="form-row">
                         <span class="form-label">@(_editing.RateMode == "qp" ? "QP:" : "CRF:")</span>
                         <input class="form-input" style="width: 6ch;" @bind="_crfQpStr" />
-                        <span style="margin-left: 1ch; color: var(--foreground2);">Range: 0-@EncodingDefaults.GetMaxCrf(_editing.Codec)</span>
+                        <span style="margin-left: 1ch; color: var(--foreground2);">Range: @EncodingDefaults.GetMinCrf(_editing.Codec)-@EncodingDefaults.GetMaxCrf(_editing.Codec)</span>
                     </div>
                 }
 
@@ -132,10 +132,10 @@
                     <div class="form-row">
                         <span class="form-label">Film grain:</span>
                         <input class="form-input" style="width: 6ch;" @bind="_filmGrainStr" />
-                        <span style="margin-left: 1ch; color: var(--foreground2);">0 = disabilitato, 1-50</span>
+                        <span style="margin-left: 1ch; color: var(--foreground2);">@EncodingDefaults.SVTAV1_FILM_GRAIN_MIN = disabilitato, 1-@EncodingDefaults.SVTAV1_FILM_GRAIN_MAX</span>
                     </div>
                     <div class="form-row">
-                        <span class="tui-toggle" @onclick="() => _editing.FilmGrainDenoise = !_editing.FilmGrainDenoise">@(_editing.FilmGrainDenoise ? "[X]" : "[ ]") Film grain denoise</span>
+                        <span class="ui-toggle" @onclick="() => _editing.FilmGrainDenoise = !_editing.FilmGrainDenoise">@(_editing.FilmGrainDenoise ? "[X]" : "[ ]") Film grain denoise</span>
                     </div>
                 }
 
@@ -225,12 +225,14 @@
     /// <param name="e">Argomenti evento change</param>
     private void OnProfileSelected(ChangeEventArgs e)
     {
-        int idx = 0;
+        int idx;
+        string value;
 
         // Salva profilo corrente prima di cambiare
         this.SaveEditing();
 
-        if (int.TryParse(e.Value.ToString(), out idx))
+        value = Convert.ToString(e.Value);
+        if (int.TryParse(value, out idx))
         {
             this._selectedIdx = idx;
             this.LoadEditing();
@@ -243,7 +245,11 @@
     /// <param name="e">Argomenti evento change</param>
     private void OnCodecChanged(ChangeEventArgs e)
     {
-        string newCodec = e.Value.ToString();
+        string newCodec = Convert.ToString(e.Value);
+        if (string.IsNullOrEmpty(newCodec))
+        {
+            return;
+        }
 
         this._editing.Codec = newCodec;
         this._editing.Preset = EncodingDefaults.GetPresets(newCodec)[0];
@@ -277,7 +283,13 @@
     /// <param name="e">Argomenti evento change</param>
     private void OnRateModeChanged(ChangeEventArgs e)
     {
-        this._editing.RateMode = e.Value.ToString();
+        string rateMode = Convert.ToString(e.Value);
+        if (string.IsNullOrEmpty(rateMode))
+        {
+            return;
+        }
+
+        this._editing.RateMode = rateMode;
 
         if (this._editing.RateMode == "crf" || this._editing.RateMode == "qp")
         {
@@ -314,16 +326,32 @@
     /// </summary>
     private void SaveEditing()
     {
-        int val = 0;
+        int val;
+        int min;
+        int max;
 
         if (this._editing == null)
         {
             return;
         }
 
-        if (int.TryParse(this._crfQpStr, out val)) { this._editing.CrfQp = val; }
+        if (int.TryParse(this._crfQpStr, out val))
+        {
+            min = EncodingDefaults.GetMinCrf(this._editing.Codec);
+            max = EncodingDefaults.GetMaxCrf(this._editing.Codec);
+            if (val < min) { val = min; }
+            else if (val > max) { val = max; }
+            this._editing.CrfQp = val;
+            this._crfQpStr = val.ToString();
+        }
         if (int.TryParse(this._bitrateStr, out val)) { this._editing.Bitrate = val; }
-        if (int.TryParse(this._filmGrainStr, out val)) { this._editing.FilmGrain = val; }
+        if (int.TryParse(this._filmGrainStr, out val))
+        {
+            if (val < EncodingDefaults.SVTAV1_FILM_GRAIN_MIN) { val = EncodingDefaults.SVTAV1_FILM_GRAIN_MIN; }
+            else if (val > EncodingDefaults.SVTAV1_FILM_GRAIN_MAX) { val = EncodingDefaults.SVTAV1_FILM_GRAIN_MAX; }
+            this._editing.FilmGrain = val;
+            this._filmGrainStr = val.ToString();
+        }
     }
 
     /// <summary>

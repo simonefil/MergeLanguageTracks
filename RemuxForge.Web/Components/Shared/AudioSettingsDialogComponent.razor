@@ -93,7 +93,7 @@
     /// </summary>
     private void Save()
     {
-        int val = 0;
+        int val;
 
         // Parsing valori nel model
         if (int.TryParse(_flacCompression, out val)) { AppSettingsService.Instance.Settings.Flac.CompressionLevel = val; }

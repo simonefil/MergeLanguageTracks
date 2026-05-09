@@ -20,10 +20,10 @@
                 <span class="btn-browse" @onclick="() => BrowseFolder(2)">[ .. ]</span>
             </div>
             <div class="form-row">
-                <span class="tui-toggle" @onclick="() => _overwrite = !_overwrite">@(_overwrite ? "[X]" : "[ ]") Sovrascrivi sorgente</span>
+                <span class="ui-toggle" @onclick="() => _overwrite = !_overwrite">@(_overwrite ? "[X]" : "[ ]") Sovrascrivi sorgente</span>
             </div>
             <div class="form-row">
-                <span class="tui-toggle" @onclick="() => _recursive = !_recursive">@(_recursive ? "[X]" : "[ ]") Ricorsivo</span>
+                <span class="ui-toggle" @onclick="() => _recursive = !_recursive">@(_recursive ? "[X]" : "[ ]") Ricorsivo</span>
             </div>
 
             @* Lingua e Tracce *@
@@ -49,26 +49,27 @@
                 <input class="form-input" @bind="_keepSrcSub" />
             </div>
             <div class="form-row">
-                <span class="tui-toggle" @onclick="() => _subOnly = !_subOnly">@(_subOnly ? "[X]" : "[ ]") Solo sottotitoli</span>
-                <span class="tui-toggle" style="margin-left: 2ch;" @onclick="() => _audioOnly = !_audioOnly">@(_audioOnly ? "[X]" : "[ ]") Solo audio</span>
+                <span class="ui-toggle" @onclick="() => _subOnly = !_subOnly">@(_subOnly ? "[X]" : "[ ]") Solo sottotitoli</span>
+                <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioOnly = !_audioOnly">@(_audioOnly ? "[X]" : "[ ]") Solo audio</span>
             </div>
 
             @* Sincronizzazione *@
             <div class="form-section">== Sincronizzazione ==</div>
             <div class="form-row">
-                <span class="tui-toggle" @onclick="() => _speedCorrection = !_speedCorrection">@(_speedCorrection ? "[X]" : "[ ]") Speed correction (auto-detect)</span>
+                <span class="form-label">Speed:</span>
+                <select class="form-input" style="width: 14ch;" @bind="_speedCorrectionMode">
+                    <option value="@Options.SPEED_CORRECTION_OFF">Off</option>
+                    <option value="@Options.SPEED_CORRECTION_AUTO">Auto</option>
+                    <option value="@Options.SPEED_CORRECTION_MANUAL">Manual</option>
+                </select>
+                <span style="margin-left: 1ch;">Stretch</span>
+                <input class="form-input" style="width: 14ch;" @bind="_manualStretchFactor" />
             </div>
             <div class="form-row">
-                <span class="tui-toggle" @onclick="ToggleFrameSync">@(_frameSync ? "[X]" : "[ ]") Frame-sync (confronto visivo)</span>
+                <span class="ui-toggle" @onclick="ToggleFrameSync">@(_frameSync ? "[X]" : "[ ]") Frame-sync (confronto visivo)</span>
             </div>
             <div class="form-row">
-                <span class="tui-toggle" @onclick="ToggleDeepAnalysis">@(_deepAnalysis ? "[X]" : "[ ]") Deep analysis (analisi completa)</span>
-            </div>
-            <div class="form-row">
-                <span class="tui-toggle" @onclick="() => _cropSourceTo43 = !_cropSourceTo43">@(_cropSourceTo43 ? "[X]" : "[ ]") Crop source to 4:3 (pillarbox)</span>
-            </div>
-            <div class="form-row">
-                <span class="tui-toggle" @onclick="() => _cropLangTo43 = !_cropLangTo43">@(_cropLangTo43 ? "[X]" : "[ ]") Crop lang to 4:3 (pillarbox)</span>
+                <span class="ui-toggle" @onclick="ToggleDeepAnalysis">@(_deepAnalysis ? "[X]" : "[ ]") Deep analysis (analisi completa)</span>
             </div>
             <div class="form-row">
                 <span class="form-label">Delay audio:</span>
@@ -101,7 +102,7 @@
                 </select>
             </div>
             <div class="form-row">
-                <span class="tui-toggle" @onclick="() => _renameAllTracks = !_renameAllTracks">@(_renameAllTracks ? "[X]" : "[ ]") Rinomina tutte le tracce audio</span>
+                <span class="ui-toggle" @onclick="() => _renameAllTracks = !_renameAllTracks">@(_renameAllTracks ? "[X]" : "[ ]") Rinomina tutte le tracce audio</span>
             </div>
             <div class="form-row">
                 <span class="form-label">Encoding video:</span>
@@ -114,6 +115,10 @@
                 </select>
             </div>
         </div>
+        @if (_validationError.Length > 0)
+        {
+            <div style="padding: 0.5em 1em; color: var(--color-error); white-space: pre-line;">@_validationError</div>
+        }
         <div class="dialog-footer">
             <button @onclick="Apply">OK</button>
             <button @onclick="OnClose">Annulla</button>
@@ -148,7 +153,7 @@
     /// <summary>
     /// Flag: mostra dialog browse cartella
     /// </summary>
-    private bool _showBrowse = false;
+    private bool _showBrowse;
 
     /// <summary>
     /// Percorso iniziale per il dialog browse
@@ -178,7 +183,7 @@
     /// <summary>
     /// Flag sovrascrivi sorgente
     /// </summary>
-    private bool _overwrite = false;
+    private bool _overwrite;
 
     /// <summary>
     /// Flag ricorsivo
@@ -213,37 +218,32 @@
     /// <summary>
     /// Flag solo sottotitoli
     /// </summary>
-    private bool _subOnly = false;
+    private bool _subOnly;
 
     /// <summary>
     /// Flag solo audio
     /// </summary>
-    private bool _audioOnly = false;
+    private bool _audioOnly;
 
     /// <summary>
-    /// Flag speed correction auto-detect
+    /// Modalita' speed correction
     /// </summary>
-    private bool _speedCorrection = true;
+    private string _speedCorrectionMode = Options.SPEED_CORRECTION_OFF;
+
+    /// <summary>
+    /// Stretch factor manuale
+    /// </summary>
+    private string _manualStretchFactor = "";
 
     /// <summary>
     /// Flag frame-sync
     /// </summary>
-    private bool _frameSync = false;
+    private bool _frameSync;
 
     /// <summary>
     /// Flag deep analysis
     /// </summary>
-    private bool _deepAnalysis = false;
-
-    /// <summary>
-    /// Flag crop a 4:3 sui frame sorgente (rimuove pillarbox)
-    /// </summary>
-    private bool _cropSourceTo43 = false;
-
-    /// <summary>
-    /// Flag crop a 4:3 sui frame lingua (rimuove pillarbox)
-    /// </summary>
-    private bool _cropLangTo43 = false;
+    private bool _deepAnalysis;
 
     /// <summary>
     /// Delay audio in ms (stringa per binding input)
@@ -268,17 +268,22 @@
     /// <summary>
     /// Formato conversione: 0=No, 1=FLAC, 2=Opus
     /// </summary>
-    private int _convertFormat = 0;
+    private int _convertFormat;
 
     /// <summary>
     /// Flag: rinomina tutte le tracce audio
     /// </summary>
-    private bool _renameAllTracks = false;
+    private bool _renameAllTracks;
 
     /// <summary>
     /// Nome profilo encoding selezionato, vuoto = nessuno
     /// </summary>
     private string _encodingProfile = "";
+
+    /// <summary>
+    /// Errore di validazione configurazione
+    /// </summary>
+    private string _validationError = "";
 
     /// <summary>
     /// Precompila campi dalle opzioni correnti
@@ -299,11 +304,10 @@
             _keepSrcSub = string.Join(",", Options.KeepSourceSubtitleLangs);
             _subOnly = Options.SubOnly;
             _audioOnly = Options.AudioOnly;
-            _speedCorrection = Options.SpeedCorrection;
+            _speedCorrectionMode = !string.IsNullOrEmpty(Options.SpeedCorrectionMode) ? Options.SpeedCorrectionMode : Options.SPEED_CORRECTION_OFF;
+            _manualStretchFactor = Options.ManualStretchFactor;
             _frameSync = Options.FrameSync;
             _deepAnalysis = Options.DeepAnalysis;
-            _cropSourceTo43 = Options.CropSourceTo43;
-            _cropLangTo43 = Options.CropLangTo43;
             _audioDelay = Options.AudioDelay.ToString();
             _subDelay = Options.SubtitleDelay.ToString();
             _matchPattern = Options.MatchPattern;
@@ -325,10 +329,18 @@
     private void Apply()
     {
         Options opts = new Options();
-        int audioDelay = 0;
-        int subDelay = 0;
-        string[] parts = null;
-        string trimmed = "";
+        int audioDelay;
+        int subDelay;
+        string[] parts;
+        string trimmed;
+        OptionsValidationResult validation;
+
+        _validationError = "";
+
+        if (!ValidateInput())
+        {
+            return;
+        }
 
         opts.SourceFolder = _sourceFolder;
         opts.LanguageFolder = _languageFolder;
@@ -345,11 +357,10 @@
 
         opts.SubOnly = _subOnly;
         opts.AudioOnly = _audioOnly;
-        opts.SpeedCorrection = _speedCorrection;
+        opts.SpeedCorrectionMode = _speedCorrectionMode;
+        opts.ManualStretchFactor = _manualStretchFactor.Trim();
         opts.FrameSync = _frameSync;
         opts.DeepAnalysis = _deepAnalysis;
-        opts.CropSourceTo43 = _cropSourceTo43;
-        opts.CropLangTo43 = _cropLangTo43;
 
         int.TryParse(_audioDelay, out audioDelay);
         opts.AudioDelay = audioDelay;
@@ -378,7 +389,41 @@
         opts.MkvMergePath = AppSettingsService.Instance.Settings.Tools.MkvMergePath.Length > 0 ? AppSettingsService.Instance.Settings.Tools.MkvMergePath : "mkvmerge";
         opts.EncodingProfileName = _encodingProfile;
 
+        validation = OptionsValidator.Validate(opts, false, false);
+        if (!validation.IsValid)
+        {
+            _validationError = validation.ErrorMessage;
+            return;
+        }
+
         OnApply.InvokeAsync(opts);
+    }
+
+    /// <summary>
+    /// Valida i campi prima di costruire Options
+    /// </summary>
+    /// <returns>True se i campi sono validi</returns>
+    private bool ValidateInput()
+    {
+        List<string> errors = new List<string>();
+
+        if (!int.TryParse(_audioDelay, out _))
+        {
+            errors.Add("Delay audio: valore intero non valido");
+        }
+
+        if (!int.TryParse(_subDelay, out _))
+        {
+            errors.Add("Delay sub: valore intero non valido");
+        }
+
+        if (errors.Count > 0)
+        {
+            _validationError = string.Join("\n", errors);
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -388,11 +433,11 @@
     /// <param name="list">Lista destinazione</param>
     private void ParseCsv(string text, List<string> list)
     {
-        string[] parts = null;
-        string trimmed = "";
+        string[] parts;
+        string trimmed;
 
         list.Clear();
-        if (text != null && text.Length > 0)
+        if (!string.IsNullOrEmpty(text))
         {
             parts = text.Split(',');
             for (int i = 0; i < parts.Length; i++)
@@ -435,7 +480,7 @@
     {
         _showBrowse = false;
 
-        if (selectedPath == null || selectedPath.Length == 0) { return; }
+        if (string.IsNullOrEmpty(selectedPath)) { return; }
 
         // Applica al campo corretto
         if (_browseFieldIndex == 0) { _sourceFolder = selectedPath; }

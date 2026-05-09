@@ -75,23 +75,32 @@
         // Versione dall'assembly
         System.Reflection.Assembly assembly = System.Reflection.Assembly.GetEntryAssembly();
         System.Reflection.CustomAttributeData infoAttr = null;
+        Version assemblyVersion;
 
-        foreach (System.Reflection.CustomAttributeData attr in assembly.CustomAttributes)
+        if (assembly != null)
         {
-            if (attr.AttributeType == typeof(System.Reflection.AssemblyInformationalVersionAttribute))
+            foreach (System.Reflection.CustomAttributeData attr in assembly.CustomAttributes)
             {
-                infoAttr = attr;
-                break;
+                if (attr.AttributeType == typeof(System.Reflection.AssemblyInformationalVersionAttribute))
+                {
+                    infoAttr = attr;
+                    break;
+                }
             }
         }
 
-        if (infoAttr != null && infoAttr.ConstructorArguments.Count > 0)
+        if (infoAttr != null && infoAttr.ConstructorArguments.Count > 0 && infoAttr.ConstructorArguments[0].Value != null)
         {
             this._version = infoAttr.ConstructorArguments[0].Value.ToString();
         }
+        else if (assembly != null)
+        {
+            assemblyVersion = assembly.GetName().Version;
+            this._version = assemblyVersion != null ? assemblyVersion.ToString() : "";
+        }
         else
         {
-            this._version = assembly.GetName().Version.ToString();
+            this._version = "";
         }
 
         // Runtime e piattaforma

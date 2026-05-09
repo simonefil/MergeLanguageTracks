@@ -1,7 +1,9 @@
+using RemuxForge.Core.Infrastructure;
+using RemuxForge.Core.Models;
+using RemuxForge.Core.Pipeline;
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using RemuxForge.Core;
 
 namespace RemuxForge.Web.Services
 {
@@ -33,9 +35,19 @@ namespace RemuxForge.Web.Services
         private object _lock;
 
         /// <summary>
+        /// Stato avanzamento operazione corrente
+        /// </summary>
+        private ProcessingProgressState _progress;
+
+        /// <summary>
         /// Flag: indica se un'operazione e' in corso
         /// </summary>
         private volatile bool _isBusy;
+
+        /// <summary>
+        /// Flag: richiesta di stop cooperativo
+        /// </summary>
+        private volatile bool _stopRequested;
 
         /// <summary>
         /// Buffer log accumulato
@@ -67,9 +79,9 @@ namespace RemuxForge.Web.Services
         public event Action OnRecordsChanged;
 
         /// <summary>
-        /// Evento emesso quando un'operazione inizia o termina
+        /// Evento emesso quando cambia lo stato avanzamento
         /// </summary>
-        public event Action<bool> OnBusyChanged;
+        public event Action OnProgressChanged;
 
         #endregion
 
@@ -84,19 +96,21 @@ namespace RemuxForge.Web.Services
             this._records = new List<FileProcessingRecord>();
             this._options = new Options();
             this._lock = new object();
+            this._progress = new ProcessingProgressState();
             this._isBusy = false;
+            this._stopRequested = false;
             this._logText = "Pronto. Premere F2 per configurare, F5 per scan.";
             this._selectedIndex = -1;
 
             // Abilita file log se configurato via env var
             string logFilePath = Environment.GetEnvironmentVariable("REMUXFORGE_LOG_FILE");
-            if (logFilePath != null && logFilePath.Length > 0)
+            if (!string.IsNullOrEmpty(logFilePath))
             {
                 ConsoleHelper.EnableFileLog(logFilePath);
             }
 
             // Collega eventi pipeline
-            this._pipeline.OnLogMessage += (LogSection section, LogLevel level, string text) =>
+            this._pipeline.OnLogMessage += (section, level, text) =>
             {
                 // Formatta testo con prefisso sezione
                 string prefix = ConsoleHelper.FormatSectionPrefix(section);
@@ -104,10 +118,17 @@ namespace RemuxForge.Web.Services
                 this.AppendLog(formatted);
             };
 
-            this._pipeline.OnFileUpdated += (FileProcessingRecord record) =>
+            this._pipeline.OnFileUpdated += record =>
             {
                 this.OnRecordsChanged?.Invoke();
             };
+
+            ConsoleHelper.SetProgressCallback((section, percent, status) =>
+            {
+                this.UpdateProgressFromPipelineStep(section, percent, status);
+            });
+
+            ProcessRunner.SetStopRequestedCallback(this.IsStopRequested);
         }
 
         #endregion
@@ -115,16 +136,57 @@ namespace RemuxForge.Web.Services
         #region Metodi pubblici
 
         /// <summary>
-        /// Salva le opzioni correnti (non inizializza il pipeline)
+        /// Salva le opzioni correnti e le applica subito alla pipeline quando possibile
         /// </summary>
         /// <param name="opts">Opzioni di configurazione</param>
-        public void ApplyOptions(Options opts)
+        /// <param name="errorMessage">Messaggio di errore, vuoto se applicate</param>
+        /// <returns>True se le opzioni sono state applicate</returns>
+        public bool ApplyOptions(Options opts, out string errorMessage)
         {
-            this._options = opts;
+            bool result = false;
+            errorMessage = "";
+
+            if (opts == null)
+            {
+                errorMessage = "Configurazione non valida";
+                return result;
+            }
+
+            if (this._isBusy)
+            {
+                errorMessage = "Operazione in corso: riprovare a elaborazione terminata";
+                return result;
+            }
+
+            lock (this._lock)
+            {
+                this._options = opts;
+            }
+
+            if (opts.SourceFolder.Length > 0)
+            {
+                result = this._pipeline.Initialize(this._options);
+                if (!result)
+                {
+                    errorMessage = "Configurazione non applicabile: controllare il log";
+                }
+            }
+            else
+            {
+                result = true;
+            }
+
+            if (result)
+            {
+                this.AppendLog("Configurazione applicata alla pipeline");
+                this.OnRecordsChanged?.Invoke();
+            }
+
+            return result;
         }
 
         /// <summary>
-        /// Esegue scan delle cartelle in background (come TUI: check opts + Initialize + ScanFiles)
+        /// Esegue scan delle cartelle in background (come flusso CLI: check opts + Initialize + ScanFiles)
         /// </summary>
         public void Scan()
         {
@@ -143,22 +205,28 @@ namespace RemuxForge.Web.Services
             Thread thread = new Thread(() =>
             {
                 this.SetBusy(true);
+                this.BeginProgress("Scan", 0, true);
 
                 try
                 {
-                    // Inizializza pipeline con opzioni correnti (come TUI)
+                    this.UpdateProgress("", 0, 0, 0, "Inizializzazione", true, true);
+
+                    // Inizializza pipeline con opzioni correnti (come flusso CLI)
                     if (!this._pipeline.Initialize(this._options))
                     {
                         this.AppendLog("Errore inizializzazione pipeline");
+                        this.CompleteProgress("Errore inizializzazione");
                         this.SetBusy(false);
                         return;
                     }
 
+                    this.UpdateProgress("", 0, 0, 30, "Scan file", true, true);
+
                     // Scan
                     List<FileProcessingRecord> scanned = this._pipeline.ScanFiles();
 
-                    // Ordina per EpisodeId (come TUI)
-                    scanned.Sort((FileProcessingRecord a, FileProcessingRecord b) => string.Compare(a.EpisodeId, b.EpisodeId, StringComparison.OrdinalIgnoreCase));
+                    // Ordina per EpisodeId (come flusso CLI)
+                    scanned.Sort((a, b) => string.Compare(a.EpisodeId, b.EpisodeId, StringComparison.OrdinalIgnoreCase));
 
                     lock (this._lock)
                     {
@@ -176,10 +244,12 @@ namespace RemuxForge.Web.Services
 
                     this.OnRecordsChanged?.Invoke();
                     this.AppendLog("Scan completato: " + scanned.Count + " file trovati, " + pending + " pronti, " + skipped + " saltati");
+                    this.CompleteProgress("Scan completato");
                 }
                 catch (Exception ex)
                 {
                     this.AppendLog("Errore durante scan: " + ex.Message);
+                    this.CompleteProgress("Errore scan");
                 }
 
                 this.SetBusy(false);
@@ -204,16 +274,22 @@ namespace RemuxForge.Web.Services
             Thread thread = new Thread(() =>
             {
                 this.SetBusy(true);
+                this.BeginProgress("Analisi episodio", 1, false);
 
                 try
                 {
+                    this.UpdateProgress(record.EpisodeId, 1, 0, 5, "Analisi", false, false);
                     this._pipeline.AnalyzeFile(record);
+                    this.UpdateProgress(record.EpisodeId, 1, 0, 85, "Comando merge", false, false);
                     this._pipeline.BuildMergeCommand(record);
                     this.OnRecordsChanged?.Invoke();
+                    this.UpdateProgress(record.EpisodeId, 1, 1, 100, "Completato", false, false);
+                    this.CompleteProgress("Analisi completata");
                 }
                 catch (Exception ex)
                 {
                     this.AppendLog("Errore durante analisi: " + ex.Message);
+                    this.CompleteProgress("Errore analisi");
                 }
 
                 this.SetBusy(false);
@@ -235,29 +311,54 @@ namespace RemuxForge.Web.Services
             Thread thread = new Thread(() =>
             {
                 this.SetBusy(true);
-                List<FileProcessingRecord> snapshot = null;
-
+                List<FileProcessingRecord> snapshot;
+                List<FileProcessingRecord> pending = new List<FileProcessingRecord>();
+                bool stopped = false;
                 lock (this._lock)
                 {
                     snapshot = new List<FileProcessingRecord>(this._records);
                 }
 
+                for (int i = 0; i < snapshot.Count; i++)
+                {
+                    // Includi anche file in errore per ritentare (come flusso CLI)
+                    if (snapshot[i].Status == FileStatus.Pending || snapshot[i].Status == FileStatus.Error)
+                    {
+                        pending.Add(snapshot[i]);
+                    }
+                }
+
+                this.BeginProgress("Analisi batch", pending.Count, false);
+
                 try
                 {
-                    for (int i = 0; i < snapshot.Count; i++)
+                    for (int i = 0; i < pending.Count; i++)
                     {
-                        // Includi anche file in errore per ritentare (come TUI)
-                        if (snapshot[i].Status == FileStatus.Pending || snapshot[i].Status == FileStatus.Error)
+                        if (this.IsStopRequested())
                         {
-                            this._pipeline.AnalyzeFile(snapshot[i]);
-                            this._pipeline.BuildMergeCommand(snapshot[i]);
-                            this.OnRecordsChanged?.Invoke();
+                            stopped = true;
+                            this.AppendLog("Analisi batch interrotta dall'utente");
+                            this.CompleteProgress("Analisi interrotta");
+                            break;
                         }
+
+                        this.UpdateProgress(pending[i].EpisodeId, i + 1, i, 5, "Analisi", false, false);
+                        this._pipeline.AnalyzeFile(pending[i]);
+                        this.UpdateProgress(pending[i].EpisodeId, i + 1, i, 85, "Comando merge", false, false);
+                        this._pipeline.BuildMergeCommand(pending[i]);
+                        this.OnRecordsChanged?.Invoke();
+                        this.UpdateProgress(pending[i].EpisodeId, i + 1, i + 1, 100, "Completato", false, false);
+                    }
+
+                    if (!stopped)
+                    {
+                        this.CompleteProgress("Analisi batch completata");
                     }
                 }
                 catch (Exception ex)
                 {
                     this.AppendLog("Errore durante analisi batch: " + ex.Message);
+                    this.CompleteProgress("Errore analisi batch");
                 }
 
                 this.SetBusy(false);
@@ -282,15 +383,20 @@ namespace RemuxForge.Web.Services
             Thread thread = new Thread(() =>
             {
                 this.SetBusy(true);
+                this.BeginProgress("Merge episodio", 1, false);
 
                 try
                 {
+                    this.UpdateProgress(record.EpisodeId, 1, 0, 10, "Merge", false, false);
                     this._pipeline.MergeFile(record);
                     this.OnRecordsChanged?.Invoke();
+                    this.UpdateProgress(record.EpisodeId, 1, 1, 100, "Completato", false, false);
+                    this.CompleteProgress("Merge completato");
                 }
                 catch (Exception ex)
                 {
                     this.AppendLog("Errore durante merge: " + ex.Message);
+                    this.CompleteProgress("Errore merge");
                 }
 
                 this.SetBusy(false);
@@ -312,29 +418,52 @@ namespace RemuxForge.Web.Services
             Thread thread = new Thread(() =>
             {
                 this.SetBusy(true);
-                List<FileProcessingRecord> snapshot = null;
-
+                List<FileProcessingRecord> snapshot;
+                List<FileProcessingRecord> analyzed = new List<FileProcessingRecord>();
+                bool stopped = false;
                 lock (this._lock)
                 {
                     snapshot = new List<FileProcessingRecord>(this._records);
                 }
 
+                for (int i = 0; i < snapshot.Count; i++)
+                {
+                    if (snapshot[i].Status == FileStatus.Analyzed)
+                    {
+                        analyzed.Add(snapshot[i]);
+                    }
+                }
+
+                this.BeginProgress("Merge batch", analyzed.Count, false);
+
                 try
                 {
-                    for (int i = 0; i < snapshot.Count; i++)
+                    for (int i = 0; i < analyzed.Count; i++)
                     {
-                        if (snapshot[i].Status == FileStatus.Analyzed)
+                        if (this.IsStopRequested())
                         {
-                            this._pipeline.MergeFile(snapshot[i]);
-                            this.OnRecordsChanged?.Invoke();
+                            stopped = true;
+                            this.AppendLog("Merge batch interrotto dall'utente");
+                            this.CompleteProgress("Merge interrotto");
+                            break;
                         }
+
+                        this.UpdateProgress(analyzed[i].EpisodeId, i + 1, i, 10, "Merge", false, false);
+                        this._pipeline.MergeFile(analyzed[i]);
+                        this.OnRecordsChanged?.Invoke();
+                        this.UpdateProgress(analyzed[i].EpisodeId, i + 1, i + 1, 100, "Completato", false, false);
                     }
 
-                    this.AppendLog("Merge batch completato.");
+                    if (!stopped)
+                    {
+                        this.AppendLog("Merge batch completato.");
+                        this.CompleteProgress("Merge batch completato");
+                    }
                 }
                 catch (Exception ex)
                 {
                     this.AppendLog("Errore durante merge batch: " + ex.Message);
+                    this.CompleteProgress("Errore merge batch");
                 }
 
                 this.SetBusy(false);
@@ -397,16 +526,32 @@ namespace RemuxForge.Web.Services
         }
 
         /// <summary>
+        /// Richiede stop cooperativo dell'operazione corrente
+        /// </summary>
+        public void RequestStop()
+        {
+            lock (this._lock)
+            {
+                this._stopRequested = true;
+            }
+
+            this.AppendLog("Stop richiesto: l'operazione si fermera' al prossimo punto sicuro");
+        }
+
+        /// <summary>
         /// Restituisce una copia della lista record corrente
         /// </summary>
         /// <returns>Lista di record</returns>
         public List<FileProcessingRecord> GetRecords()
         {
-            List<FileProcessingRecord> result = null;
-
+            List<FileProcessingRecord> result;
             lock (this._lock)
             {
-                result = new List<FileProcessingRecord>(this._records);
+                result = new List<FileProcessingRecord>();
+                for (int i = 0; i < this._records.Count; i++)
+                {
+                    result.Add(this.CloneRecord(this._records[i]));
+                }
             }
 
             return result;
@@ -420,7 +565,6 @@ namespace RemuxForge.Web.Services
         public FileProcessingRecord GetRecord(int index)
         {
             FileProcessingRecord result = null;
-
             lock (this._lock)
             {
                 if (index >= 0 && index < this._records.Count)
@@ -442,8 +586,263 @@ namespace RemuxForge.Web.Services
         /// <param name="busy">Stato busy</param>
         private void SetBusy(bool busy)
         {
+            if (busy)
+            {
+                lock (this._lock)
+                {
+                    this._stopRequested = false;
+                }
+            }
+
             this._isBusy = busy;
-            this.OnBusyChanged?.Invoke(busy);
+        }
+
+        /// <summary>
+        /// True se e' stato richiesto stop cooperativo
+        /// </summary>
+        private bool IsStopRequested()
+        {
+            bool result;
+            lock (this._lock)
+            {
+                result = this._stopRequested;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Crea uno snapshot UI di un record senza condividere liste mutabili
+        /// </summary>
+        /// <param name="record">Record originale</param>
+        /// <returns>Copia per lettura UI</returns>
+        private FileProcessingRecord CloneRecord(FileProcessingRecord record)
+        {
+            FileProcessingRecord result = new FileProcessingRecord();
+
+            result.EpisodeId = record.EpisodeId;
+            result.SourceFileName = record.SourceFileName;
+            result.SourceSize = record.SourceSize;
+            result.SourceAudioLangs = new List<string>(record.SourceAudioLangs);
+            result.SourceSubLangs = new List<string>(record.SourceSubLangs);
+            result.LangFileName = record.LangFileName;
+            result.LangSize = record.LangSize;
+            result.LangAudioLangs = new List<string>(record.LangAudioLangs);
+            result.LangSubLangs = new List<string>(record.LangSubLangs);
+            result.ResultFileName = record.ResultFileName;
+            result.ResultSize = record.ResultSize;
+            result.ResultAudioLangs = new List<string>(record.ResultAudioLangs);
+            result.ResultSubLangs = new List<string>(record.ResultSubLangs);
+            result.AudioDelayApplied = record.AudioDelayApplied;
+            result.SubDelayApplied = record.SubDelayApplied;
+            result.FrameSyncTimeMs = record.FrameSyncTimeMs;
+            result.FrameSyncResult = record.FrameSyncResult;
+            result.MergeTimeMs = record.MergeTimeMs;
+            result.Success = record.Success;
+            result.SpeedCorrectionTimeMs = record.SpeedCorrectionTimeMs;
+            result.StretchFactor = record.StretchFactor;
+            result.SpeedCorrectionApplied = record.SpeedCorrectionApplied;
+            result.SkipReason = record.SkipReason;
+            result.Status = record.Status;
+            result.ManualAudioDelayMs = record.ManualAudioDelayMs;
+            result.ManualSubDelayMs = record.ManualSubDelayMs;
+            result.AnalysisLog = new List<string>(record.AnalysisLog);
+            result.ErrorMessage = record.ErrorMessage;
+            result.SourceFilePath = record.SourceFilePath;
+            result.LangFilePath = record.LangFilePath;
+            result.SyncOffsetMs = record.SyncOffsetMs;
+            result.MergeCommand = record.MergeCommand;
+            result.EncodingProfileName = record.EncodingProfileName;
+            result.EncodingTimeMs = record.EncodingTimeMs;
+            result.EncodedSize = record.EncodedSize;
+            result.EncodingCommand = record.EncodingCommand;
+            result.ResultFilePath = record.ResultFilePath;
+            result.SourceAudioTracks = new List<TrackInfo>(record.SourceAudioTracks);
+            result.SourceSubTracks = new List<TrackInfo>(record.SourceSubTracks);
+            result.KeptSourceAudioIds = new List<int>(record.KeptSourceAudioIds);
+            result.KeptSourceSubIds = new List<int>(record.KeptSourceSubIds);
+            result.ImportedAudioTracks = new List<TrackInfo>(record.ImportedAudioTracks);
+            result.ImportedSubTracks = new List<TrackInfo>(record.ImportedSubTracks);
+            result.DisplayConvertFormat = record.DisplayConvertFormat;
+            result.DeepAnalysisMap = record.DeepAnalysisMap;
+            result.DeepAnalysisTimeMs = record.DeepAnalysisTimeMs;
+            result.DeepAnalysisApplied = record.DeepAnalysisApplied;
+
+            return result;
+        }
+
+        /// <summary>
+        /// Inizializza lo stato avanzamento
+        /// </summary>
+        /// <param name="operation">Nome operazione</param>
+        /// <param name="total">Numero totale elementi</param>
+        /// <param name="indeterminate">True se durata non determinabile</param>
+        private void BeginProgress(string operation, int total, bool indeterminate)
+        {
+            lock (this._lock)
+            {
+                this._progress.IsActive = true;
+                this._progress.Operation = operation;
+                this._progress.CurrentEpisode = "";
+                this._progress.CurrentStatus = "";
+                this._progress.CurrentIndex = 0;
+                this._progress.Total = total;
+                this._progress.Completed = 0;
+                this._progress.CurrentPercent = 0;
+                this._progress.GlobalPercent = 0;
+                this._progress.CurrentIndeterminate = indeterminate;
+                this._progress.GlobalIndeterminate = indeterminate || total <= 0;
+            }
+
+            this.OnProgressChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Aggiorna lo stato avanzamento
+        /// </summary>
+        private void UpdateProgress(string currentEpisode, int currentIndex, int completed, int currentPercent, string currentStatus, bool currentIndeterminate, bool globalIndeterminate)
+        {
+            int globalPercent = 0;
+            lock (this._lock)
+            {
+                if (this._progress.Total > 0)
+                {
+                    globalPercent = completed * 100 / this._progress.Total;
+                }
+
+                this._progress.CurrentEpisode = currentEpisode != null ? currentEpisode : "";
+                this._progress.CurrentStatus = currentStatus != null ? currentStatus : "";
+                this._progress.CurrentIndex = currentIndex;
+                this._progress.Completed = completed;
+                this._progress.CurrentPercent = this.ClampPercent(currentPercent);
+                this._progress.GlobalPercent = this.ClampPercent(globalPercent);
+                this._progress.CurrentIndeterminate = currentIndeterminate;
+                this._progress.GlobalIndeterminate = globalIndeterminate || this._progress.Total <= 0;
+            }
+
+            this.OnProgressChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Marca lo stato avanzamento come completato
+        /// </summary>
+        /// <param name="status">Stato finale</param>
+        private void CompleteProgress(string status)
+        {
+            lock (this._lock)
+            {
+                this._progress.IsActive = false;
+                this._progress.CurrentStatus = status != null ? status : "";
+                this._progress.CurrentPercent = 100;
+                this._progress.CurrentIndeterminate = false;
+                this._progress.GlobalIndeterminate = false;
+
+                if (this._progress.Total > 0)
+                {
+                    this._progress.Completed = this._progress.Total;
+                    this._progress.GlobalPercent = 100;
+                }
+            }
+
+            this.OnProgressChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Aggiorna il progresso episodio usando substep strutturati del Core
+        /// </summary>
+        private void UpdateProgressFromPipelineStep(LogSection section, int percent, string status)
+        {
+            int mappedPercent = this.MapPipelineStepPercent(section, percent);
+
+            if (!this._isBusy)
+            {
+                return;
+            }
+
+            this.UpdateCurrentProgress(mappedPercent, status);
+        }
+
+        /// <summary>
+        /// Mappa percentuali locali dei servizi su una progressione episodio stabile
+        /// </summary>
+        private int MapPipelineStepPercent(LogSection section, int percent)
+        {
+            int clamped = this.ClampPercent(percent);
+            int result = clamped;
+
+            if (section == LogSection.Speed)
+            {
+                result = 5 + clamped * 22 / 100;
+            }
+            else if (section == LogSection.FrameSync)
+            {
+                result = 28 + clamped * 60 / 100;
+            }
+            else if (section == LogSection.Deep)
+            {
+                result = 28 + clamped * 60 / 100;
+            }
+            else if (section == LogSection.Conv)
+            {
+                result = 20 + clamped * 55 / 100;
+            }
+            else if (section == LogSection.Merge)
+            {
+                result = 60 + clamped * 40 / 100;
+            }
+
+            return this.ClampPercent(result);
+        }
+
+        /// <summary>
+        /// Aggiorna solo la barra episodio mantenendo globale e contatori batch
+        /// </summary>
+        private void UpdateCurrentProgress(int currentPercent, string currentStatus)
+        {
+            int globalPercent;
+            lock (this._lock)
+            {
+                if (!this._progress.IsActive)
+                {
+                    return;
+                }
+
+                if (currentPercent < this._progress.CurrentPercent && this._progress.CurrentPercent < 85)
+                {
+                    currentPercent = this._progress.CurrentPercent;
+                }
+
+                this._progress.CurrentPercent = this.ClampPercent(currentPercent);
+                this._progress.CurrentStatus = currentStatus != null ? currentStatus : "";
+                this._progress.CurrentIndeterminate = false;
+
+                if (this._progress.Total > 0)
+                {
+                    globalPercent = ((this._progress.Completed * 100) + this._progress.CurrentPercent) / this._progress.Total;
+                    this._progress.GlobalPercent = this.ClampPercent(globalPercent);
+                    this._progress.GlobalIndeterminate = false;
+                }
+            }
+
+            this.OnProgressChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Limita una percentuale al range valido
+        /// </summary>
+        private int ClampPercent(int value)
+        {
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 100)
+            {
+                return 100;
+            }
+
+            return value;
         }
 
         /// <summary>
@@ -490,30 +889,6 @@ namespace RemuxForge.Web.Services
             this.AppendLog(message);
         }
 
-        /// <summary>
-        /// Sovrascrive l'ultima riga del log con un nuovo messaggio (per progresso ffmpeg)
-        /// </summary>
-        /// <param name="message">Messaggio da mostrare al posto dell'ultima riga</param>
-        public void UpdateLastLog(string message)
-        {
-            lock (this._lock)
-            {
-                // Trova l'ultimo newline e tronca
-                int lastNewLine = this._logText.LastIndexOf('\n');
-                if (lastNewLine >= 0)
-                {
-                    this._logText = this._logText.Substring(0, lastNewLine) + "\n" + message;
-                }
-                else
-                {
-                    // Una sola riga nel log
-                    this._logText = message;
-                }
-            }
-
-            this.OnLog?.Invoke(message);
-        }
-
         #endregion
 
         #region Proprieta
@@ -549,6 +924,20 @@ namespace RemuxForge.Web.Services
         {
             get { return this._selectedIndex; }
             set { this._selectedIndex = value; }
+        }
+
+        /// <summary>
+        /// Stato avanzamento corrente
+        /// </summary>
+        public ProcessingProgressState Progress
+        {
+            get
+            {
+                lock (this._lock)
+                {
+                    return this._progress.Clone();
+                }
+            }
         }
 
         #endregion

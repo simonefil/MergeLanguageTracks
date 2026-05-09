@@ -1,24 +1,39 @@
-using System;
+using RemuxForge.Core.Configuration;
+using RemuxForge.Core.Infrastructure;
+using RemuxForge.Core.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RemuxForge.Web.Components;
 using RemuxForge.Web.Services;
-using RemuxForge.Core;
+using System;
 
 namespace RemuxForge.Web
 {
+    /// <summary>
+    /// Entry point della WebUI RemuxForge
+    /// </summary>
     public class Program
     {
+        /// <summary>
+        /// Avvia l'applicazione WebUI
+        /// </summary>
+        /// <param name="args">Argomenti riga di comando</param>
         public static void Main(string[] args)
         {
             int port = 5000;
             string envPort = Environment.GetEnvironmentVariable("REMUXFORGE_PORT");
 
+            ConsoleHelper.SetRuntimeMode(LogRuntimeMode.WebUi);
+
             if (envPort != null)
             {
-                int.TryParse(envPort, out port);
+                int parsedPort;
+                if (int.TryParse(envPort, out parsedPort) && parsedPort >= 1 && parsedPort <= 65535)
+                {
+                    port = parsedPort;
+                }
             }
             else
             {
@@ -26,45 +41,46 @@ namespace RemuxForge.Web
                 {
                     if (args[i] == "--port" && i + 1 < args.Length)
                     {
-                        int.TryParse(args[i + 1], out port);
+                        int parsedPort;
+                        if (int.TryParse(args[i + 1], out parsedPort) && parsedPort >= 1 && parsedPort <= 65535)
+                        {
+                            port = parsedPort;
+                        }
                     }
                 }
             }
 
             // Inizializza impostazioni applicazione
             AppSettingsService.Instance.Initialize();
+            ToolPathResolverService toolPathResolver = new ToolPathResolverService(AppSettingsService.Instance.ConfigFolder);
+            string mkvMergePath;
+            string ffmpegPath;
+            string mediaInfoPath;
 
             // Auto-find tool (mkvmerge, ffmpeg, mediainfo)
             bool toolsChanged = false;
-
-            if (AppSettingsService.Instance.Settings.Tools.MkvMergePath.Length == 0 || AppSettingsService.Instance.Settings.Tools.MkvMergePath == "mkvmerge" || !System.IO.File.Exists(AppSettingsService.Instance.Settings.Tools.MkvMergePath))
+            mkvMergePath = toolPathResolver.ResolveMkvMergePath(false);
+            if (mkvMergePath.Length > 0)
             {
-                MkvMergeProvider mkvProvider = new MkvMergeProvider();
-                if (mkvProvider.Resolve(false))
+                if (!string.Equals(AppSettingsService.Instance.Settings.Tools.MkvMergePath, mkvMergePath, System.StringComparison.Ordinal))
                 {
-                    AppSettingsService.Instance.Settings.Tools.MkvMergePath = mkvProvider.MkvMergePath;
+                    AppSettingsService.Instance.Settings.Tools.MkvMergePath = mkvMergePath;
                     toolsChanged = true;
                 }
             }
 
-            if (AppSettingsService.Instance.Settings.Tools.FfmpegPath.Length == 0 || !System.IO.File.Exists(AppSettingsService.Instance.Settings.Tools.FfmpegPath))
+            ffmpegPath = toolPathResolver.ResolveFfmpegPath(false, false);
+            if (ffmpegPath.Length > 0 && !string.Equals(AppSettingsService.Instance.Settings.Tools.FfmpegPath, ffmpegPath, System.StringComparison.Ordinal))
             {
-                FfmpegProvider ffProvider = new FfmpegProvider(AppSettingsService.Instance.ConfigFolder);
-                if (ffProvider.Resolve(false, false))
-                {
-                    AppSettingsService.Instance.Settings.Tools.FfmpegPath = ffProvider.FfmpegPath;
-                    toolsChanged = true;
-                }
+                AppSettingsService.Instance.Settings.Tools.FfmpegPath = ffmpegPath;
+                toolsChanged = true;
             }
 
-            if (AppSettingsService.Instance.Settings.Tools.MediaInfoPath.Length == 0 || !System.IO.File.Exists(AppSettingsService.Instance.Settings.Tools.MediaInfoPath))
+            mediaInfoPath = toolPathResolver.ResolveMediaInfoPath(false);
+            if (mediaInfoPath.Length > 0 && !string.Equals(AppSettingsService.Instance.Settings.Tools.MediaInfoPath, mediaInfoPath, System.StringComparison.Ordinal))
             {
-                MediaInfoProvider miProvider = new MediaInfoProvider();
-                if (miProvider.Resolve(false))
-                {
-                    AppSettingsService.Instance.Settings.Tools.MediaInfoPath = miProvider.MediaInfoPath;
-                    toolsChanged = true;
-                }
+                AppSettingsService.Instance.Settings.Tools.MediaInfoPath = mediaInfoPath;
+                toolsChanged = true;
             }
 
             if (toolsChanged)

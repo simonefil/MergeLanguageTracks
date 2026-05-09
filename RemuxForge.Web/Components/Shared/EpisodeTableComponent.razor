@@ -23,7 +23,7 @@
                     string selectedCss = (idx == SelectedIndex) ? " selected" : "";
                     <tr class="@(statusCss + selectedCss)"
                         @onclick="() => OnRowSelected.InvokeAsync(idx)"
-                        @oncontextmenu="(e) => OnContextMenu.InvokeAsync((idx, e.ClientX, e.ClientY))"
+                        @oncontextmenu="e => OnContextMenu.InvokeAsync((idx, e.ClientX, e.ClientY))"
                         @oncontextmenu:preventDefault="true">
                         <td>@r.EpisodeId</td>
                         <td>@Utils.GetStatusText(r.Status)</td>

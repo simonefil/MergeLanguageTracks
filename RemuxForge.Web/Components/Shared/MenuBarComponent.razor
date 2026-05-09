@@ -109,6 +109,11 @@
     [Parameter] public EventCallback OnMergeAll { get; set; }
 
     /// <summary>
+    /// Evento richiesta stop operazione
+    /// </summary>
+    [Parameter] public EventCallback OnStop { get; set; }
+
+    /// <summary>
     /// Evento mostra configurazione
     /// </summary>
     [Parameter] public EventCallback OnShowConfig { get; set; }
@@ -194,6 +199,7 @@
                 new MenuItemDef { Label = "IsSeparator", IsSeparator = true, Shortcut = "", Callback = null },
                 new MenuItemDef { Label = "Processa selezionato", Shortcut = "F9", Callback = () => OnMergeSelected.InvokeAsync() },
                 new MenuItemDef { Label = "Processa tutti", Shortcut = "F10", Callback = () => OnMergeAll.InvokeAsync() },
+                new MenuItemDef { Label = "Stop", Shortcut = "F12", Callback = () => OnStop.InvokeAsync() },
             }},
             new MenuDef { Label = "Impostazioni", Items = new List<MenuItemDef>
             {

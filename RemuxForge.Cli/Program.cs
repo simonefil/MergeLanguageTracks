@@ -1,9 +1,15 @@
+using RemuxForge.Core.Configuration;
+using RemuxForge.Core.Infrastructure;
+using RemuxForge.Core.Models;
+using RemuxForge.Core.Pipeline;
 using System;
 using System.Collections.Generic;
-using RemuxForge.Core;
 
 namespace RemuxForge.Cli
 {
+    /// <summary>
+    /// Entry point applicativo della CLI RemuxForge
+    /// </summary>
     internal class Program
     {
         #region Entry point
@@ -18,10 +24,12 @@ namespace RemuxForge.Cli
             bool done = false;
             int exitCode = 0;
             Options opts = null;
+            OptionsValidationResult validation;
+            ConsoleHelper.SetRuntimeMode(LogRuntimeMode.Cli);
 
             // Abilita log su file se variabile d'ambiente impostata
             string logFilePath = Environment.GetEnvironmentVariable("REMUXFORGE_LOG_FILE");
-            if (logFilePath != null && logFilePath.Length > 0)
+            if (!string.IsNullOrEmpty(logFilePath))
             {
                 ConsoleHelper.EnableFileLog(logFilePath);
             }
@@ -29,14 +37,12 @@ namespace RemuxForge.Cli
             // Inizializza AppSettings e cartella .remux-forge prima di tutto
             AppSettingsService.Instance.Initialize();
             ProcessingPipeline pipeline = null;
-            List<FileProcessingRecord> records = null;
-            ProcessingStats stats = null;
-
-            // Nessun argomento: avvia TUI interattiva
+            List<FileProcessingRecord> records;
+            ProcessingStats stats;
+            // Nessun argomento: mostra help CLI
             if (args.Length == 0)
             {
-                TuiApp tuiApp = new TuiApp();
-                tuiApp.Run();
+                PrintHelp();
                 done = true;
             }
 
@@ -60,13 +66,32 @@ namespace RemuxForge.Cli
                 done = true;
             }
 
+            if (!done)
+            {
+                validation = OptionsValidator.Validate(opts, true, false);
+                if (!validation.IsValid)
+                {
+                    for (int i = 0; i < validation.Errors.Count; i++)
+                    {
+                        ConsoleHelper.Write(LogSection.Config, LogLevel.Error, "Errore: " + validation.Errors[i]);
+                    }
+                    for (int i = 0; i < validation.Warnings.Count; i++)
+                    {
+                        ConsoleHelper.Write(LogSection.Config, LogLevel.Info, validation.Warnings[i]);
+                    }
+
+                    exitCode = 1;
+                    done = true;
+                }
+            }
+
             // Inizializza pipeline
             if (!done)
             {
                 pipeline = new ProcessingPipeline();
 
                 // Collega log pipeline alla console
-                pipeline.OnLogMessage += (LogSection section, LogLevel level, string text) =>
+                pipeline.OnLogMessage += (section, level, text) =>
                 {
                     // Componi testo con prefisso sezione se non General
                     string displayText = section != LogSection.General ? ConsoleHelper.FormatSectionPrefix(section) + text : text;
@@ -200,13 +225,18 @@ OPZIONI OUTPUT (mutuamente esclusive, una obbligatoria):
 
 OPZIONI SYNC:
   -fs,  --framesync              Abilita sync tramite confronto visivo frame
+        --framesync-diagnostics  Scrive JSON diagnostici frame-sync in .remux-forge/framesync-diagnostics
   -da,  --deep-analysis          Analisi completa per file con edit diversi (lento)
+        --deep-analysis-diagnostics
+                                 Scrive JSON diagnostici deep-analysis in .remux-forge/deepanalysis-diagnostics
+        --speed-correction <m>   Correzione velocita': off, auto, manual (default: off)
+        --stretch-factor <f>     Stretch manuale per mkvmerge --sync (es: 25000/24000)
+        --no-speed-correction    Alias per --speed-correction off
   -ad,  --audio-delay <ms>       Delay manuale audio in ms (sommato a sync auto)
   -sd,  --subtitle-delay <ms>    Delay manuale sottotitoli in ms
 
-  NOTA: La correzione velocita' (es. PAL 25fps vs NTSC 23.976fps) e'
-        automatica e non richiede opzioni. Necessita di ffmpeg
-
+  NOTA: In auto la correzione velocita' usa MediaInfo e non viene applicata
+        su VFR. Per VFR usare --speed-correction manual --stretch-factor.
 OPZIONI FILTRO:
   -ac,  --audio-codec <codec>    Importa solo audio con codec specifico (es: E-AC-3 oppure DTS,E-AC-3)
   -so,  --sub-only               Importa solo sottotitoli (ignora audio)
@@ -336,9 +366,10 @@ REQUISITI:
   - ffmpeg per frame-sync (scaricato automaticamente se mancante)
 
 NOTE:
-  Correzione velocita' (stretch): rileva automaticamente differenze FPS tra
-  sorgente e lingua (es. PAL 25fps vs NTSC 23.976fps). Corregge tramite
-  mkvmerge --sync senza ricodifica. Richiede ffmpeg per la verifica.
+  Correzione velocita' (stretch): default off. In auto rileva differenze FPS
+  solo su sorgenti CFR confermate da MediaInfo. Su VFR non applica stretch
+  automatico; usare modalita' manuale con --stretch-factor. Corregge tramite
+  mkvmerge --sync senza ricodifica e richiede ffmpeg per la verifica.
 
   Frame-sync: rileva i tagli scena nei frame grayscale 320x240 e li confronta
   tra sorgente e lingua per trovare il delay. Verifica a 9 punti distribuiti
@@ -380,6 +411,12 @@ NOTE:
             }
 
             // Mostra configurazione sync
+            ConsoleHelper.Write(LogSection.Config, LogLevel.Text, "  Speed correction:   " + opts.SpeedCorrectionMode);
+            if (opts.ManualStretchFactor.Length > 0)
+            {
+                ConsoleHelper.Write(LogSection.Config, LogLevel.Text, "  Stretch manuale:    " + opts.ManualStretchFactor);
+            }
+
             if (opts.DeepAnalysis)
             {
                 ConsoleHelper.Write(LogSection.Config, LogLevel.Success, "  Deep analysis:       ATTIVO");
@@ -452,58 +489,59 @@ NOTE:
 
             if (validRecords.Count > 0)
             {
-            ConsoleHelper.Write(LogSection.Report, LogLevel.Phase, "\n========================================");
-            ConsoleHelper.Write(LogSection.Report, LogLevel.Phase, "  Report Dettagliato");
-            ConsoleHelper.Write(LogSection.Report, LogLevel.Phase, "========================================\n");
+                ConsoleHelper.Write(LogSection.Report, LogLevel.Phase, "\n========================================");
+                ConsoleHelper.Write(LogSection.Report, LogLevel.Phase, "  Report Dettagliato");
+                ConsoleHelper.Write(LogSection.Report, LogLevel.Phase, "========================================\n");
 
-            // Tabella 1: Source Files
-            ConsoleHelper.Write(LogSection.Report, LogLevel.Info, "SOURCE FILES:");
-            ConsoleHelper.Write(LogSection.Report, LogLevel.Text, "  " + Utils.PadRight("Episode", 12) + Utils.PadRight("Audio", 20) + Utils.PadRight("Subtitles", 20) + Utils.PadRight("Size", 12));
-            ConsoleHelper.Write(LogSection.Report, LogLevel.Debug, "  " + new string('-', 64));
+                // Tabella 1: Source Files
+                ConsoleHelper.Write(LogSection.Report, LogLevel.Info, "SOURCE FILES:");
+                ConsoleHelper.Write(LogSection.Report, LogLevel.Text, "  " + Utils.PadRight("Episode", 12) + Utils.PadRight("Audio", 20) + Utils.PadRight("Subtitles", 20) + Utils.PadRight("Size", 12));
+                ConsoleHelper.Write(LogSection.Report, LogLevel.Debug, "  " + new string('-', 64));
 
-            for (int i = 0; i < validRecords.Count; i++)
-            {
-                FileProcessingRecord r = validRecords[i];
-                string line = "  " + Utils.PadRight(r.EpisodeId, 12) + Utils.PadRight(Utils.FormatLangs(r.SourceAudioLangs), 20) + Utils.PadRight(Utils.FormatLangs(r.SourceSubLangs), 20) + Utils.PadRight(Utils.FormatSize(r.SourceSize), 12);
-                ConsoleHelper.Write(LogSection.Report, LogLevel.Text, line);
-            }
+                for (int i = 0; i < validRecords.Count; i++)
+                {
+                    FileProcessingRecord r = validRecords[i];
+                    string line = "  " + Utils.PadRight(r.EpisodeId, 12) + Utils.PadRight(Utils.FormatLangs(r.SourceAudioLangs), 20) + Utils.PadRight(Utils.FormatLangs(r.SourceSubLangs), 20) + Utils.PadRight(Utils.FormatSize(r.SourceSize), 12);
+                    ConsoleHelper.Write(LogSection.Report, LogLevel.Text, line);
+                }
 
-            Console.WriteLine();
+                Console.WriteLine();
 
-            // Tabella 2: Language Files
-            ConsoleHelper.Write(LogSection.Report, LogLevel.Info, "LANGUAGE FILES:");
-            ConsoleHelper.Write(LogSection.Report, LogLevel.Text, "  " + Utils.PadRight("Episode", 12) + Utils.PadRight("Audio", 20) + Utils.PadRight("Subtitles", 20) + Utils.PadRight("Size", 12));
-            ConsoleHelper.Write(LogSection.Report, LogLevel.Debug, "  " + new string('-', 64));
+                // Tabella 2: Language Files
+                ConsoleHelper.Write(LogSection.Report, LogLevel.Info, "LANGUAGE FILES:");
+                ConsoleHelper.Write(LogSection.Report, LogLevel.Text, "  " + Utils.PadRight("Episode", 12) + Utils.PadRight("Audio", 20) + Utils.PadRight("Subtitles", 20) + Utils.PadRight("Size", 12));
+                ConsoleHelper.Write(LogSection.Report, LogLevel.Debug, "  " + new string('-', 64));
 
-            for (int i = 0; i < validRecords.Count; i++)
-            {
-                FileProcessingRecord r = validRecords[i];
-                string line = "  " + Utils.PadRight(r.EpisodeId, 12) + Utils.PadRight(Utils.FormatLangs(r.LangAudioLangs), 20) + Utils.PadRight(Utils.FormatLangs(r.LangSubLangs), 20) + Utils.PadRight(Utils.FormatSize(r.LangSize), 12);
-                ConsoleHelper.Write(LogSection.Report, LogLevel.Text, line);
-            }
+                for (int i = 0; i < validRecords.Count; i++)
+                {
+                    FileProcessingRecord r = validRecords[i];
+                    string line = "  " + Utils.PadRight(r.EpisodeId, 12) + Utils.PadRight(Utils.FormatLangs(r.LangAudioLangs), 20) + Utils.PadRight(Utils.FormatLangs(r.LangSubLangs), 20) + Utils.PadRight(Utils.FormatSize(r.LangSize), 12);
+                    ConsoleHelper.Write(LogSection.Report, LogLevel.Text, line);
+                }
 
-            Console.WriteLine();
+                Console.WriteLine();
 
-            // Tabella 3: Result Files
-            ConsoleHelper.Write(LogSection.Report, LogLevel.Info, "RESULT FILES:");
-            ConsoleHelper.Write(LogSection.Report, LogLevel.Text, "  " + Utils.PadRight("Episode", 12) + Utils.PadRight("Audio", 15) + Utils.PadRight("Subtitles", 15) + Utils.PadRight("Size", 10) + Utils.PadRight("Delay", 12) + Utils.PadRight("FrmSync", 10) + Utils.PadRight("Deep", 10) + Utils.PadRight("Speed", 10) + Utils.PadRight("Merge", 10));
-            ConsoleHelper.Write(LogSection.Report, LogLevel.Debug, "  " + new string('-', 104));
+                // Tabella 3: Result Files
+                ConsoleHelper.Write(LogSection.Report, LogLevel.Info, "RESULT FILES:");
+                ConsoleHelper.Write(LogSection.Report, LogLevel.Text, "  " + Utils.PadRight("Episode", 12) + Utils.PadRight("Audio", 15) + Utils.PadRight("Subtitles", 15) + Utils.PadRight("Size", 10) + Utils.PadRight("Delay", 12) + Utils.PadRight("FrmSync", 10) + Utils.PadRight("FSConf", 8) + Utils.PadRight("Deep", 10) + Utils.PadRight("Speed", 10) + Utils.PadRight("Merge", 10));
+                ConsoleHelper.Write(LogSection.Report, LogLevel.Debug, "  " + new string('-', 112));
 
-            for (int i = 0; i < validRecords.Count; i++)
-            {
-                FileProcessingRecord r = validRecords[i];
-                string sizeStr = isDryRun ? "N/A" : Utils.FormatSize(r.ResultSize);
-                string delayStr = Utils.FormatDelay(r.AudioDelayApplied);
-                string frameSyncStr = r.FrameSyncTimeMs > 0 ? r.FrameSyncTimeMs + "ms" : "-";
-                string deepStr = r.DeepAnalysisApplied && r.DeepAnalysisMap != null ? r.DeepAnalysisMap.Operations.Count + " ops" : "-";
-                string speedStr = r.SpeedCorrectionTimeMs > 0 ? r.SpeedCorrectionTimeMs + "ms" : "-";
-                string mergeStr = r.MergeTimeMs > 0 ? r.MergeTimeMs + "ms" : (isDryRun ? "N/A" : "-");
+                for (int i = 0; i < validRecords.Count; i++)
+                {
+                    FileProcessingRecord r = validRecords[i];
+                    string sizeStr = isDryRun ? "N/A" : Utils.FormatSize(r.ResultSize);
+                    string delayStr = Utils.FormatDelay(r.AudioDelayApplied);
+                    string frameSyncStr = r.FrameSyncTimeMs > 0 ? r.FrameSyncTimeMs + "ms" : "-";
+                    string frameSyncConfidenceStr = r.FrameSyncResult != null ? r.FrameSyncResult.Confidence.ToString("P0", System.Globalization.CultureInfo.InvariantCulture) : "-";
+                    string deepStr = r.DeepAnalysisApplied && r.DeepAnalysisMap != null ? r.DeepAnalysisMap.Operations.Count + " ops" : "-";
+                    string speedStr = r.SpeedCorrectionTimeMs > 0 ? r.SpeedCorrectionTimeMs + "ms" : "-";
+                    string mergeStr = r.MergeTimeMs > 0 ? r.MergeTimeMs + "ms" : (isDryRun ? "N/A" : "-");
 
-                string line = "  " + Utils.PadRight(r.EpisodeId, 12) + Utils.PadRight(Utils.FormatLangs(r.ResultAudioLangs), 15) + Utils.PadRight(Utils.FormatLangs(r.ResultSubLangs), 15) + Utils.PadRight(sizeStr, 10) + Utils.PadRight(delayStr, 12) + Utils.PadRight(frameSyncStr, 10) + Utils.PadRight(deepStr, 10) + Utils.PadRight(speedStr, 10) + Utils.PadRight(mergeStr, 10);
-                ConsoleHelper.Write(LogSection.Report, LogLevel.Text, line);
-            }
+                    string line = "  " + Utils.PadRight(r.EpisodeId, 12) + Utils.PadRight(Utils.FormatLangs(r.ResultAudioLangs), 15) + Utils.PadRight(Utils.FormatLangs(r.ResultSubLangs), 15) + Utils.PadRight(sizeStr, 10) + Utils.PadRight(delayStr, 12) + Utils.PadRight(frameSyncStr, 10) + Utils.PadRight(frameSyncConfidenceStr, 8) + Utils.PadRight(deepStr, 10) + Utils.PadRight(speedStr, 10) + Utils.PadRight(mergeStr, 10);
+                    ConsoleHelper.Write(LogSection.Report, LogLevel.Text, line);
+                }
 
-            Console.WriteLine();
+                Console.WriteLine();
             }
         }
 
