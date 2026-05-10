@@ -424,31 +424,25 @@ namespace RemuxForge.Core.Analysis.Deep
         /// </summary>
         private bool ShouldUseVisualBaselineOnly(DeepTimelineMapResult timelineMap, int visualBaselineOffsetMs, double inverseRatio)
         {
-            bool result = false;
             int timelineOffsetMs;
 
             if (visualBaselineOffsetMs == int.MinValue || timelineMap == null || timelineMap.Regions == null || timelineMap.Regions.Count != 1 || timelineMap.Diagnostic == null)
             {
-                return result;
+                return false;
             }
 
             if (!string.Equals(timelineMap.Diagnostic.AnchorMode, "audio-common", StringComparison.Ordinal))
             {
-                return result;
+                return false;
             }
 
             if (Math.Abs(inverseRatio - 1.0) > 0.0001)
             {
-                return result;
+                return false;
             }
 
             timelineOffsetMs = (int)Math.Round(timelineMap.Regions[0].OffsetMs);
-            if (Math.Abs(timelineOffsetMs - visualBaselineOffsetMs) > VISUAL_BASELINE_CONFLICT_THRESHOLD_MS)
-            {
-                result = true;
-            }
-
-            return result;
+            return Math.Abs(timelineOffsetMs - visualBaselineOffsetMs) > VISUAL_BASELINE_CONFLICT_THRESHOLD_MS;
         }
 
         /// <summary>
@@ -800,6 +794,7 @@ namespace RemuxForge.Core.Analysis.Deep
         private bool ValidateTimelineTransitions(List<DeepAnalysisTransitionDiagnostic> transitions)
         {
             bool result = true;
+
             if (transitions == null)
             {
                 return false;
@@ -807,20 +802,23 @@ namespace RemuxForge.Core.Analysis.Deep
 
             for (int i = 0; i < transitions.Count; i++)
             {
-                if (Math.Abs(transitions[i].DeltaMs) < 250)
+                if (Math.Abs(transitions[i].DeltaMs) < 500)
                 {
                     continue;
                 }
 
                 if (string.Equals(transitions[i].Status, "SkippedUnverified", StringComparison.Ordinal))
                 {
-                    continue;
+                    ConsoleHelper.Write(LogSection.Deep, LogLevel.Error, "  Timeline rifiutata: transizione " + transitions[i].Index.ToString(CultureInfo.InvariantCulture) + " scartata dalla verifica locale (" + transitions[i].RejectReason + ")");
+                    result = false;
+                    break;
                 }
 
                 if (!string.Equals(transitions[i].Status, "Accepted", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedAudio", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedTimeline", StringComparison.Ordinal))
                 {
                     ConsoleHelper.Write(LogSection.Deep, LogLevel.Error, "  Timeline rifiutata: transizione " + transitions[i].Index.ToString(CultureInfo.InvariantCulture) + " non risolta (" + transitions[i].RejectReason + ")");
-                    return false;
+                    result = false;
+                    break;
                 }
             }
 
@@ -1361,13 +1359,26 @@ namespace RemuxForge.Core.Analysis.Deep
         private DeepAnalysisLocalVerificationDiagnostic VerifyTransitionLocal(string sourceFile, string langFile, double crossoverSrcSec, double oldOffsetSec, double newOffsetSec, double inverseRatio)
         {
             DeepAnalysisLocalVerificationDiagnostic result = new DeepAnalysisLocalVerificationDiagnostic();
+            double offsetDeltaSec = newOffsetSec - oldOffsetSec;
+            double transitionDurationSec = Math.Abs(offsetDeltaSec);
+            bool insertSilenceTransition = this._currentAnalysisUsesTimelineMap && offsetDeltaSec > 0.0;
             double beforeSrcSec = crossoverSrcSec - 1.5;
             double afterSrcSec = crossoverSrcSec + 1.5;
-            double forwardSrcSec = crossoverSrcSec + Math.Max(4.0, Math.Abs(newOffsetSec - oldOffsetSec) + 2.0);
+            double forwardSrcSec = crossoverSrcSec + Math.Max(4.0, transitionDurationSec + 2.0);
             double oldTotal;
             double newTotal;
+            double forwardImprovementRatio = 0.0;
             if (beforeSrcSec < 0.0) { beforeSrcSec = 0.0; }
+            if (insertSilenceTransition)
+            {
+                // In INSERT_SILENCE il crossover e' il punto operativo: il nuovo offset diventa verificabile solo dopo la durata inserita.
+                afterSrcSec = crossoverSrcSec + transitionDurationSec + 2.0;
+                forwardSrcSec = crossoverSrcSec + transitionDurationSec + Math.Max(8.0, transitionDurationSec + 2.0);
+            }
 
+            result.BeforeSrcSec = beforeSrcSec;
+            result.AfterSrcSec = afterSrcSec;
+            result.ForwardSrcSec = forwardSrcSec;
             result.BeforeOldMse = this.ComputeLocalMseAt(sourceFile, langFile, beforeSrcSec, oldOffsetSec, inverseRatio);
             result.BeforeNewMse = this.ComputeLocalMseAt(sourceFile, langFile, beforeSrcSec, newOffsetSec, inverseRatio);
             result.AfterOldMse = this.ComputeLocalMseAt(sourceFile, langFile, afterSrcSec, oldOffsetSec, inverseRatio);
@@ -1375,17 +1386,36 @@ namespace RemuxForge.Core.Analysis.Deep
             result.ForwardOldMse = this.ComputeLocalMseAt(sourceFile, langFile, forwardSrcSec, oldOffsetSec, inverseRatio);
             result.ForwardNewMse = this.ComputeLocalMseAt(sourceFile, langFile, forwardSrcSec, newOffsetSec, inverseRatio);
 
-            oldTotal = this.SumValidMse(result.BeforeOldMse, result.AfterOldMse, result.ForwardOldMse);
-            newTotal = this.SumValidMse(result.BeforeNewMse, result.AfterNewMse, result.ForwardNewMse);
+            if (insertSilenceTransition)
+            {
+                oldTotal = this.SumValidMse(result.AfterOldMse, result.ForwardOldMse, double.MaxValue);
+                newTotal = this.SumValidMse(result.AfterNewMse, result.ForwardNewMse, double.MaxValue);
+            }
+            else
+            {
+                oldTotal = this.SumValidMse(result.BeforeOldMse, result.AfterOldMse, result.ForwardOldMse);
+                newTotal = this.SumValidMse(result.BeforeNewMse, result.AfterNewMse, result.ForwardNewMse);
+            }
 
             if (newTotal > 0.0)
             {
                 result.ImprovementRatio = oldTotal / newTotal;
             }
+            if (result.ForwardNewMse > 0.0)
+            {
+                forwardImprovementRatio = result.ForwardOldMse / result.ForwardNewMse;
+            }
 
             if (this._currentAnalysisUsesTimelineMap)
             {
-                result.Verified = result.AfterNewMse < result.AfterOldMse && result.ForwardNewMse < result.ForwardOldMse && result.ImprovementRatio >= 1.05;
+                if (insertSilenceTransition)
+                {
+                    result.Verified = (result.BeforeOldMse <= result.BeforeNewMse || result.ImprovementRatio >= 2.0) && (result.AfterNewMse <= result.AfterOldMse * 1.10 || forwardImprovementRatio >= 1.50) && (result.ImprovementRatio >= 1.05 || forwardImprovementRatio >= 1.50);
+                }
+                else
+                {
+                    result.Verified = result.AfterNewMse <= result.AfterOldMse * 1.02 && result.ForwardNewMse < result.ForwardOldMse && result.ImprovementRatio >= 1.05;
+                }
             }
             else
             {

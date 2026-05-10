@@ -44,7 +44,10 @@ namespace RemuxForge.Core.Analysis.Deep
         private const double WEAK_MIN_SCORE = 0.82;
         private const double WEAK_MIN_MARGIN = 0.010;
         private const int PLATEAU_TOLERANCE_MS = 100;
-        private const int MIN_TIMELINE_TRANSITION_MS = 250;
+        private const int MIN_TIMELINE_TRANSITION_MS = 500;
+        private const int ISOLATED_OUTLIER_MIN_DELTA_MS = 15000;
+        private const int ISOLATED_OUTLIER_MAX_NEIGHBOR_DELTA_MS = 15000;
+        private const double ISOLATED_OUTLIER_MAX_SCORE = 0.90;
         private const double DENSE_ANCHOR_STEP_SEC = 10.0;
         private const double DENSE_ANCHOR_WINDOW_SEC = 30.0;
         private const int MIN_ACCEPTED_ANCHORS = 5;
@@ -819,6 +822,8 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             this.MergeAdjacentPlateaus(diagnostic);
+            this.RemoveIsolatedOutlierPlateaus(diagnostic);
+            this.MergeAdjacentPlateaus(diagnostic);
         }
 
         /// <summary>
@@ -883,6 +888,52 @@ namespace RemuxForge.Core.Analysis.Deep
 
             diagnostic.Plateaus.Clear();
             diagnostic.Plateaus.AddRange(merged);
+        }
+
+        /// <summary>
+        /// Rimuove spike timeline isolati con un solo anchor e supporto debole
+        /// </summary>
+        /// <param name="diagnostic">Diagnostica contenente i plateau da filtrare</param>
+        private void RemoveIsolatedOutlierPlateaus(DeepAnalysisTimelineMapDiagnostic diagnostic)
+        {
+            List<DeepAnalysisTimelinePlateauDiagnostic> filtered = new List<DeepAnalysisTimelinePlateauDiagnostic>();
+            DeepAnalysisTimelinePlateauDiagnostic previous;
+            DeepAnalysisTimelinePlateauDiagnostic current;
+            DeepAnalysisTimelinePlateauDiagnostic next;
+            bool removeCurrent;
+
+            if (diagnostic.Plateaus == null || diagnostic.Plateaus.Count < 3)
+            {
+                return;
+            }
+
+            for (int i = 0; i < diagnostic.Plateaus.Count; i++)
+            {
+                current = diagnostic.Plateaus[i];
+                removeCurrent = false;
+
+                if (i > 0 && i < diagnostic.Plateaus.Count - 1 && current.AnchorCount <= 1 && current.AverageScore < ISOLATED_OUTLIER_MAX_SCORE)
+                {
+                    previous = diagnostic.Plateaus[i - 1];
+                    next = diagnostic.Plateaus[i + 1];
+
+                    if (Math.Abs(current.OffsetMs - previous.OffsetMs) >= ISOLATED_OUTLIER_MIN_DELTA_MS &&
+                        Math.Abs(current.OffsetMs - next.OffsetMs) >= ISOLATED_OUTLIER_MIN_DELTA_MS &&
+                        Math.Abs(previous.OffsetMs - next.OffsetMs) <= ISOLATED_OUTLIER_MAX_NEIGHBOR_DELTA_MS)
+                    {
+                        removeCurrent = true;
+                    }
+                }
+
+                if (!removeCurrent)
+                {
+                    current.Index = filtered.Count;
+                    filtered.Add(current);
+                }
+            }
+
+            diagnostic.Plateaus.Clear();
+            diagnostic.Plateaus.AddRange(filtered);
         }
 
         /// <summary>

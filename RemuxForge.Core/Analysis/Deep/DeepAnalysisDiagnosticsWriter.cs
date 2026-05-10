@@ -55,6 +55,10 @@ namespace RemuxForge.Core.Analysis.Deep
             payload.LanguageFilePath = record.LangFilePath;
             payload.Status = this.GetDiagnosticStatus(record);
             payload.ErrorMessage = record.ErrorMessage;
+            if (string.Equals(payload.Status, "DeepAnalysisFailed", StringComparison.Ordinal) && string.IsNullOrEmpty(payload.ErrorMessage))
+            {
+                payload.ErrorMessage = "Deep analysis fallita";
+            }
             payload.DeepAnalysisApplied = record.DeepAnalysisApplied;
             payload.DeepAnalysisTimeMs = record.DeepAnalysisTimeMs;
             payload.SpeedCorrectionMode = options != null ? options.SpeedCorrectionMode : "";
@@ -109,6 +113,11 @@ namespace RemuxForge.Core.Analysis.Deep
             if (record.DeepAnalysisApplied && record.DeepAnalysisMap != null)
             {
                 return "DeepAnalysisOk";
+            }
+
+            if (!record.DeepAnalysisApplied && record.DeepAnalysisMap != null)
+            {
+                return "DeepAnalysisFailed";
             }
 
             if (!string.IsNullOrEmpty(record.ErrorMessage))

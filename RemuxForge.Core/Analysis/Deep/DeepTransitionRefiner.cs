@@ -171,7 +171,7 @@ namespace RemuxForge.Core.Analysis.Deep
                 transition.DurationMs = durationMs;
                 transitions.Add(transition);
 
-                minOffsetChangeMs = 250;
+                minOffsetChangeMs = 500;
 
                 // Delta molto piccoli sono rumore rispetto alla precisione effettiva della timeline
                 if (durationMs < minOffsetChangeMs)
@@ -201,6 +201,11 @@ namespace RemuxForge.Core.Analysis.Deep
                 {
                     searchStartSrc = unsupportedGapStartSrc;
                     searchEndSrc = unsupportedGapEndSrc + 90.0;
+                    if (searchEndSrc > regions[r + 1].EndSrcSec) { searchEndSrc = regions[r + 1].EndSrcSec; }
+                }
+                if (timelineMode && regions[r + 1].MatchCount <= 1 && regions[r + 1].SupportEndSrcSec > searchEndSrc)
+                {
+                    searchEndSrc = regions[r + 1].SupportEndSrcSec;
                     if (searchEndSrc > regions[r + 1].EndSrcSec) { searchEndSrc = regions[r + 1].EndSrcSec; }
                 }
 

@@ -418,6 +418,18 @@ namespace RemuxForge.Core.Models
         /// </summary>
         public bool Verified { get; set; }
         /// <summary>
+        /// Timestamp source del punto prima della transizione
+        /// </summary>
+        public double BeforeSrcSec { get; set; }
+        /// <summary>
+        /// Timestamp source del punto dopo la transizione
+        /// </summary>
+        public double AfterSrcSec { get; set; }
+        /// <summary>
+        /// Timestamp source del punto forward della transizione
+        /// </summary>
+        public double ForwardSrcSec { get; set; }
+        /// <summary>
         /// MSE prima della transizione con vecchio offset
         /// </summary>
         public double BeforeOldMse { get; set; }
