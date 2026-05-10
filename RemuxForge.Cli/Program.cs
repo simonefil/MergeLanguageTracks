@@ -2,6 +2,7 @@ using RemuxForge.Core.Configuration;
 using RemuxForge.Core.Infrastructure;
 using RemuxForge.Core.Models;
 using RemuxForge.Core.Pipeline;
+using RemuxForge.Core.Splitting;
 using System;
 using System.Collections.Generic;
 
@@ -83,6 +84,22 @@ namespace RemuxForge.Cli
                     exitCode = 1;
                     done = true;
                 }
+            }
+
+            // Inizializza pipeline
+            if (!done && opts.Mode == Options.MODE_SPLIT)
+            {
+                try
+                {
+                    MkvSplitPipeline splitPipeline = new MkvSplitPipeline();
+                    exitCode = splitPipeline.Execute(opts);
+                }
+                catch (Exception ex)
+                {
+                    ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "Errore split: " + ex.Message);
+                    exitCode = 1;
+                }
+                done = true;
             }
 
             // Inizializza pipeline
@@ -206,24 +223,33 @@ namespace RemuxForge.Cli
             string helpText = @"
 RemuxForge v" + Utils.GetVersion() + @"
 
-USAGE: RemuxForge [OPTIONS]
+USAGE: RemuxForge --mode remux|split [OPTIONS]
 
-Unisce tracce audio e sottotitoli da file MKV in lingue diverse.
+Modalita' remux: unisce tracce audio e sottotitoli da file MKV in lingue diverse.
+Modalita' split: divide file MKV in segmenti/episodi.
 Supporta sincronizzazione automatica tramite confronto visivo frame.
 
-OPZIONI OBBLIGATORIE:
+OPZIONI COMUNI:
+  --mode remux|split             Obbligatorio. Modalita' operativa
+  -r,   --recursive              Cerca ricorsivamente nelle sottocartelle
+  -nr,  --no-recursive           Disabilita ricerca ricorsiva
+  -ext, --extensions <list>      Estensioni file da cercare. Default: mkv
+  -n,   --dry-run                Mostra cosa verrebbe fatto senza eseguire
+  -h,   --help                   Mostra questo messaggio
+
+REMUX - PARAMETRI OBBLIGATORI:
   -s,   --source <path>          Cartella con i file MKV sorgente
-  -t,   --target-language <code> Codice/i lingua ISO 639-2 (es: ita, eng  oppure: eng,ita)
+  -t,   --target-language <code> Codice/i lingua ISO 639-2 (es: ita oppure eng,ita)
 
-OPZIONI SORGENTE:
+REMUX - SORGENTE LINGUA:
   -l,   --language <path>        Cartella con i file MKV nella lingua da importare
-                                 Se omesso, usa la cartella sorgente (modalita' singola sorgente)
+                                 Se omesso, usa la cartella sorgente
 
-OPZIONI OUTPUT (mutuamente esclusive, una obbligatoria):
+REMUX - OUTPUT (scegliere destination oppure overwrite):
   -d,   --destination <path>     Cartella di output
   -o,   --overwrite              Sovrascrive i file sorgente
 
-OPZIONI SYNC:
+REMUX - SYNC:
   -fs,  --framesync              Abilita sync tramite confronto visivo frame
         --framesync-diagnostics  Scrive JSON diagnostici frame-sync in .remux-forge/framesync-diagnostics
   -da,  --deep-analysis          Analisi completa per file con edit diversi (lento)
@@ -234,10 +260,16 @@ OPZIONI SYNC:
         --no-speed-correction    Alias per --speed-correction off
   -ad,  --audio-delay <ms>       Delay manuale audio in ms (sommato a sync auto)
   -sd,  --subtitle-delay <ms>    Delay manuale sottotitoli in ms
+        --audio-source-fill-threshold-ms <ms>
+                                 Soglia per riempire audio importato con segmenti source
+        --audio-source-fill-language <code>
+                                 Lingua audio source da usare per i segmenti di riempimento
+        --audio-source-fill-modes <list>
+                                 Modalita': start,end,insert-silence
 
   NOTA: In auto la correzione velocita' usa MediaInfo e non viene applicata
         su VFR. Per VFR usare --speed-correction manual --stretch-factor.
-OPZIONI FILTRO:
+REMUX - FILTRO TRACCE:
   -ac,  --audio-codec <codec>    Importa solo audio con codec specifico (es: E-AC-3 oppure DTS,E-AC-3)
   -so,  --sub-only               Importa solo sottotitoli (ignora audio)
   -ao,  --audio-only             Importa solo audio (ignora sottotitoli)
@@ -246,28 +278,42 @@ OPZIONI FILTRO:
   -kss, --keep-source-subs       Lingue sub da mantenere nel sorgente
   -rt,  --rename-tracks          Rinomina tutte le tracce audio (non solo quelle convertite)
 
-OPZIONI MATCHING:
+REMUX - MATCHING:
   -m,   --match-pattern <regex>  Pattern per matching episodi (default: S(\d+)E(\d+))
-  -r,   --recursive              Cerca ricorsivamente nelle sottocartelle (default: true)
-  -nr,  --no-recursive           Disabilita la ricerca ricorsiva
-  -ext, --extensions <list>      Estensioni file da cercare (default: mkv). Separa con virgola: mkv,mp4,avi
 
-OPZIONI CONVERSIONE:
+REMUX - CONVERSIONE:
   -cf,  --convert-format <fmt>   Converte tracce lossless nel formato specificato: flac o opus
                                  Le tracce TrueHD Atmos e DTS:X non vengono mai convertite
                                  Impostazioni bitrate/compressione in .remux-forge/appsettings.json
 
-OPZIONI ENCODING:
+REMUX - ENCODING:
   -ep,  --encoding-profile <name> Profilo encoding video post-merge (definito in appsettings.json)
                                   Codec supportati: libx264, libx265, libsvtav1
                                   L'encoding avviene in-place sul file risultato
 
+SPLIT - PARAMETRI OBBLIGATORI:
+  -s,   --source <path>          File MKV oppure cartella MKV
+                                 Se e' una cartella, esegue batch con lo stesso pattern
+  Scegliere una sola modalita' di taglio tra quelle sotto:
+        --pattern ""5,5,5""        Raggruppa capitoli in segmenti
+        --ranges ""T1-T2,...""     Range espliciti. T accetta HH:MM:SS.mmm, secondi, f<frame>, END
+        --split-at ""T1,T2""       Split ai punti indicati
+        --trim-start T            Scarta prima di T
+        --trim-end T              Scarta dopo T
+        --chapters-each           Un segmento per capitolo
+
+SPLIT - INPUT E OUTPUT:
+        --source-raw <file>       PTS da file alternativo, solo single file
+        --output-dir <path>       Opzionale. Cartella output split
+                                 Se omesso, scrive accanto al file input
+        --output-template <tpl>   Opzionale. Template nomi output
+                                 Keyword: {source_name}, {n}, {n+213:03d}, {start}, {end}, {chapter_name}
+        --snap off|before|after|nearest
+                                 Snap start a keyframe (default: off)
+        --force                   Sovrascrive output split esistenti
+
 OPZIONI TOOL:
   -mkv,   --mkvmerge-path <path> Percorso mkvmerge (default: cerca in PATH)
-
-ALTRE OPZIONI:
-  -n,   --dry-run                Mostra cosa verrebbe fatto senza eseguire
-  -h,   --help                   Mostra questo messaggio
 
 CODEC AUDIO (per -ac):
   Dolby:
@@ -307,54 +353,67 @@ CODEC AUDIO (per -ac):
         DTSX           -> DTS:X
         LPCM, WAV      -> PCM
 
-ESEMPI:
+ESEMPI REMUX:
   # Unisci tracce italiane con frame-sync
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -d ""D:\Out"" -fs
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -d ""D:\Out"" -fs
 
   # Deep analysis per file con scene diverse
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -d ""D:\Out"" -da
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -d ""D:\Out"" -da
 
   # Dry run (mostra cosa farebbe senza eseguire)
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -d ""D:\Out"" -fs -n
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -d ""D:\Out"" -fs -n
 
   # Solo audio E-AC-3 italiano
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -ac ""E-AC-3"" -d ""D:\Out"" -fs
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -ac ""E-AC-3"" -d ""D:\Out"" -fs
 
   # Importa audio DTS o E-AC-3 italiano
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -ac ""DTS,E-AC-3"" -d ""D:\Out"" -fs
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -ac ""DTS,E-AC-3"" -d ""D:\Out"" -fs
 
   # Solo sottotitoli (no audio)
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -so -d ""D:\Out"" -fs
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -so -d ""D:\Out"" -fs
 
   # Sovrascrive i file sorgente (no cartella destinazione)
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -o -fs
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -o -fs
 
   # Mantieni solo eng/jpn audio e eng sub dal sorgente
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -ksa eng,jpn -kss eng -d ""D:\Out""
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -ksa eng,jpn -kss eng -d ""D:\Out""
 
   # Mantieni solo tracce DTS dal sorgente (qualsiasi lingua)
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -ksac DTS -d ""D:\Out""
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -ksac DTS -d ""D:\Out""
 
   # Mantieni solo eng con codec DTS dal sorgente
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -ksa eng -ksac DTS -d ""D:\Out""
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -ksa eng -ksac DTS -d ""D:\Out""
 
   # Pattern custom (1x01 invece di S01E01)
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -m ""(\d+)x(\d+)"" -d ""D:\Out""
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -m ""(\d+)x(\d+)"" -d ""D:\Out""
 
   # Cerca anche file MP4 e AVI oltre a MKV
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -ext mkv,mp4,avi -d ""D:\Out"" -fs
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -ext mkv,mp4,avi -d ""D:\Out"" -fs
 
   # Singola sorgente: applica delay 960ms alle tracce ita, mantieni jpn+eng audio e eng+jpn sub
-  RemuxForge -s ""D:\Serie"" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
+  RemuxForge --mode remux -s ""D:\Serie"" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
 
   # Converti tracce lossless in FLAC (TrueHD Atmos e DTS:X esclusi)
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -cf flac -d ""D:\Out""
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -cf flac -d ""D:\Out""
 
   # Converti tracce lossless in Opus (bitrate configurabile in .remux-forge/appsettings.json)
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -cf opus -ksa eng -d ""D:\Out"" -fs
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -cf opus -ksa eng -d ""D:\Out"" -fs
 
   # Merge + encoding video con profilo definito in appsettings.json
-  RemuxForge -s ""D:\EN"" -l ""D:\IT"" -t ita -ep ""libx265_CRF28"" -d ""D:\Out""
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -ep ""libx265_CRF28"" -d ""D:\Out""
+
+ESEMPI SPLIT:
+  # Divide un file in segmenti usando gruppi capitolo e naming automatico
+  RemuxForge --mode split -s ""D:\Movie\source.mkv"" --pattern ""5,5,5"" --output-dir ""D:\Out""
+
+  # Batch da cartella: stesso pattern su tutti gli MKV trovati
+  RemuxForge --mode split -s ""D:\Season"" --pattern ""5,5,5,6"" --output-dir ""D:\Out""
+
+  # Template con numero episodio offsettato
+  RemuxForge --mode split -s ""D:\Season"" --pattern ""5,5,5,6"" --output-template ""Bleach.S12E{n+213:03d}.mkv""
+
+  # Trim senza output-dir: crea {source_name}_trimmed.mkv accanto all'input
+  RemuxForge --mode split -s ""D:\Movie\source.mkv"" --trim-start 00:01:00 --trim-end 00:24:00
 
 CODICI LINGUA (ISO 639-2):
   Comuni: ita, eng, jpn, ger/deu, fra/fre, spa, por, rus, chi/zho, kor
@@ -438,6 +497,10 @@ NOTE:
                 ConsoleHelper.Write(LogSection.Config, LogLevel.Text, "  Delay audio:         " + Utils.FormatDelay(opts.AudioDelay));
                 ConsoleHelper.Write(LogSection.Config, LogLevel.Text, "  Delay sottotitoli:   " + Utils.FormatDelay(opts.SubtitleDelay));
             }
+            if (opts.AudioSourceFillThresholdMs > 0)
+            {
+                ConsoleHelper.Write(LogSection.Config, LogLevel.Text, "  Audio source fill:   >" + opts.AudioSourceFillThresholdMs + "ms da " + opts.AudioSourceFillLanguage + " (" + FormatAudioSourceFillModes(opts) + ")");
+            }
 
             // Mostra flag filtro
             if (opts.SubOnly)
@@ -468,6 +531,20 @@ NOTE:
             }
 
             Console.WriteLine();
+        }
+
+        /// <summary>
+        /// Formatta le modalita' audio source fill attive
+        /// </summary>
+        /// <param name="opts">Opzioni correnti</param>
+        /// <returns>Lista modalita' in formato leggibile</returns>
+        private static string FormatAudioSourceFillModes(Options opts)
+        {
+            List<string> modes = new List<string>();
+            if (opts.AudioSourceFillStart) { modes.Add(Options.AUDIO_SOURCE_FILL_START); }
+            if (opts.AudioSourceFillEnd) { modes.Add(Options.AUDIO_SOURCE_FILL_END); }
+            if (opts.AudioSourceFillInsertSilence) { modes.Add(Options.AUDIO_SOURCE_FILL_INSERT_SILENCE); }
+            return string.Join(",", modes);
         }
 
         /// <summary>

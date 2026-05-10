@@ -148,7 +148,12 @@ namespace RemuxForge.Core.Analysis.Deep
 
             if (operations == null || operations.Count == 0)
             {
-                return regions;
+                OffsetRegion constantRegion = new OffsetRegion();
+                constantRegion.StartSrcSec = 0.0;
+                constantRegion.EndSrcSec = sourceDurationSec;
+                constantRegion.OffsetMs = currentOffsetMs;
+                result.Add(constantRegion);
+                return result;
             }
 
             operations.Sort((a, b) => a.SourceTimestampMs.CompareTo(b.SourceTimestampMs));

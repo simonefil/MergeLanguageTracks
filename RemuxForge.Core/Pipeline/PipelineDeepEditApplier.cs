@@ -21,15 +21,17 @@ namespace RemuxForge.Core.Pipeline
         /// <param name="subtitleTracks">Tracce sottotitolo lingua</param>
         /// <param name="convertedLangTracks">Tracce audio lingua gia' convertite</param>
         /// <param name="processedLangSubTracks">Tracce sottotitolo processate</param>
+        /// <param name="audioEditMap">EditMap da applicare alle tracce audio, null per usare quella del record</param>
         /// <param name="options">Opzioni operative</param>
         /// <param name="ffmpegPath">Percorso ffmpeg</param>
         /// <returns>True se l'applicazione e' completata</returns>
-        public bool Apply(FileProcessingRecord record, List<TrackInfo> audioTracks, List<TrackInfo> subtitleTracks, Dictionary<int, string> convertedLangTracks, Dictionary<int, string> processedLangSubTracks, Options options, string ffmpegPath)
+        public bool Apply(FileProcessingRecord record, List<TrackInfo> audioTracks, List<TrackInfo> subtitleTracks, Dictionary<int, string> convertedLangTracks, Dictionary<int, string> processedLangSubTracks, EditMap audioEditMap, Options options, string ffmpegPath)
         {
             string tempFolder;
             TrackSplitService splitService;
             string splitLabel;
             string processedFile;
+            EditMap effectiveAudioEditMap = audioEditMap != null ? audioEditMap : record.DeepAnalysisMap;
             if (!record.DeepAnalysisApplied || record.DeepAnalysisMap == null || record.DeepAnalysisMap.Operations.Count == 0)
             {
                 return false;
@@ -50,17 +52,22 @@ namespace RemuxForge.Core.Pipeline
 
             for (int a = 0; a < audioTracks.Count; a++)
             {
+                if (effectiveAudioEditMap == null || effectiveAudioEditMap.Operations.Count == 0)
+                {
+                    break;
+                }
+
                 string audioInput = record.LangFilePath;
                 int audioTrackId = audioTracks[a].Id;
 
                 if (convertedLangTracks.ContainsKey(audioTrackId))
                 {
                     audioInput = convertedLangTracks[audioTrackId];
-                    processedFile = splitService.ApplyEditMap(audioInput, 0, "audio", options.ConvertFormat, audioTracks[a].Channels, audioTracks[a].SamplingFrequency, record.DeepAnalysisMap, splitLabel);
+                    processedFile = splitService.ApplyEditMap(audioInput, 0, "audio", options.ConvertFormat, audioTracks[a].Channels, audioTracks[a].SamplingFrequency, effectiveAudioEditMap, splitLabel);
                 }
                 else
                 {
-                    processedFile = splitService.ApplyEditMap(audioInput, audioTrackId, "audio", audioTracks[a].Codec, audioTracks[a].Channels, audioTracks[a].SamplingFrequency, record.DeepAnalysisMap, splitLabel);
+                    processedFile = splitService.ApplyEditMap(audioInput, audioTrackId, "audio", audioTracks[a].Codec, audioTracks[a].Channels, audioTracks[a].SamplingFrequency, effectiveAudioEditMap, splitLabel);
                 }
 
                 if (processedFile.Length > 0)

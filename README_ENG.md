@@ -1,12 +1,15 @@
 # ![icon](icons/icon-48.png) RemuxForge
 
-Cross-platform application to merge audio tracks and subtitles from MKV files in different languages, with automatic synchronization between releases with different editing or speed.
+Cross-platform application for two separate MKV workflows:
 
-Available in two modes: CLI (command line) and WebUI (web interface).
+- **Remux**: merges audio tracks and subtitles from MKV files in different languages, with automatic synchronization between releases with different editing or speed.
+- **Split**: cuts HEVC/AVC MKV files into frame-perfect segments while preserving VFR, chapters, audio and subtitles.
+
+Available through two interfaces: CLI (command line) and WebUI (web interface). The CLI always requires `--mode remux` or `--mode split`; the WebUI shows a `Remux | Split` switch at the top and remembers the last selected mode.
 
 ## Key features
 
-- Automatic merge of entire seasons with episode matching by filename
+- Remux mode for automatic merge of entire seasons with episode matching by filename
 - Automatic synchronization: PAL/NTSC speed correction, frame-sync for constant offset, deep analysis for different edits
 - Filter by language, audio codec, subtitles, both for import and for keeping from source
 - Lossless audio conversion to FLAC or Opus during merge
@@ -15,22 +18,13 @@ Available in two modes: CLI (command line) and WebUI (web interface).
 - Two interfaces: scriptable CLI and WebUI for browser and headless servers
 - Docker deployment with optional GPU support
 - Dark/light graphical themes for WebUI
+- Split mode for chapter patterns, explicit ranges, split-at, trim, single chapters and folder batch processing
 - Persistent configuration in `appsettings.json` with auto-merge of new fields
-
-## Synchronization
-
-RemuxForge uses three separate paths:
-
-- **Speed correction** fixes global speed differences. Modes are `off`, `auto` and `manual`. `auto` is blocked when MediaInfo/ffprobe reports VFR; in those cases use `manual` with an explicit stretch factor, for example `25025/24000`.
-- **Frame-sync** searches for a constant offset between source and language. It is designed to stay fast and does not fix local cuts or insertions.
-- **Deep analysis** is the heavy path for sources with different edits, cuts, insertions or local drift. It uses a verified timeline map and applies cut-and-splice operations to imported tracks. Frame-sync and deep analysis are mutually exclusive.
-
-If a release has both a speed mismatch and local edits, set the global stretch manually and let Deep analysis fix the edits. Speed correction is expected to fail-safe on local-edit cases instead of forcing an ambiguous sync.
 
 ## Requirements
 
-- [MKVToolNix](https://mkvtoolnix.download/): mkvmerge must be in PATH or manually configured. mkvextract is required to rewrite bitmap subtitles such as PGS/VobSub in Deep Analysis.
-- [ffmpeg](https://ffmpeg.org/): required for sync, audio conversion and video encoding. If missing, it can be automatically downloaded from Settings > Tool paths (the "Download" button)
+- [MKVToolNix](https://mkvtoolnix.download/): mkvmerge must be in PATH or manually configured. mkvextract is required for bitmap subtitles such as PGS/VobSub in Deep Analysis and for Split; mkvpropedit is used by Split to apply chapters in the fast path.
+- [ffmpeg](https://ffmpeg.org/): required for sync, audio conversion, video encoding and Split. `ffprobe` is required by Split to map frames and video parameters. If missing, ffmpeg can be automatically downloaded from Settings > Tool paths (the "Download" button)
 - [mediainfo](https://mediainfo.sourceforge.net/): for detailed track reporting (optional)
 - UTF-8 locale on Linux (required for filenames with non-ASCII characters)
 
@@ -148,11 +142,26 @@ docker run -d \
 
 ![Main interface (Nord theme)](images/nord.png)
 
-### Shortcut keys
+## Remux Mode
+
+Remux mode merges audio tracks and subtitles from different MKV releases. It is the workflow for episode matching, language/codec filters, synchronization, audio conversion, track renaming, video encoding and final reports.
+
+RemuxForge uses three separate paths:
+
+- **Speed correction** fixes global speed differences. Modes are `off`, `auto` and `manual`. `auto` is blocked when MediaInfo/ffprobe reports VFR; in those cases use `manual` with an explicit stretch factor, for example `25025/24000`.
+- **Frame-sync** searches for a constant offset between source and language. It is designed to stay fast and does not fix local cuts or insertions.
+- **Deep analysis** is the heavy path for sources with different edits, cuts, insertions or local drift. It uses a verified timeline map and applies cut-and-splice operations to imported tracks. Frame-sync and deep analysis are mutually exclusive.
+
+If a release has both a speed mismatch and local edits, set the global stretch manually and let Deep analysis fix the edits. Speed correction is expected to fail-safe on local-edit cases instead of forcing an ambiguous sync.
+
+### Remux WebUI
+
+In Remux, the WebUI is episode-batch oriented: folder configuration, scan and matching, analysis, merge, MediaInfo reports, tool settings, audio conversion, encoding profiles, advanced settings, pipeline view and themes. The configuration dialog shows a contextual help pane for the selected field.
+
+#### Remux Shortcut Keys
 
 | Key | Action |
 |-----|--------|
-| F1 | Guide |
 | F2 | Open configuration |
 | F5 | Scan folders and match episodes |
 | F6 | Analyze selected episode |
@@ -164,7 +173,7 @@ docker run -d \
 | Enter | Episode context menu |
 | Ctrl+Q | Exit |
 
-### Context menu
+#### Remux Context Menu
 
 Right-clicking on an episode (or pressing Enter) opens a context menu with the following options:
 
@@ -175,16 +184,16 @@ Right-clicking on an episode (or pressing Enter) opens a context menu with the f
 
 MediaInfo options are visible only if the mediainfo tool is configured and the corresponding file exists. The report shows all track information (codec, channels, bitrate, resolution, language, etc.) and can be copied to clipboard.
 
-### Menu
+#### Remux Menu
 
 - **File**: Configuration (F2), Exit (Ctrl+Q)
 - **Actions**: Scan files (F5), Analyze selected (F6), Analyze all (F7), Skip/Unskip (F8), Process selected (F9), Process all (F10)
 - **Settings**: Tool paths, Audio conversion, Encoding profiles, Advanced
 - **View**: Pipeline (shows the sequence of operations that will be executed based on the current configuration: sync, conversion, merge, encoding)
 - **Theme**: change graphical theme (8 themes)
-- **Help**: Guide (F1), Info
+- **Help**: Info
 
-### Configuration (F2)
+#### Remux Configuration (F2)
 
 The configuration dialog groups all processing options:
 
@@ -195,9 +204,9 @@ The configuration dialog groups all processing options:
 - **Synchronization**: Speed correction (`off`/`auto`/`manual` with fixed stretch), Frame-sync, Deep analysis, Audio delay (ms), Sub delay (ms). Frame-sync and Deep analysis are exclusive.
 - **Advanced**: Match pattern (regex), File extensions, Convert audio (flac/opus), Encoding profile
 
-### Settings menu
+#### Remux Settings Menu
 
-- **Tool paths**: Paths to mkvmerge, ffmpeg, mediainfo and temporary files folder. Tools are auto-detected at startup. ffmpeg can be downloaded directly from the interface
+- **Tool paths**: Paths to mkvmerge, mkvextract, mkvpropedit, ffmpeg, ffprobe, mediainfo and temporary files folder. Tools are auto-detected at startup. ffmpeg can be downloaded directly from the interface
 - **Audio conversion**: FLAC compression level and Opus bitrate per channel layout (mono, stereo, 5.1, 7.1)
 - **Encoding profiles**: Manage video encoding profiles (add, edit, delete). Profiles are saved in appsettings.json
 - **Advanced**: essential operational tuning for analysis, frame-sync, deep analysis, timeouts and hardware acceleration. Expert sections expose only the main thresholds; internal algorithm parameters remain in the configuration file.
@@ -206,7 +215,7 @@ The WebUI shows two progress bars: global batch progress and current episode pro
 
 ![Encoding profiles management](images/encoding.png)
 
-### Themes
+#### Remux WebUI Themes
 
 8 themes available from the Theme menu:
 
@@ -226,41 +235,38 @@ The WebUI shows two progress bars: global batch progress and current episode pro
 |:-:|:-:|
 | ![Cybergum](images/cybergum.png) | ![Everforest](images/everforest.png) |
 
-## WebUI Interface
-
-Web interface accessible from a browser, ideal for headless servers, NAS or Docker deployments. It offers the complete feature set: configuration, scan, analysis, merge, tool settings, audio conversion, encoding profiles, advanced settings, pipeline view, themes and guide.
-
 ![WebUI configuration](images/config-webui.png)
 
-## CLI Interface
+### Remux CLI
 
-For command-line processing, scriptable and automatable.
+The Remux CLI is designed for scriptable merge/sync batches. Always use `--mode remux`.
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -fs
 ```
 
-### Required parameters
+#### Required Remux Parameters
 
 | Short | Long | Description |
 |-------|------|-------------|
+| | --mode | Must be `remux` |
 | -s | --source | Folder with source MKV files |
 | -t | --target-language | Language code of tracks to import (e.g.: ita). Separate with comma for multiple languages: ita,eng |
 
-### Source
+#### Remux Source
 
 | Short | Long | Description |
 |-------|------|-------------|
 | -l | --language | Folder with MKV files to take tracks from. If omitted, uses the source folder |
 
-### Output (mutually exclusive, one required)
+#### Remux Output (mutually exclusive, one required)
 
 | Short | Long | Description |
 |-------|------|-------------|
 | -d | --destination | Folder where resulting files will be saved |
 | -o | --overwrite | Overwrite source files |
 
-### Sync
+#### Remux Sync
 
 | Short | Long | Description |
 |-------|------|-------------|
@@ -274,7 +280,7 @@ RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -fs
 
 Speed correction is disabled by default. In `auto` it is used only when CFR metadata is reliable; with VFR files `manual` and an explicit factor are required.
 
-### Filters
+#### Remux Filters
 
 | Short | Long | Description |
 |-------|------|-------------|
@@ -286,7 +292,7 @@ Speed correction is disabled by default. In `auto` it is used only when CFR meta
 | -kss | --keep-source-subs | Subtitle languages to KEEP in the source |
 | -rt | --rename-tracks | Rename all audio tracks in the resulting file (see Track renaming section) |
 
-### Matching
+#### Remux Matching
 
 | Short | Long | Description | Default |
 |-------|------|-------------|---------|
@@ -295,14 +301,14 @@ Speed correction is disabled by default. In `auto` it is used only when CFR meta
 | -nr | --no-recursive | Disable recursive search | |
 | -ext | --extensions | File extensions to search for. Separate with comma: mkv,mp4,avi | mkv |
 
-### Conversion and encoding
+#### Remux Conversion and Encoding
 
 | Short | Long | Description |
 |-------|------|-------------|
 | -cf | --convert-format | Convert lossless tracks: flac or opus. TrueHD Atmos and DTS:X excluded |
 | -ep | --encoding-profile | Video encoding profile post-merge (defined in appsettings.json) |
 
-### Other
+#### Other Remux Options
 
 | Short | Long | Description |
 |-------|------|-------------|
@@ -310,7 +316,7 @@ Speed correction is disabled by default. In `auto` it is used only when CFR meta
 | -h | --help | Show built-in help |
 | -mkv | --mkvmerge-path | Custom path to mkvmerge (default: searches PATH) |
 
-## Synchronization
+### Remux Synchronization
 
 Releases of the same content can differ in playback speed, initial cut or internal editing. RemuxForge offers three synchronization systems, all based on visual analysis of video frames via ffmpeg. GPU decoding is optional and disabled by default.
 
@@ -379,7 +385,7 @@ Deep Analysis is fail-safe: if a requested track cannot be rewritten or validate
 
 The parameters **-ad** (audio delay) and **-sd** (subtitle delay) specify an offset in milliseconds that is **added** to the frame-sync or speed correction result. In the WebUI it is possible to set different delays per episode.
 
-## Audio conversion
+### Remux Audio Conversion
 
 Converts lossless audio tracks to FLAC or Opus during merge. Enabled with **-cf flac** or **-cf opus** from CLI, or from the "Convert audio" field in WebUI configuration.
 
@@ -403,7 +409,7 @@ Requested conversion is fail-safe: if a track that must be converted fails, the 
 
 Values are configurable in `appsettings.json` or from the **Settings > Audio conversion** menu in WebUI.
 
-## Track renaming
+### Remux Track Renaming
 
 When audio conversion is active (**-cf**), converted tracks are automatically renamed with a descriptive title that includes codec, channel layout, bit depth, sample rate and bitrate. This always happens, no additional options needed.
 
@@ -419,7 +425,7 @@ With the **-rt** flag (or the "Rename all audio tracks" checkbox in WebUI), rena
 
 Channel layout is formatted as 1.0 (mono), 2.0 (stereo), 5.1, 7.1. Missing information is omitted.
 
-## Video encoding
+### Remux Video Encoding
 
 After the merge it is possible to re-encode the video with a custom encoding profile. Encoding happens in-place on the resulting file via ffmpeg: the video is re-encoded, audio and subtitles are copied without modification.
 
@@ -471,7 +477,7 @@ Encoding uses software encoders. GPU acceleration applies only to decoding durin
 - **FilmGrainDenoise**: denoise before applying film grain, svtav1 only
 - **ExtraParams**: additional ffmpeg parameters in free format, appended to the end of the command
 
-## GPU acceleration
+### Remux GPU Acceleration
 
 RemuxForge can use ffmpeg with `-hwaccel auto` to accelerate **video decoding** during analysis phases (speed correction, frame-sync, deep analysis). The option is disabled by default and can be enabled in the WebUI under `Advanced Settings > Ffmpeg > Hardware Acceleration`.
 
@@ -485,18 +491,18 @@ RemuxForge can use ffmpeg with `-hwaccel auto` to accelerate **video decoding** 
 
 **Docker:** to enable GPU acceleration in the container, see the [Docker with GPU acceleration](#docker-with-gpu-acceleration) section.
 
-## Use Cases
+### Remux Use Cases
 
 **1. Add Italian dubbing to an English release**
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -fs
 ```
 
 **2. Overwrite source files**
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -o -fs
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -o -fs
 ```
 
 **3. Replace a lossy track with a lossless one**
@@ -504,7 +510,7 @@ RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -o -fs
 The file already has Italian AC3 lossy. You want to replace it with DTS-HD MA from another release.
 
 ```bash
-RemuxForge -s "D:\Serie" -l "D:\Serie.ITA.HDMA" -t ita -ac "DTS-HD MA" -ksa eng,jpn -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Serie" -l "D:\Serie.ITA.HDMA" -t ita -ac "DTS-HD MA" -ksa eng,jpn -d "D:\Output" -fs
 ```
 
 With **-ksa eng,jpn** you keep only English and Japanese from the source. With **-ac "DTS-HD MA"** you only take the lossless track from the Italian release.
@@ -514,9 +520,9 @@ With **-ksa eng,jpn** you keep only English and Japanese from the source. With *
 Each step takes the previous output as source.
 
 ```bash
-RemuxForge -s "D:\Film.US" -l "D:\Film.ITA" -t ita -d "D:\Temp1" -fs
-RemuxForge -s "D:\Temp1" -l "D:\Film.FRA" -t fra -d "D:\Temp2" -fs
-RemuxForge -s "D:\Temp2" -l "D:\Film.GER" -t ger -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Film.US" -l "D:\Film.ITA" -t ita -d "D:\Temp1" -fs
+RemuxForge --mode remux -s "D:\Temp1" -l "D:\Film.FRA" -t fra -d "D:\Temp2" -fs
+RemuxForge --mode remux -s "D:\Temp2" -l "D:\Film.GER" -t ger -d "D:\Output" -fs
 ```
 
 **5. Anime with non-standard naming**
@@ -524,13 +530,13 @@ RemuxForge -s "D:\Temp2" -l "D:\Film.GER" -t ger -d "D:\Output" -fs
 Many fansubs use "- 05" instead of S01E05. With **-m** you specify a custom regex. With **-so** you take only subtitles.
 
 ```bash
-RemuxForge -s "D:\Anime.BD" -l "D:\Anime.Fansub" -t ita -m "- (\d+)" -so -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Anime.BD" -l "D:\Anime.Fansub" -t ita -m "- (\d+)" -so -d "D:\Output" -fs
 ```
 
 **6. Daily show with dates in the filename**
 
 ```bash
-RemuxForge -s "D:\Show.US" -l "D:\Show.ITA" -t ita -m "(\d{4})\.(\d{2})\.(\d{2})" -d "D:\Output"
+RemuxForge --mode remux -s "D:\Show.US" -l "D:\Show.ITA" -t ita -m "(\d{4})\.(\d{2})\.(\d{2})" -d "D:\Output"
 ```
 
 **7. Filter subtitles from the source**
@@ -538,7 +544,7 @@ RemuxForge -s "D:\Show.US" -l "D:\Show.ITA" -t ita -m "(\d{4})\.(\d{2})\.(\d{2})
 The source has 10 subtitle tracks in useless languages. With **-kss** you keep only the ones you want.
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -so -kss eng -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -so -kss eng -d "D:\Output" -fs
 ```
 
 **8. Anime: keep only Japanese audio and import eng+ita**
@@ -546,7 +552,7 @@ RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -so -kss eng -d "D:\Output
 The trick **-kss und** discards all subtitles from the source because no track has language "und".
 
 ```bash
-RemuxForge -s "D:\Anime.BD.JPN" -l "D:\Anime.ITA" -t eng,ita -ksa jpn -kss und -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Anime.BD.JPN" -l "D:\Anime.ITA" -t eng,ita -ksa jpn -kss und -d "D:\Output" -fs
 ```
 
 **9. Dry run on a complex configuration**
@@ -554,13 +560,13 @@ RemuxForge -s "D:\Anime.BD.JPN" -l "D:\Anime.ITA" -t eng,ita -ksa jpn -kss und -
 With **-n** verify matching and tracks without executing.
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3" -ksa eng -kss eng -d "D:\Output" -fs -n
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3" -ksa eng -kss eng -d "D:\Output" -fs -n
 ```
 
 **10. Keep only DTS tracks from the source**
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ksac DTS -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ksac DTS -d "D:\Output" -fs
 ```
 
 **11. Keep only English lossless audio from the source**
@@ -568,13 +574,13 @@ RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ksac DTS -d "D:\Output" -
 By combining **-ksa** and **-ksac**, you keep only tracks matching both criteria.
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ksa eng -ksac "DTS-HDMA,TrueHD" -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ksa eng -ksac "DTS-HDMA,TrueHD" -d "D:\Output" -fs
 ```
 
 **12. Import multiple codecs from the language file**
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3,DTS" -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3,DTS" -d "D:\Output" -fs
 ```
 
 **13. Single source: apply delay and filter tracks**
@@ -582,13 +588,13 @@ RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3,DTS" -d "D:\Ou
 Without **-l**, the application uses the source folder as language too. Allows remuxing with filters and delays without a separate release.
 
 ```bash
-RemuxForge -s "D:\Serie" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
+RemuxForge --mode remux -s "D:\Serie" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
 ```
 
 **14. Convert lossless tracks to FLAC during merge**
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -d "D:\Output" -fs
 ```
 
 **15. Convert lossless tracks to Opus keeping only English from source**
@@ -596,28 +602,28 @@ RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -d "D:\Output" -f
 TrueHD Atmos and DTS:X tracks are kept intact.
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf opus -ksa eng -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf opus -ksa eng -d "D:\Output" -fs
 ```
 
 **16. Merge + video encoding with x265 profile**
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ep "x265_CRF24" -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ep "x265_CRF24" -d "D:\Output" -fs
 ```
 
 **17. Merge + audio conversion + video encoding**
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -ep "svtav1_CRF30" -ksa eng -d "D:\Output" -fs
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -ep "svtav1_CRF30" -ksa eng -d "D:\Output" -fs
 ```
 
 **18. Deep analysis for files with different scenes**
 
 ```bash
-RemuxForge -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -da
+RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -da
 ```
 
-## Report
+### Remux Report
 
 At the end of processing a summary report is displayed. In WebUI the detail is visible in the side panel for each episode.
 
@@ -653,7 +659,7 @@ RESULT FILES:
 
 In dry run mode, Size and Merge show "N/A" because the merge is not executed.
 
-## Audio codecs
+### Remux Audio Codecs
 
 When you specify **-ac** or **-ksac** to filter codecs, the matching is **EXACT**, not partial. Both support multiple comma-separated values.
 
@@ -700,7 +706,7 @@ Codec names are case-insensitive. If a codec is not recognized with direct looku
 | Opus | OPUS | Opus (WebM) |
 | Vorbis | VORBIS | Ogg Vorbis |
 
-## Language codes
+### Remux Language Codes
 
 Language codes are ISO 639-2 (3 letters). The most common ones:
 
@@ -725,7 +731,7 @@ Lingua 'italian' non riconosciuta.
 Forse intendevi: ita?
 ```
 
-## Regex patterns for episode matching
+### Remux Regex Patterns for Episode Matching
 
 The application uses captured groups from the regex to match files. Each group in parentheses is concatenated with "_" to create the unique episode ID.
 
@@ -740,6 +746,254 @@ The application uses captured groups from the regex to match files. Each group i
 
 The pattern **S(\d+)E(\d+)** captures two groups (season and episode). For "S01E05" it creates the ID "01_05". Source and language files with the same ID are matched together.
 
+
+## Split Mode
+
+Split mode integrates the `mkv_split` workflow into RemuxForge. It is designed to cut HEVC and AVC MKV files frame-perfectly while preserving the original bitstream byte-for-byte whenever possible. If the cut point is not on a keyframe, only the initial GOP of the segment is re-encoded; the rest of the video is copied intact. Audio and subtitles are remuxed without re-encoding.
+
+The CLI always uses `--mode split`. The `--source` parameter can point either to a single MKV file or to a folder:
+
+- **File**: splits the single file.
+- **Folder**: runs batch processing on all MKV files found in the folder, applying the same pattern and options to every file. Scanning follows `--recursive`/`--no-recursive` and `--extensions`.
+
+`--source-raw` is available only when `--source` points to a single file.
+
+### Split WebUI
+
+In Split, the WebUI is dedicated to MKV cutting and does not show Remux commands. The screen keeps three areas:
+
+- **Input**: list of MKV files prepared by scan. Source file/folder and cut options are configured with F2.
+- **File details**: selected file summary, calculated segments and applied cut settings.
+- **Log**: scan and split operation output.
+
+#### Split Shortcut Keys
+
+| Key | Action |
+|-----|--------|
+| F2 | Open Split configuration |
+| F5 | Scan input |
+| F10 | Split all prepared files |
+| F12 | Request stop for the current operation |
+
+Remux keys for analysis, skip and selected merge are not part of the Split workflow.
+
+#### Split Menu
+
+- **File**: Split configuration (F2)
+- **Actions**: Scan input (F5), Split all (F10), Stop (F12)
+- **Settings**: Tool paths
+- **View**: Pipeline (shows the Split operation sequence based on the current configuration)
+- **Theme**: change graphical theme
+- **Help**: Info
+
+#### Split Configuration
+
+Split configuration exposes only essential options: source file/folder, output folder, chapter pattern, explicit ranges, split-at, trim start/end, chapters-each, output template, snap, force, dry-run and folder batch.
+
+### Split CLI
+
+The Split CLI always uses `--mode split`. Remux parameters such as `--target-language`, `--framesync`, `--deep-analysis`, codec filters and audio conversion do not apply to this mode.
+
+```bash
+RemuxForge --mode split --source "INPUT.mkv" [cut mode] [options]
+```
+
+You must choose exactly **one** cut mode from the list below.
+
+#### Required Split Parameters
+
+| Short | Long | Description |
+|-------|------|-------------|
+| | --mode | Must be `split` |
+| | --source | Source MKV file or folder |
+
+#### Main Split Parameters
+
+| Short | Long | Description |
+|-------|------|-------------|
+| | --output-dir | Output folder |
+| | --source-raw | Alternate PTS source file, single-file only |
+| | --output-template | Custom output template |
+| | --snap | `off`, `before`, `after`, `nearest` |
+| | --force | Overwrite existing output files |
+| -n | --dry-run | Show segments without writing files |
+
+### Split Cut Modes
+
+#### `--pattern "5,5,5,6"`
+
+Groups file chapters into segments according to the pattern. The sum of the numbers must match the number of chapters.
+
+```bash
+RemuxForge --mode split --source "bleach_disc1.mkv" --pattern "5,5,5,6"
+```
+
+On a folder, the same pattern is applied to every MKV found:
+
+```bash
+RemuxForge --mode split --source "D:\\Discs" --pattern "5,5,5,6" --output-dir "D:\\Output"
+```
+
+#### `--ranges "T1-T2,T3-T4,..."`
+
+Defines explicit intervals. `T` can be `HH:MM:SS.mmm`, `MM:SS.mmm`, decimal seconds, `f<number>` for frame index, or `END`.
+
+Examples:
+
+```bash
+RemuxForge --mode split --source "input.mkv" --ranges "00:00:00-00:21:40,00:21:40-00:43:20,00:43:20-END"
+RemuxForge --mode split --source "input.mkv" --ranges "f0-f29970,f29970-END"
+```
+
+If a single range is passed, trim mode is used: the output is written next to the input with the `_trimmed` suffix, unless `--output-dir` or a custom template is provided.
+
+#### `--split-at "T1,T2,..."`
+
+Shortcut to split into `N+1` segments at the given timecodes. Duplicate points or points outside file duration produce an error.
+
+```bash
+RemuxForge --mode split --source "concert.mkv" --split-at "00:21:40,00:43:20"
+```
+
+Equivalent to:
+
+```bash
+RemuxForge --mode split --source "concert.mkv" --ranges "0-00:21:40,00:21:40-00:43:20,00:43:20-END"
+```
+
+#### `--trim-start T` and `--trim-end T`
+
+Trim shortcuts. They can be combined.
+
+```bash
+RemuxForge --mode split --source "input.mkv" --trim-start 00:01:30
+RemuxForge --mode split --source "input.mkv" --trim-end 00:45:00
+RemuxForge --mode split --source "input.mkv" --trim-start 00:01:30 --trim-end 00:45:00
+```
+
+#### `--chapters-each`
+
+Creates one segment for each chapter in the source file. Requires chapters to be present.
+
+```bash
+RemuxForge --mode split --source "film.mkv" --chapters-each
+```
+
+### Split Output File Naming
+
+The default depends on the mode:
+
+| Mode | Default template |
+|------|------------------|
+| `--pattern` | `{source_name}.part{n:02d}.mkv` |
+| `--ranges` with multiple segments | `{source_name}.part{n:02d}.mkv` |
+| `--ranges` / `--split-at` | `{source_name}.part{n:02d}.mkv` |
+| `--trim-start` / `--trim-end` | `{source_name}_trimmed.mkv` next to input |
+| `--chapters-each` | `{source_name}.ch{n:02d}.mkv` |
+
+It can be overridden with:
+
+- `--output-template "..."` for a custom template. Available variables: `{source_name}`, `{n}`, `{n:02d}`, `{n+213}`, `{n+213:03d}`, `{n-1}`, `{start}`, `{end}`, `{chapter_name}`.
+
+Examples:
+
+```bash
+--output-template "{source_name}.part{n:02d}.mkv"
+--output-template "Bleach.S12E{n+213:03d}.mkv"
+--output-template "{chapter_name}.mkv"
+```
+
+### Other Split Options
+
+| Option | Description |
+|--------|-------------|
+| `--source FILE\|DIR` | Source MKV file or folder. Required in Split mode. |
+| `--source-raw FILE` | Uses another file to extract PTS, useful when input is a re-encode of a VFR source. Single-file only. |
+| `--output-dir DIR` | Destination folder. Default: input file folder. |
+| `--snap off\|before\|after\|nearest` | If enabled, moves the start to the nearest keyframe according to the selected direction, avoiding initial GOP re-encoding. Default `off` frame-perfect. |
+| `--force` | Overwrites existing output files. Without `--force`, existing segments are skipped. |
+| `--log FILE` | Duplicates stdout to a log file, append mode with timestamp header. |
+| `--dry-run` / `-n` | Prints segments and actions without cutting. |
+| `--recursive` / `--no-recursive` | Controls subfolder scanning when `--source` is a folder. |
+| `--extensions` | File extensions searched in batch mode, default `mkv`. |
+
+### Split Examples
+
+Split a multi-episode MKV by chapter pattern:
+
+```bash
+RemuxForge --mode split --source "disc1.mkv" --pattern "5,5,5,6"
+```
+
+Trim the first 90 seconds:
+
+```bash
+RemuxForge --mode split --source "input.mkv" --trim-start 00:01:30
+```
+
+Manual split into three equal parts for a 60-minute video:
+
+```bash
+RemuxForge --mode split --source "concert.mkv" --split-at "20:00,40:00"
+```
+
+Extract every chapter:
+
+```bash
+RemuxForge --mode split --source "film.mkv" --chapters-each --output-template "Film.ch{n:02d}.mkv"
+```
+
+Fast cut aligned to the nearest keyframe, without re-encoding:
+
+```bash
+RemuxForge --mode split --source "source.mkv" --ranges "00:02:00-00:05:00" --snap nearest
+```
+
+Batch a folder using the same pattern for every disc/file:
+
+```bash
+RemuxForge --mode split --source "D:\\Discs" --pattern "5,5,5,6" --output-template "Serie.{source_name}.part{n:02d}.mkv" --output-dir "D:\\Episodes"
+```
+
+### How Split Works
+
+1. `mkvextract timestamps_v2` extracts source PTS, preserving timecodes including VFR.
+2. `mkvextract` produces the raw bitstream of the single video stream.
+3. `ffprobe` maps position and size of each frame in the bitstream.
+4. For each segment:
+   - if the start is on a keyframe, it directly copies the byte range from the raw stream;
+   - otherwise, it re-encodes only the initial GOP up to the next keyframe with the same `pix_fmt` and color parameters as the source, reinserts the original parameter sets and concatenates the rest byte-for-byte.
+5. `mkvmerge` remuxes video, all audio tracks, all subtitles and chapters into a new MKV with V2 timecodes. In the non-FLAC fast path, chapters are applied after the split with `mkvpropedit`.
+
+Generic chapter names such as `Chapter 15` are renumbered from 1 inside each segment; meaningful names such as `Opening` or `Act 1` are preserved.
+
+The result is a frame-perfect cut without re-encoding the whole file, with only minimal re-encoding of the initial GOP when the cut is not on a keyframe.
+
+### Background: Why a Dedicated Split Pipeline Exists
+
+The original use case was splitting a VFR file into multiple parts while preserving frame-level alignment with the original chapters. On CFR sources the problem is simpler, but VFR breaks many obvious approaches.
+
+**Unreliable PTS after re-encode.** Many re-encode pipelines do not preserve source PTS and generate uniform timestamps that do not reflect real VFR timing, for example soft telecine with 33 ms and 50 ms frames. If cut boundaries are calculated from the re-encoded file PTS, cuts land in the wrong place. The solution is to extract original source PTS and reapply them with `mkvmerge --timestamps`, when frames have a 1:1 correspondence. This is why `--source-raw` exists.
+
+**ffmpeg does not handle VFR MKV stream copy reliably.** With `-c:v copy`, ffmpeg's Matroska muxer may rewrite timestamps as CFR, destroying VFR. Options such as `-fps_mode passthrough`, `-copyts` and `-muxpreload` do not reliably solve this scenario.
+
+**mkvmerge cuts only on keyframes.** `mkvmerge` handles VFR natively, but `--split parts` cuts on video keyframes. In MKV, frames are grouped into clusters and mkvmerge creates new clusters at keyframes to allow seeking. If a chapter falls between two keyframes, mkvmerge includes extra frames up to the next keyframe.
+
+**A video file cannot start from a non-keyframe without re-encoding.** HEVC and H.264 use inter-frame prediction: P and B frames depend on previous frames, so a video file must start from a keyframe. With HEVC open-GOP, keyframes may be CRA instead of IDR; after a CRA there can be RASL frames referencing previous frames, and decoders may drop them if the segment starts in the wrong place.
+
+Split solves this by bypassing ffmpeg and mkvmerge for the actual video cut and working directly on the raw bitstream:
+
+1. extracts raw video track and `timestamps_v2`;
+2. maps byte offset and size of every frame;
+3. calculates frame ranges from source PTS;
+4. copies byte-for-byte when the start is on a keyframe;
+5. re-encodes only the few frames from the cut to the next keyframe when required;
+6. concatenates at binary level and remuxes with `mkvmerge`, applying VFR source timecodes.
+
+Boundary frames are re-encoded at high quality; everything else remains a byte-for-byte copy. Re-encoding uses `keyint=1` and `bframes=0`, meaning every frame becomes an independent I-frame, allowing cuts at any position and reducing CRA/RASL issues.
+
+Note: with HEVC open-GOP sources, some decoders may still report warnings about missing references around CRA/RASL. The tool verifies frame count and keeps the rest of the video byte-for-byte, but it does not convert an HEVC open-GOP into a closed GOP.
+
 ## Configuration (appsettings.json)
 
 All persistent settings are saved in `.remux-forge/appsettings.json`. The file is automatically created with default values. The `.remux-forge` folder is located in the executable's directory, or in the path specified by `REMUXFORGE_DATA_DIR`.
@@ -750,7 +1004,10 @@ New fields added in subsequent updates are automatically merged without overwrit
 {
   "Tools": {
     "MkvMergePath": "",
+    "MkvExtractPath": "",
+    "MkvPropEditPath": "",
     "FfmpegPath": "",
+    "FfprobePath": "",
     "MediaInfoPath": "",
     "TempFolder": ""
   },
@@ -766,7 +1023,8 @@ New fields added in subsequent updates are automatically merged without overwrit
     }
   },
   "Ui": {
-    "Theme": "nord"
+    "Theme": "nord",
+    "LastMode": "remux"
   },
   "EncodingProfiles": [],
   "Advanced": {
@@ -869,10 +1127,11 @@ New fields added in subsequent updates are automatically merged without overwrit
 
 **Sections:**
 
-- **Tools**: executable paths and temporary files folder. Auto-detected at startup, editable from the Settings > Tool paths menu
+- **Tools**: paths to mkvmerge, mkvextract, mkvpropedit, ffmpeg, ffprobe, mediainfo and temporary files folder. Auto-detected at startup, editable from the Settings > Tool paths menu
 - **Flac**: FLAC compression level (0 = fast, 12 = maximum compression)
 - **Opus.Bitrate**: Opus bitrate in kbps per channel layout (range: 64-768)
 - **Ui.Theme**: selected graphical theme. Valid themes: `dark`, `nord`, `dos-blue`, `matrix`, `cyberpunk`, `solarized-dark`, `solarized-light`, `cybergum`, `everforest`
+- **Ui.LastMode**: last selected WebUI mode (`remux` or `split`)
 - **EncodingProfiles**: array of video encoding profiles (see the Video encoding section)
 - **Advanced**: synchronization parameters. The WebUI exposes only operational tuning and essential Expert fields; internal algorithm parameters remain editable from the configuration file. Default values are calibrated for most cases.
 - **Advanced.Ffmpeg.HardwareAcceleration**: enables `-hwaccel auto` for ffmpeg video analysis. Default: `false`

@@ -248,6 +248,101 @@ namespace RemuxForge.Core.Infrastructure
         }
 
         /// <summary>
+        /// Esegue un processo leggendo stdout riga per riga e accumulando stderr
+        /// </summary>
+        /// <param name="fileName">Percorso dell'eseguibile</param>
+        /// <param name="arguments">Lista argomenti</param>
+        /// <param name="onStdoutLine">Callback invocato per ogni riga di stdout</param>
+        /// <param name="timeoutMs">Timeout in millisecondi, 0 = nessun timeout</param>
+        /// <returns>Risultato con exit code e stderr</returns>
+        public static ProcessResult RunWithStdoutLines(string fileName, IEnumerable<string> arguments, Action<string> onStdoutLine, int timeoutMs = 0)
+        {
+            ProcessResult result = new ProcessResult();
+            Process proc = null;
+            Thread stdoutThread;
+            Thread stderrThread;
+            StringBuilder stderr = new StringBuilder();
+            StreamReader stdoutReader;
+            StreamReader stderrReader;
+            try
+            {
+                proc = new Process();
+                SetupStartInfo(proc, fileName);
+
+                foreach (string arg in arguments)
+                {
+                    proc.StartInfo.ArgumentList.Add(arg);
+                }
+
+                proc.Start();
+                stdoutReader = proc.StandardOutput;
+                stderrReader = proc.StandardError;
+
+                stdoutThread = new Thread(() =>
+                {
+                    try
+                    {
+                        string line;
+                        while ((line = stdoutReader.ReadLine()) != null)
+                        {
+                            if (onStdoutLine != null)
+                            {
+                                onStdoutLine(line);
+                            }
+                        }
+                    }
+                    catch (IOException)
+                    {
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                    }
+                });
+
+                stderrThread = new Thread(() =>
+                {
+                    try
+                    {
+                        stderr.Append(stderrReader.ReadToEnd());
+                    }
+                    catch (IOException)
+                    {
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                    }
+                });
+
+                stdoutThread.Start();
+                stderrThread.Start();
+
+                if (!WaitForExitOrStop(proc, timeoutMs))
+                {
+                    KillProcessTree(proc);
+                }
+
+                stdoutThread.Join(5000);
+                stderrThread.Join(5000);
+
+                if (proc.HasExited)
+                {
+                    result.ExitCode = proc.ExitCode;
+                }
+                result.Stderr = stderr.ToString();
+            }
+            catch (Exception ex)
+            {
+                result.Stderr = "Eccezione durante l'esecuzione di " + fileName + ": " + ex.Message;
+            }
+            finally
+            {
+                if (proc != null) { proc.Dispose(); }
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Esegue un processo scartando l'output, con supporto timeout e kill
         /// </summary>
         /// <param name="fileName">Percorso dell'eseguibile</param>

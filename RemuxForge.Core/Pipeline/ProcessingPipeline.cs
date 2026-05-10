@@ -1,4 +1,5 @@
 using RemuxForge.Core.Analysis.FrameSync;
+using RemuxForge.Core.Audio;
 using RemuxForge.Core.Configuration;
 using RemuxForge.Core.Infrastructure;
 using RemuxForge.Core.Media.Mkv;
@@ -270,10 +271,10 @@ namespace RemuxForge.Core.Pipeline
                     {
                         this.Log(LogSection.Config, LogLevel.Success, "Trovato ffmpeg: " + this._ffmpegPath);
                     }
-                    else if (this._opts.FrameSync || this._opts.ConvertFormat.Length > 0 || this._opts.EncodingProfileName.Length > 0)
+                    else if (this._opts.FrameSync || this._opts.DeepAnalysis || this._opts.ConvertFormat.Length > 0 || this._opts.EncodingProfileName.Length > 0 || this._opts.AudioSourceFillThresholdMs > 0)
                     {
-                        // ffmpeg richiesto per frame-sync, conversione audio o encoding video
-                        string reason = this._opts.FrameSync ? "frame-sync" : (this._opts.EncodingProfileName.Length > 0 ? "encoding video" : "conversione audio");
+                        // ffmpeg richiesto per analisi sync, conversione audio, audio source fill o encoding video
+                        string reason = this._opts.FrameSync ? "frame-sync" : (this._opts.DeepAnalysis ? "deep analysis" : (this._opts.AudioSourceFillThresholdMs > 0 ? "audio source fill" : (this._opts.EncodingProfileName.Length > 0 ? "encoding video" : "conversione audio")));
                         this.Log(LogSection.Config, LogLevel.Error, "ffmpeg non trovato e impossibile scaricarlo. Necessario per " + reason);
                         success = false;
                     }
@@ -296,6 +297,11 @@ namespace RemuxForge.Core.Pipeline
                         {
                             this.Log(LogSection.Config, LogLevel.Debug, "  Opus bitrate: mono=" + AppSettingsService.Instance.Settings.Opus.Bitrate.Mono + "k, stereo=" + AppSettingsService.Instance.Settings.Opus.Bitrate.Stereo + "k, 5.1=" + AppSettingsService.Instance.Settings.Opus.Bitrate.Surround51 + "k, 7.1=" + AppSettingsService.Instance.Settings.Opus.Bitrate.Surround71 + "k");
                         }
+                    }
+
+                    if (success && this._opts.AudioSourceFillThresholdMs > 0)
+                    {
+                        this.Log(LogSection.Config, LogLevel.Phase, "Audio source fill attivo: soglia " + this._opts.AudioSourceFillThresholdMs + "ms, sorgente " + this._opts.AudioSourceFillLanguage);
                     }
 
                     // Log profilo encoding video se attivo
@@ -460,10 +466,17 @@ namespace RemuxForge.Core.Pipeline
         public static List<string> GetPipelineSteps(Options opts)
         {
             List<string> steps = new List<string>();
+
+            if (opts.Mode == Options.MODE_SPLIT)
+            {
+                return GetSplitPipelineSteps(opts);
+            }
+
             bool needsMerge = (opts.TargetLanguage.Count > 0);
             bool needsFilter = (opts.KeepSourceAudioLangs.Count > 0 || opts.KeepSourceAudioCodec.Count > 0 || opts.KeepSourceSubtitleLangs.Count > 0);
             bool needsConvert = (opts.ConvertFormat.Length > 0);
-            bool needsRemux = (needsMerge || needsFilter || needsConvert);
+            bool needsAudioSourceFill = opts.AudioSourceFillThresholdMs > 0;
+            bool needsRemux = (needsMerge || needsFilter || needsConvert || needsAudioSourceFill);
             bool needsEncode = (opts.EncodingProfileName.Length > 0);
 
             // Step 1: Scan sempre presente
@@ -490,7 +503,13 @@ namespace RemuxForge.Core.Pipeline
                 steps.Add("Conversione audio (" + opts.ConvertFormat.ToUpper() + ")");
             }
 
-            // Step 5: Remux
+            // Step 5: Audio source fill
+            if (needsAudioSourceFill)
+            {
+                steps.Add("Audio source fill");
+            }
+
+            // Step 6: Remux
             if (needsRemux)
             {
                 string remuxDetail = "Remux";
@@ -500,7 +519,7 @@ namespace RemuxForge.Core.Pipeline
                 steps.Add(remuxDetail);
             }
 
-            // Step 6: Encoding video
+            // Step 7: Encoding video
             if (needsEncode)
             {
                 EncodingProfile profile = AppSettingsService.Instance.GetProfile(opts.EncodingProfileName);
@@ -522,6 +541,63 @@ namespace RemuxForge.Core.Pipeline
         #endregion
 
         #region Metodi privati
+
+        /// <summary>
+        /// Genera gli step della pipeline split dalla configurazione
+        /// </summary>
+        /// <param name="opts">Opzioni di configurazione</param>
+        /// <returns>Lista ordinata degli step split</returns>
+        private static List<string> GetSplitPipelineSteps(Options opts)
+        {
+            List<string> steps = new List<string>();
+            string sourceKind = "sorgente";
+            string modeDetail = "";
+
+            if (opts.Split.SourcePath.Length > 0)
+            {
+                if (Directory.Exists(opts.Split.SourcePath)) { sourceKind = "cartella sorgente"; }
+                else if (File.Exists(opts.Split.SourcePath)) { sourceKind = "file sorgente"; }
+            }
+
+            steps.Add("Scan input split (" + sourceKind + ")");
+            steps.Add("Estrazione capitoli");
+            if (opts.Split.SourceRaw.Length > 0)
+            {
+                steps.Add("Estrazione PTS da source raw");
+            }
+            else
+            {
+                steps.Add("Estrazione PTS dal file input");
+            }
+            steps.Add("Conteggio e verifica frame");
+
+            if (opts.Split.Pattern.Length > 0) { modeDetail = "pattern capitoli"; }
+            else if (opts.Split.Ranges.Length > 0) { modeDetail = "range espliciti"; }
+            else if (opts.Split.SplitAt.Length > 0) { modeDetail = "split-at"; }
+            else if (opts.Split.TrimStart.Length > 0 || opts.Split.TrimEnd.Length > 0) { modeDetail = "trim"; }
+            else if (opts.Split.ChaptersEach) { modeDetail = "un segmento per capitolo"; }
+            else { modeDetail = "modalita non configurata"; }
+            steps.Add("Costruzione segmenti (" + modeDetail + ")");
+
+            if (opts.Split.DryRun || opts.DryRun)
+            {
+                steps.Add("Dry-run: stampa segmenti senza scrivere file");
+                return steps;
+            }
+
+            steps.Add("Lettura parametri video e codec");
+            if (opts.Split.Snap != MkvSplitSnapMode.Off && opts.Split.SourceRaw.Length == 0)
+            {
+                steps.Add("Fast path con snap keyframe (" + opts.Split.Snap.ToString().ToLowerInvariant() + ")");
+            }
+            else
+            {
+                steps.Add("Slow path frame-perfect con bitstream raw");
+            }
+            steps.Add("Rimux audio, sottotitoli e capitoli");
+
+            return steps;
+        }
 
         /// <summary>
         /// Popola le lingue risultato nel record
@@ -553,11 +629,15 @@ namespace RemuxForge.Core.Pipeline
             List<int> sourceSubIds = new List<int>();
             List<TrackInfo> audioTracks = new List<TrackInfo>();
             List<TrackInfo> subtitleTracks = new List<TrackInfo>();
+            MkvFileInfo langInfo = null;
             List<TrackInfo> langTracks;
             Dictionary<int, string> convertedSourceTracks = new Dictionary<int, string>();
             Dictionary<int, string> convertedLangTracks = new Dictionary<int, string>();
             Dictionary<int, string> processedLangSubTracks = new Dictionary<int, string>();
             HashSet<int> codecConvertedLangIds = new HashSet<int>();
+            HashSet<int> audioDelayBypassedLangIds = new HashSet<int>();
+            Dictionary<int, string> processedLangAudioFormats = new Dictionary<int, string>();
+            EditMap audioEditMap = null;
             string stretchFactor = record.StretchFactor;
             List<string> mergeArgs;
             string delayInfo;
@@ -580,6 +660,7 @@ namespace RemuxForge.Core.Pipeline
             // Raccogli tracce dal file lingua (solo se merge attivo)
             if (this._needsMerge)
             {
+                langInfo = this.GetCachedFileInfo(record.LangFilePath);
                 langTracks = this.CollectLanguageTracks(record, out audioTracks, out subtitleTracks);
 
                 if (langTracks == null)
@@ -618,8 +699,21 @@ namespace RemuxForge.Core.Pipeline
                     }
                 }
 
+                if (!done && this._needsMerge && this._opts.AudioSourceFillThresholdMs > 0)
+                {
+                    AudioSourceFillService fillService = new AudioSourceFillService(this._ffmpegPath, AppSettingsService.Instance.GetTempFolder(), this._mkvService);
+                    if (fillService.Apply(record, sourceInfo, langInfo, audioTracks, this._opts, effectiveAudioDelay, convertedLangTracks, audioDelayBypassedLangIds, processedLangAudioFormats, out effectiveAudioDelay, out audioEditMap))
+                    {
+                        record.AudioDelayApplied = effectiveAudioDelay;
+                    }
+                    else
+                    {
+                        done = true;
+                    }
+                }
+
                 // Deep analysis: applica EditMap alle tracce lang (taglia-cuci)
-                if (!done && this._deepEditApplier.Apply(record, audioTracks, subtitleTracks, convertedLangTracks, processedLangSubTracks, this._opts, this._ffmpegPath))
+                if (!done && this._deepEditApplier.Apply(record, audioTracks, subtitleTracks, convertedLangTracks, processedLangSubTracks, audioEditMap, this._opts, this._ffmpegPath))
                 {
                     // Se deep analysis ha operazioni, lo stretch e' gia' applicato nel file processato
                     stretchFactor = "";
@@ -662,6 +756,8 @@ namespace RemuxForge.Core.Pipeline
                     mergeReq.ConvertedSourceTracks = convertedSourceTracks;
                     mergeReq.ConvertedLangTracks = convertedLangTracks;
                     mergeReq.CodecConvertedLangIds = codecConvertedLangIds;
+                    mergeReq.AudioDelayBypassedLangIds = audioDelayBypassedLangIds;
+                    mergeReq.ProcessedLangAudioFormats = processedLangAudioFormats;
                     mergeReq.ProcessedLangSubTracks = processedLangSubTracks;
                     mergeArgs = this._mkvService.BuildMergeArguments(mergeReq);
 

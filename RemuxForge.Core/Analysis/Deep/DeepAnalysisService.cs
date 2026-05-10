@@ -1,3 +1,4 @@
+using RemuxForge.Core.Analysis.FrameSync;
 using RemuxForge.Core.Configuration;
 using RemuxForge.Core.Infrastructure;
 using RemuxForge.Core.Media;
@@ -16,6 +17,16 @@ namespace RemuxForge.Core.Analysis.Deep
     /// </summary>
     public class DeepAnalysisService : VideoSyncServiceBase
     {
+        #region Costanti
+
+        private const double INITIAL_VISUAL_GUARD_FPS = 1.0;
+        private const int INITIAL_VISUAL_GUARD_SEARCH_STEP_MS = 500;
+        private const int INITIAL_VISUAL_GUARD_DISTINCT_OFFSET_MS = 5000;
+        private const double INITIAL_VISUAL_GUARD_MAX_REGION_SEC = 60.0;
+        private const int VISUAL_BASELINE_CONFLICT_THRESHOLD_MS = 250;
+
+        #endregion
+
         #region Variabili di classe
 
         /// <summary>
@@ -181,6 +192,8 @@ namespace RemuxForge.Core.Analysis.Deep
             double visualStartEndSec;
             double visualStartMse;
             double visualStartSecondMse;
+            int visualBaselineOffsetMs;
+            bool visualBaselineOnly;
             stopwatch.Start();
             this._lastAnalysisMap = null;
             lock (this._performanceDiagnosticsLock)
@@ -237,15 +250,30 @@ namespace RemuxForge.Core.Analysis.Deep
             this._currentSourceAudioStreamIndex = timelineMap.Diagnostic.SourceAudioStreamIndex;
             this._currentLanguageAudioStreamIndex = timelineMap.Diagnostic.LanguageAudioStreamIndex;
             regions = timelineMap.Regions;
-            this.ApplyInitialVisualGuard(sourceFile, langFile, sourceDurationMs, regions, out visualStartOffsetMs, out visualStartEndSec, out visualStartMse, out visualStartSecondMse);
+            visualBaselineOffsetMs = this.ResolveVisualBaselineOffset(sourceFile, langFile, timelineMap, inverseRatio);
+            visualBaselineOnly = this.ShouldUseVisualBaselineOnly(timelineMap, visualBaselineOffsetMs, inverseRatio);
+            if (visualBaselineOnly)
+            {
+                regions = this.BuildConstantOffsetRegions(visualBaselineOffsetMs, sourceDurationMs);
+                visualStartOffsetMs = int.MinValue;
+                visualStartEndSec = 0.0;
+                visualStartMse = 0.0;
+                visualStartSecondMse = 0.0;
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Timeline audio-common scartata come edit operativo: baseline visuale FrameSync " + visualBaselineOffsetMs.ToString(CultureInfo.InvariantCulture) + "ms");
+            }
+            else
+            {
+                this.ApplyInitialVisualGuard(sourceFile, langFile, sourceDurationMs, regions, out visualStartOffsetMs, out visualStartEndSec, out visualStartMse, out visualStartSecondMse);
+            }
+
             acceptedAnchors = timelineMap.Diagnostic.AcceptedAnchorCount;
             initialAlignment = new DeepAnalysisInitialAlignmentDiagnostic();
-            initialAlignment.SceneCandidateAvailable = visualStartOffsetMs != int.MinValue;
-            initialAlignment.SceneOffsetMs = visualStartOffsetMs != int.MinValue ? visualStartOffsetMs : 0;
-            initialAlignment.SceneVotes = visualStartOffsetMs != int.MinValue ? (int)Math.Round(visualStartEndSec) : 0;
-            initialAlignment.SelectedSource = visualStartOffsetMs != int.MinValue ? "timeline+visual-start-guard" : "timeline";
+            initialAlignment.SceneCandidateAvailable = visualStartOffsetMs != int.MinValue || visualBaselineOnly;
+            initialAlignment.SceneOffsetMs = visualBaselineOnly ? visualBaselineOffsetMs : (visualStartOffsetMs != int.MinValue ? visualStartOffsetMs : 0);
+            initialAlignment.SceneVotes = visualBaselineOnly ? acceptedAnchors : (visualStartOffsetMs != int.MinValue ? (int)Math.Round(visualStartEndSec) : 0);
+            initialAlignment.SelectedSource = visualBaselineOnly ? "framesync-visual-baseline" : (visualStartOffsetMs != int.MinValue ? "timeline+visual-start-guard" : "timeline");
             initialAlignment.SelectedOffsetMs = (int)Math.Round(regions[0].OffsetMs);
-            initialAlignment.DecisionReason = visualStartOffsetMs != int.MinValue ? "timeline-first vincolata dal match video iniziale (mse=" + visualStartMse.ToString("F1", CultureInfo.InvariantCulture) + ", second=" + visualStartSecondMse.ToString("F1", CultureInfo.InvariantCulture) + ")" : "timeline-first audio/video anchor map";
+            initialAlignment.DecisionReason = visualBaselineOnly ? "timeline audio-common a plateau singolo in conflitto con baseline visuale globale" : (visualStartOffsetMs != int.MinValue ? "timeline-first vincolata dal match video iniziale (mse=" + visualStartMse.ToString("F1", CultureInfo.InvariantCulture) + ", second=" + visualStartSecondMse.ToString("F1", CultureInfo.InvariantCulture) + ")" : "timeline-first audio/video anchor map");
             diagnostics.InitialAlignment = initialAlignment;
             diagnostics.Regions = this.BuildRegionDiagnostics(regions);
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Timeline accettata: " + regions.Count.ToString(CultureInfo.InvariantCulture) + " regioni, " + acceptedAnchors.ToString(CultureInfo.InvariantCulture) + " anchor");
@@ -254,7 +282,15 @@ namespace RemuxForge.Core.Analysis.Deep
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Phase, "  Fase 3: Raffinamento transizioni...");
             ConsoleHelper.Progress(LogSection.Deep, 70, "Deep: transizioni");
             phaseStartMs = stopwatch.ElapsedMilliseconds;
-            operations = this.RefineTransitions(sourceFile, langFile, regions, inverseRatio, out transitions);
+            if (visualBaselineOnly)
+            {
+                operations = new List<EditOperation>();
+                transitions = new List<DeepAnalysisTransitionDiagnostic>();
+            }
+            else
+            {
+                operations = this.RefineTransitions(sourceFile, langFile, regions, inverseRatio, out transitions);
+            }
             diagnostics.Timing.TransitionRefineMs = stopwatch.ElapsedMilliseconds - phaseStartMs;
             diagnostics.Transitions = transitions;
 
@@ -346,6 +382,96 @@ namespace RemuxForge.Core.Analysis.Deep
         }
 
         /// <summary>
+        /// Calcola una baseline visuale globale tramite FrameSync quando puo' servire da veto alla timeline audio-common
+        /// </summary>
+        private int ResolveVisualBaselineOffset(string sourceFile, string langFile, DeepTimelineMapResult timelineMap, double inverseRatio)
+        {
+            int result = int.MinValue;
+            FrameSyncService frameSyncService;
+
+            if (timelineMap == null || timelineMap.Regions == null || timelineMap.Regions.Count != 1 || timelineMap.Diagnostic == null)
+            {
+                return result;
+            }
+
+            if (!string.Equals(timelineMap.Diagnostic.AnchorMode, "audio-common", StringComparison.Ordinal))
+            {
+                return result;
+            }
+
+            if (Math.Abs(inverseRatio - 1.0) > 0.0001)
+            {
+                return result;
+            }
+
+            ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Baseline visuale: avvio FrameSync di controllo per timeline audio-common a plateau singolo");
+            frameSyncService = new FrameSyncService(this._ffmpegPath);
+            result = frameSyncService.RefineOffset(sourceFile, langFile);
+            if (result == int.MinValue)
+            {
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Baseline visuale: FrameSync non ha trovato un offset affidabile");
+            }
+            else
+            {
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Baseline visuale: FrameSync=" + result.ToString(CultureInfo.InvariantCulture) + "ms");
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Decide se una timeline audio-common a plateau singolo deve essere sostituita dalla baseline visuale costante
+        /// </summary>
+        private bool ShouldUseVisualBaselineOnly(DeepTimelineMapResult timelineMap, int visualBaselineOffsetMs, double inverseRatio)
+        {
+            bool result = false;
+            int timelineOffsetMs;
+
+            if (visualBaselineOffsetMs == int.MinValue || timelineMap == null || timelineMap.Regions == null || timelineMap.Regions.Count != 1 || timelineMap.Diagnostic == null)
+            {
+                return result;
+            }
+
+            if (!string.Equals(timelineMap.Diagnostic.AnchorMode, "audio-common", StringComparison.Ordinal))
+            {
+                return result;
+            }
+
+            if (Math.Abs(inverseRatio - 1.0) > 0.0001)
+            {
+                return result;
+            }
+
+            timelineOffsetMs = (int)Math.Round(timelineMap.Regions[0].OffsetMs);
+            if (Math.Abs(timelineOffsetMs - visualBaselineOffsetMs) > VISUAL_BASELINE_CONFLICT_THRESHOLD_MS)
+            {
+                result = true;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Crea una singola regione con offset costante per tutta la durata source
+        /// </summary>
+        private List<OffsetRegion> BuildConstantOffsetRegions(int offsetMs, int sourceDurationMs)
+        {
+            List<OffsetRegion> result = new List<OffsetRegion>();
+            OffsetRegion region = new OffsetRegion();
+            double sourceDurationSec = sourceDurationMs / 1000.0;
+
+            region.StartSrcSec = 0.0;
+            region.EndSrcSec = sourceDurationSec;
+            region.SupportStartSrcSec = 0.0;
+            region.SupportEndSrcSec = sourceDurationSec;
+            region.OffsetMs = offsetMs;
+            region.MatchCount = 1;
+            result.Add(region);
+
+            return result;
+        }
+
+        /// <summary>
         /// Impedisce alla timeline audio di estendere all'inizio un plateau non confermato dal video
         /// </summary>
         private void ApplyInitialVisualGuard(string sourceFile, string langFile, int sourceDurationMs, List<OffsetRegion> regions, out int visualStartOffsetMs, out double visualStartEndSec, out double visualStartMse, out double visualStartSecondMse)
@@ -386,45 +512,67 @@ namespace RemuxForge.Core.Analysis.Deep
         private bool TryFindInitialVisualGuardOffset(string sourceFile, string langFile, double sourceDurationSec, out int offsetMs, out double guardEndSec, out double bestMse, out double secondMse)
         {
             bool result = false;
-            double durationSec = sourceDurationSec < 60.0 ? sourceDurationSec : 60.0;
-            double fps = 1.0;
-            int searchRadiusMs = 15000;
-            int searchStepMs = 500;
+            FrameSyncConfig frameSyncConfig = AppSettingsService.Instance.Settings.Advanced.FrameSync;
+            double sourceExtractDurationSec = Math.Min(sourceDurationSec, frameSyncConfig.SourceDurationSec);
+            double languageExtractDurationSec = frameSyncConfig.LangDurationSec;
+            int sourceStartMs = frameSyncConfig.SourceStartSec * 1000;
+            int minOffsetMs;
+            int maxOffsetMs;
+            List<int> candidateOffsets = new List<int>();
+            List<double> candidateMseValues = new List<double>();
             List<byte[]> sourceFrames;
             double[] sourceTimestampsMs;
             List<byte[]> langFrames;
             double[] langTimestampsMs;
 
             offsetMs = 0;
-            guardEndSec = durationSec;
+            guardEndSec = Math.Min(sourceExtractDurationSec, INITIAL_VISUAL_GUARD_MAX_REGION_SEC);
             bestMse = double.PositiveInfinity;
             secondMse = double.PositiveInfinity;
 
-            this.ExtractDeepSegment(sourceFile, 0, durationSec, fps, this._cropSourceTo43, out sourceFrames, out sourceTimestampsMs);
-            this.ExtractDeepSegment(langFile, 0, durationSec + (searchRadiusMs / 1000.0), fps, this._cropLangTo43, out langFrames, out langTimestampsMs);
+            this.CalculateWindowOffsetRange(sourceStartMs, sourceExtractDurationSec, languageExtractDurationSec, out minOffsetMs, out maxOffsetMs);
+            ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Start guard: ricerca visuale iniziale source " + sourceExtractDurationSec.ToString("F0", CultureInfo.InvariantCulture) + "s/lang " + languageExtractDurationSec.ToString("F0", CultureInfo.InvariantCulture) + "s, range " + minOffsetMs + "ms.." + maxOffsetMs + "ms");
+
+            this.ExtractDeepSegment(sourceFile, sourceStartMs, sourceExtractDurationSec, INITIAL_VISUAL_GUARD_FPS, this._cropSourceTo43, out sourceFrames, out sourceTimestampsMs);
+            this.ExtractDeepSegment(langFile, 0, languageExtractDurationSec, INITIAL_VISUAL_GUARD_FPS, this._cropLangTo43, out langFrames, out langTimestampsMs);
             if (sourceFrames == null || langFrames == null || sourceFrames.Count < 20 || langFrames.Count < 20)
             {
                 return result;
             }
 
-            for (int candidateOffsetMs = -searchRadiusMs; candidateOffsetMs <= searchRadiusMs; candidateOffsetMs += searchStepMs)
+            for (int candidateOffsetMs = minOffsetMs; candidateOffsetMs <= maxOffsetMs; candidateOffsetMs += INITIAL_VISUAL_GUARD_SEARCH_STEP_MS)
             {
-                double languageStartMs = -(candidateOffsetMs);
+                double languageStartMs = sourceStartMs - candidateOffsetMs;
                 if (languageStartMs < 0.0)
                 {
                     continue;
                 }
 
-                double mse = this.ComputeTimestampMatchedMseAtStart(sourceFrames, sourceTimestampsMs, langFrames, langTimestampsMs, languageStartMs, fps);
+                double mse = this.ComputeTimestampMatchedMseAtStart(sourceFrames, sourceTimestampsMs, langFrames, langTimestampsMs, languageStartMs, INITIAL_VISUAL_GUARD_FPS);
+                if (double.IsPositiveInfinity(mse))
+                {
+                    continue;
+                }
+
+                candidateOffsets.Add(candidateOffsetMs);
+                candidateMseValues.Add(mse);
                 if (mse < bestMse)
                 {
-                    secondMse = bestMse;
                     bestMse = mse;
                     offsetMs = candidateOffsetMs;
                 }
-                else if (mse < secondMse)
+            }
+
+            for (int i = 0; i < candidateMseValues.Count; i++)
+            {
+                if (Math.Abs(candidateOffsets[i] - offsetMs) < INITIAL_VISUAL_GUARD_DISTINCT_OFFSET_MS)
                 {
-                    secondMse = mse;
+                    continue;
+                }
+
+                if (candidateMseValues[i] < secondMse)
+                {
+                    secondMse = candidateMseValues[i];
                 }
             }
 
@@ -442,6 +590,15 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Calcola il range offset coperto dalla finestra estratta
+        /// </summary>
+        private void CalculateWindowOffsetRange(int sourceStartMs, double sourceDurationSec, double langDurationSec, out int minOffsetMs, out int maxOffsetMs)
+        {
+            minOffsetMs = -sourceStartMs - (int)Math.Ceiling(sourceDurationSec * 1000.0);
+            maxOffsetMs = (int)Math.Ceiling(langDurationSec * 1000.0) - sourceStartMs;
         }
 
         /// <summary>
@@ -638,7 +795,7 @@ namespace RemuxForge.Core.Analysis.Deep
         }
 
         /// <summary>
-        /// In timeline-first non accetta EditMap parziali: ogni cambio offset significativo deve diventare operazione
+        /// Valida che le transizioni non scartate abbiano prodotto operazioni applicabili
         /// </summary>
         private bool ValidateTimelineTransitions(List<DeepAnalysisTransitionDiagnostic> transitions)
         {
@@ -651,6 +808,11 @@ namespace RemuxForge.Core.Analysis.Deep
             for (int i = 0; i < transitions.Count; i++)
             {
                 if (Math.Abs(transitions[i].DeltaMs) < 250)
+                {
+                    continue;
+                }
+
+                if (string.Equals(transitions[i].Status, "SkippedUnverified", StringComparison.Ordinal))
                 {
                     continue;
                 }

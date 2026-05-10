@@ -18,7 +18,6 @@ namespace RemuxForge.Core.Analysis.FrameSync
         private readonly int _visualScanMaxSamples;
         private readonly int _visualScanFastTopCandidates;
         private readonly int _visualScanOffsetStepMs;
-        private readonly int _maxFastSyncOffsetMs;
         private readonly int _checkpointLocalMaxSamples;
         private readonly int _checkpointLocalMinSamples;
 
@@ -26,7 +25,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
 
         #region Costruttore
 
-        public FrameSyncVisualScanMatcher(VideoSyncConfig videoSyncConfig, FrameSyncCandidateScorer candidateScorer, int visualScanMaxSamples, int visualScanFastTopCandidates, int visualScanOffsetStepMs, int maxFastSyncOffsetMs, int checkpointLocalMaxSamples, int checkpointLocalMinSamples)
+        public FrameSyncVisualScanMatcher(VideoSyncConfig videoSyncConfig, FrameSyncCandidateScorer candidateScorer, int visualScanMaxSamples, int visualScanFastTopCandidates, int visualScanOffsetStepMs, int checkpointLocalMaxSamples, int checkpointLocalMinSamples)
         {
             this._videoSyncConfig = videoSyncConfig;
             this._visualMetricCalculator = new VisualMetricCalculator(videoSyncConfig);
@@ -34,7 +33,6 @@ namespace RemuxForge.Core.Analysis.FrameSync
             this._visualScanMaxSamples = visualScanMaxSamples;
             this._visualScanFastTopCandidates = visualScanFastTopCandidates;
             this._visualScanOffsetStepMs = visualScanOffsetStepMs;
-            this._maxFastSyncOffsetMs = maxFastSyncOffsetMs;
             this._checkpointLocalMaxSamples = checkpointLocalMaxSamples;
             this._checkpointLocalMinSamples = checkpointLocalMinSamples;
         }
@@ -344,7 +342,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
         /// <summary>
         /// Crea gli offset da rivalutare con score completo partendo dai migliori candidati veloci
         /// </summary>
-        public List<int> BuildExactVisualScanOffsets(List<VisualScanCandidate> fastCandidates)
+        public List<int> BuildExactVisualScanOffsets(List<VisualScanCandidate> fastCandidates, int minOffsetMs, int maxOffsetMs)
         {
             List<int> result = new List<int>();
 
@@ -352,20 +350,20 @@ namespace RemuxForge.Core.Analysis.FrameSync
 
             for (int i = 0; i < fastCandidates.Count && i < this._visualScanFastTopCandidates; i++)
             {
-                this.AddUniqueOffset(result, fastCandidates[i].OffsetMs - this._visualScanOffsetStepMs);
-                this.AddUniqueOffset(result, fastCandidates[i].OffsetMs);
-                this.AddUniqueOffset(result, fastCandidates[i].OffsetMs + this._visualScanOffsetStepMs);
+                this.AddUniqueOffset(result, fastCandidates[i].OffsetMs - this._visualScanOffsetStepMs, minOffsetMs, maxOffsetMs);
+                this.AddUniqueOffset(result, fastCandidates[i].OffsetMs, minOffsetMs, maxOffsetMs);
+                this.AddUniqueOffset(result, fastCandidates[i].OffsetMs + this._visualScanOffsetStepMs, minOffsetMs, maxOffsetMs);
             }
 
             return result;
         }
 
         /// <summary>
-        /// Aggiunge un offset se nel range veloce e non gia' presente
+        /// Aggiunge un offset se nel range richiesto e non gia' presente
         /// </summary>
-        public void AddUniqueOffset(List<int> offsets, int offsetMs)
+        public void AddUniqueOffset(List<int> offsets, int offsetMs, int minOffsetMs, int maxOffsetMs)
         {
-            if (offsetMs < -this._maxFastSyncOffsetMs || offsetMs > this._maxFastSyncOffsetMs)
+            if (offsetMs < minOffsetMs || offsetMs > maxOffsetMs)
             {
                 return;
             }

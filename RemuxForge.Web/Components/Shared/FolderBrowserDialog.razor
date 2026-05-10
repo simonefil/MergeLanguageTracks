@@ -1,6 +1,6 @@
 <div class="dialog-overlay visible" @onclick="OnClose">
     <div class="dialog-box dialog-browse" @onclick:stopPropagation="true">
-        <div class="dialog-title">@(ShowFiles ? "Seleziona file" : "Seleziona cartella")</div>
+        <div class="dialog-title">@GetDialogTitle()</div>
         <div class="dialog-body" style="display: flex; flex-direction: column; padding: 0;">
 
             @* Barra percorso con autocomplete (pattern Bivium) *@
@@ -90,7 +90,7 @@
         </div>
         <div class="dialog-footer">
             <button @onclick="OnClose">Cancel</button>
-            <button @onclick="Confirm">@(ShowFiles ? "Select file" : "Select folder")</button>
+            <button @onclick="Confirm">@GetConfirmLabel()</button>
         </div>
     </div>
 </div>
@@ -115,6 +115,11 @@
     /// Se true mostra anche i file e permette la selezione di un file
     /// </summary>
     [Parameter] public bool ShowFiles { get; set; }
+
+    /// <summary>
+    /// Se true permette di confermare la cartella corrente
+    /// </summary>
+    [Parameter] public bool AllowCurrentFolderSelection { get; set; } = true;
 
     #region Variabili di classe
 
@@ -407,11 +412,37 @@
             // Modalita' file: restituisci il file selezionato
             this.OnSelect.InvokeAsync(_entries[_selectedIndex].FullPath);
         }
-        else
+        else if (!this.ShowFiles || this.AllowCurrentFolderSelection)
         {
             // Modalita' cartella: restituisci la cartella corrente
             this.OnSelect.InvokeAsync(_currentPath);
         }
+        else
+        {
+            _errorMessage = "Selezionare un file";
+        }
+    }
+
+    /// <summary>
+    /// Restituisce il titolo del dialog in base alla modalita'
+    /// </summary>
+    /// <returns>Titolo dialog</returns>
+    private string GetDialogTitle()
+    {
+        if (this.ShowFiles && this.AllowCurrentFolderSelection) { return "Seleziona file o cartella"; }
+        if (this.ShowFiles) { return "Seleziona file"; }
+        return "Seleziona cartella";
+    }
+
+    /// <summary>
+    /// Restituisce la label del pulsante di conferma
+    /// </summary>
+    /// <returns>Label pulsante</returns>
+    private string GetConfirmLabel()
+    {
+        if (this.ShowFiles && this.AllowCurrentFolderSelection) { return "Select file/folder"; }
+        if (this.ShowFiles) { return "Select file"; }
+        return "Select folder";
     }
 
     #endregion

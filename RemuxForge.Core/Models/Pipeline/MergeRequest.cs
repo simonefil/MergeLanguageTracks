@@ -28,6 +28,8 @@ namespace RemuxForge.Core.Models
             this.ConvertedLangTracks = new Dictionary<int, string>();
             this.ProcessedLangSubTracks = new Dictionary<int, string>();
             this.CodecConvertedLangIds = new HashSet<int>();
+            this.AudioDelayBypassedLangIds = new HashSet<int>();
+            this.ProcessedLangAudioFormats = new Dictionary<int, string>();
             this.SourceTitle = "";
         }
 
@@ -132,6 +134,16 @@ namespace RemuxForge.Core.Models
         /// ID tracce lang effettivamente convertite di codec (non solo processate da taglia-cuci)
         /// </summary>
         public HashSet<int> CodecConvertedLangIds { get; set; }
+
+        /// <summary>
+        /// ID tracce lang per cui il delay audio e' stato sostituito da audio source fill
+        /// </summary>
+        public HashSet<int> AudioDelayBypassedLangIds { get; set; }
+
+        /// <summary>
+        /// Formato effettivo dei file audio lang preprocessati
+        /// </summary>
+        public Dictionary<int, string> ProcessedLangAudioFormats { get; set; }
 
         /// <summary>
         /// Titolo segmento del file sorgente (container title), stringa vuota se assente

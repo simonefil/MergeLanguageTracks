@@ -139,11 +139,6 @@
     [Parameter] public EventCallback OnShowEncodingProfiles { get; set; }
 
     /// <summary>
-    /// Evento mostra help
-    /// </summary>
-    [Parameter] public EventCallback OnShowHelp { get; set; }
-
-    /// <summary>
     /// Evento mostra info
     /// </summary>
     [Parameter] public EventCallback OnShowInfo { get; set; }
@@ -164,6 +159,11 @@
     [Parameter] public string CurrentTheme { get; set; }
 
     /// <summary>
+    /// Modalita' corrente
+    /// </summary>
+    [Parameter] public string CurrentMode { get; set; }
+
+    /// <summary>
     /// Indice menu attualmente aperto (-1 = nessuno)
     /// </summary>
     private int _activeIndex = -1;
@@ -181,9 +181,50 @@
     /// <summary>
     /// Inizializzazione definizioni menu e calcolo posizioni
     /// </summary>
-    protected override void OnInitialized()
+    protected override void OnParametersSet()
     {
-        this._menus = new List<MenuDef>
+        if (this.CurrentMode == RemuxForge.Core.Models.Options.MODE_SPLIT)
+        {
+            this._menus = new List<MenuDef>
+            {
+                new MenuDef { Label = "File", Items = new List<MenuItemDef>
+                {
+                    new MenuItemDef { Label = "Configurazione Split", Shortcut = "F2", Callback = () => OnShowConfig.InvokeAsync() },
+                }},
+                new MenuDef { Label = "Azioni", Items = new List<MenuItemDef>
+                {
+                    new MenuItemDef { Label = "Scan input", Shortcut = "F5", Callback = () => OnScan.InvokeAsync() },
+                    new MenuItemDef { Label = "Split tutti", Shortcut = "F10", Callback = () => OnMergeAll.InvokeAsync() },
+                    new MenuItemDef { Label = "Stop", Shortcut = "F12", Callback = () => OnStop.InvokeAsync() },
+                }},
+                new MenuDef { Label = "Impostazioni", Items = new List<MenuItemDef>
+                {
+                    new MenuItemDef { Label = "Percorsi tool", Shortcut = "", Callback = () => OnShowToolPaths.InvokeAsync() },
+                }},
+                new MenuDef { Label = "Vista", Items = new List<MenuItemDef>
+                {
+                    new MenuItemDef { Label = "Pipeline...", Shortcut = "", Callback = () => OnShowPipeline.InvokeAsync() },
+                }},
+                new MenuDef { Label = "Tema", Items = new List<MenuItemDef>
+                {
+                    new MenuItemDef { Label = "Nord", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("nord") },
+                    new MenuItemDef { Label = "DOS Blue", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("dos-blue") },
+                    new MenuItemDef { Label = "Matrix", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("matrix") },
+                    new MenuItemDef { Label = "Cyberpunk", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("cyberpunk") },
+                    new MenuItemDef { Label = "Solarized Dark", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("solarized-dark") },
+                    new MenuItemDef { Label = "Solarized Light", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("solarized-light") },
+                    new MenuItemDef { Label = "Cybergum", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("cybergum") },
+                    new MenuItemDef { Label = "Everforest", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("everforest") },
+                }},
+                new MenuDef { Label = "Aiuto", Items = new List<MenuItemDef>
+                {
+                    new MenuItemDef { Label = "Info", Shortcut = "", Callback = () => OnShowInfo.InvokeAsync() },
+                }},
+            };
+        }
+        else
+        {
+            this._menus = new List<MenuDef>
         {
             new MenuDef { Label = "File", Items = new List<MenuItemDef>
             {
@@ -225,10 +266,10 @@
             }},
             new MenuDef { Label = "Aiuto", Items = new List<MenuItemDef>
             {
-                new MenuItemDef { Label = "Guida", Shortcut = "F1", Callback = () => OnShowHelp.InvokeAsync() },
                 new MenuItemDef { Label = "Info", Shortcut = "", Callback = () => OnShowInfo.InvokeAsync() },
             }},
         };
+        }
 
         // Calcola posizioni orizzontali: ogni label + 2ch padding (1ch per lato)
         this._menuPositions = new List<int>();

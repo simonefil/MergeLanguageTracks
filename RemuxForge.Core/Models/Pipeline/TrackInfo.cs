@@ -95,6 +95,11 @@ namespace RemuxForge.Core.Models
         /// </summary>
         public int SamplingFrequency { get; set; }
 
+        /// <summary>
+        /// Bitrate audio in bit/s, se disponibile
+        /// </summary>
+        public int Bitrate { get; set; }
+
         #endregion
     }
 }

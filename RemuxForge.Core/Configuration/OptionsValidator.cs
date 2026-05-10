@@ -34,6 +34,18 @@ namespace RemuxForge.Core.Configuration
                 return result;
             }
 
+            if (options.Mode != Options.MODE_REMUX && options.Mode != Options.MODE_SPLIT)
+            {
+                result.AddError("Parametro obbligatorio mancante o non valido: --mode remux|split");
+                return result;
+            }
+
+            if (options.Mode == Options.MODE_SPLIT)
+            {
+                ValidateSplitOptions(options, requireSourceFolder, validateFolderExists, result);
+                return result;
+            }
+
             needsMerge = options.TargetLanguage.Count > 0;
             needsFilter = options.KeepSourceAudioLangs.Count > 0 || options.KeepSourceAudioCodec.Count > 0 || options.KeepSourceSubtitleLangs.Count > 0;
             needsRemux = needsMerge || needsFilter || options.ConvertFormat.Length > 0;
@@ -55,6 +67,7 @@ namespace RemuxForge.Core.Configuration
             }
 
             ValidateSpeedCorrection(options, result);
+            ValidateAudioSourceFill(options, needsMerge, result);
             ValidateRegex(options.MatchPattern, result);
             ValidateExtensions(options, result);
             ValidateLanguages(options, needsMerge, result);
@@ -104,6 +117,50 @@ namespace RemuxForge.Core.Configuration
                 {
                     result.AddError("Stretch factor manuale non valido: " + options.ManualStretchFactor);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Valida opzioni audio source fill
+        /// </summary>
+        private static void ValidateAudioSourceFill(Options options, bool needsMerge, OptionsValidationResult result)
+        {
+            bool anyMode = options.AudioSourceFillStart || options.AudioSourceFillEnd || options.AudioSourceFillInsertSilence;
+            bool active = anyMode || options.AudioSourceFillThresholdMs > 0 || options.AudioSourceFillLanguage.Length > 0;
+
+            if (options.AudioSourceFillThresholdMs < 0)
+            {
+                result.AddError("audio-source-fill-threshold-ms non puo' essere negativo");
+            }
+
+            if (active && !needsMerge)
+            {
+                result.AddError("audio-source-fill richiede una lingua target da importare");
+            }
+
+            if (active && options.AudioSourceFillThresholdMs <= 0)
+            {
+                result.AddError("audio-source-fill-threshold-ms deve essere maggiore di zero quando audio-source-fill e' attivo");
+            }
+
+            if (active && options.AudioSourceFillLanguage.Length == 0)
+            {
+                result.AddError("audio-source-fill-language e' obbligatorio quando audio-source-fill e' attivo");
+            }
+
+            if (active && !anyMode)
+            {
+                result.AddError("audio-source-fill-modes richiede almeno una modalita': start, end, insert-silence");
+            }
+
+            if (options.AudioSourceFillInsertSilence && !options.DeepAnalysis)
+            {
+                result.AddError("audio-source-fill mode insert-silence richiede --deep-analysis");
+            }
+
+            if (options.AudioSourceFillLanguage.Length > 0)
+            {
+                ValidateLanguage("audio-source-fill-language", options.AudioSourceFillLanguage, result);
             }
         }
 
@@ -239,6 +296,64 @@ namespace RemuxForge.Core.Configuration
             if (validateFolderExists && needsMerge && options.LanguageFolder.Length > 0 && !Directory.Exists(options.LanguageFolder))
             {
                 result.AddError("Cartella lingua non trovata: " + options.LanguageFolder);
+            }
+        }
+
+        /// <summary>
+        /// Valida opzioni della modalita' split
+        /// </summary>
+        /// <param name="options">Opzioni da validare</param>
+        /// <param name="requireSourceFolder">True se source e' obbligatorio</param>
+        /// <param name="validateFolderExists">True se controllare esistenza su disco</param>
+        /// <param name="result">Risultato validazione da aggiornare</param>
+        private static void ValidateSplitOptions(Options options, bool requireSourceFolder, bool validateFolderExists, OptionsValidationResult result)
+        {
+            int modes = 0;
+            bool sourceIsFolder = false;
+            bool sourceIsFile = false;
+
+            ValidateExtensions(options, result);
+
+            if (options.Split == null)
+            {
+                result.AddError("Configurazione split non valida");
+                return;
+            }
+
+            if (requireSourceFolder && options.Split.SourcePath.Length == 0)
+            {
+                result.AddError("Parametro obbligatorio mancante: source");
+            }
+
+            if (options.Split.SourcePath.Length > 0)
+            {
+                sourceIsFile = File.Exists(options.Split.SourcePath);
+                sourceIsFolder = Directory.Exists(options.Split.SourcePath);
+
+                if (validateFolderExists && !sourceIsFile && !sourceIsFolder)
+                {
+                    result.AddError("Sorgente split non trovata: " + options.Split.SourcePath);
+                }
+            }
+
+            if (options.Split.Pattern.Length > 0) { modes++; }
+            if (options.Split.Ranges.Length > 0) { modes++; }
+            if (options.Split.SplitAt.Length > 0) { modes++; }
+            if (options.Split.TrimStart.Length > 0 || options.Split.TrimEnd.Length > 0) { modes++; }
+            if (options.Split.ChaptersEach) { modes++; }
+
+            if (modes == 0)
+            {
+                result.AddError("Nessuna modalita' split configurata. Specificare pattern, ranges, split-at, trim-start/trim-end oppure chapters-each");
+            }
+            else if (modes > 1)
+            {
+                result.AddError("Le modalita' split sono mutuamente esclusive");
+            }
+
+            if (sourceIsFolder && options.Split.SourceRaw.Length > 0)
+            {
+                result.AddError("source-raw e' disponibile solo per split single file");
             }
         }
 

@@ -1,6 +1,7 @@
 @page "/"
 @rendermode InteractiveServer
 @inject MergeOrchestrator Orchestrator
+@inject SplitOrchestrator SplitOrchestrator
 @implements IAsyncDisposable
 
 <div class="rf-layout">
@@ -18,26 +19,79 @@
                        OnShowAudioSettings="ShowAudioSettings"
                        OnShowAdvancedSettings="ShowAdvancedSettings"
                        OnShowEncodingProfiles="ShowEncodingProfiles"
-                       OnShowHelp="ShowHelp"
                        OnShowInfo="ShowInfo"
                        OnShowPipeline="ShowPipeline"
                        OnThemeChanged="ChangeTheme"
-                       CurrentTheme="@_currentTheme" />
+                       CurrentTheme="@_currentTheme"
+                       CurrentMode="@_currentMode" />
 
-    @* Area Pannelli *@
-    <div class="panels-area">
-        <EpisodeTableComponent Records="@_records"
-                                SelectedIndex="@Orchestrator.SelectedIndex"
-                                OnRowSelected="SelectRow"
-                                OnContextMenu="ShowContextMenu" />
-        <DetailPanelComponent Record="@_selectedRecord" />
+    <div class="mode-switch">
+        <button class="@(_currentMode == RemuxForge.Core.Models.Options.MODE_REMUX ? "active" : "")" @onclick="@(() => SwitchMode(RemuxForge.Core.Models.Options.MODE_REMUX))">Remux</button>
+        <span class="mode-switch-separator">|</span>
+        <button class="@(_currentMode == RemuxForge.Core.Models.Options.MODE_SPLIT ? "active" : "")" @onclick="@(() => SwitchMode(RemuxForge.Core.Models.Options.MODE_SPLIT))">Split</button>
     </div>
 
+    @* Area Pannelli *@
+    @if (_currentMode == RemuxForge.Core.Models.Options.MODE_SPLIT)
+    {
+        <div class="panels-area">
+            <div class="rf-panel">
+                <div class="rf-panel-title">Input</div>
+                <div class="rf-panel-body split-input-body">
+                    <table class="episode-table split-table">
+                        <thead>
+                            <tr><th>File</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < _splitRecords.Count; i++)
+                            {
+                                int idx = i;
+                                MkvSplitRecord rec = _splitRecords[i];
+                                <tr class="@(SplitOrchestrator.SelectedIndex == idx ? "selected" : "")" @onclick="() => SelectSplitRow(idx)">
+                                    <td>@System.IO.Path.GetFileName(rec.InputFile)</td>
+                                    <td>@rec.Status</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="rf-panel">
+                <div class="rf-panel-title">Dettaglio file</div>
+                <div class="rf-panel-body detail-content">
+                    @if (_selectedSplitRecord == null)
+                    {
+                        <div class="empty-detail">Nessun file selezionato</div>
+                    }
+                    else
+                    {
+                        <div><span class="detail-label">File:</span> @_selectedSplitRecord.InputFile</div>
+                        <div><span class="detail-label">Stato:</span> @_selectedSplitRecord.Status</div>
+                        @if (_selectedSplitRecord.ErrorMessage.Length > 0)
+                        {
+                            <div><span class="detail-label">Errore:</span> @_selectedSplitRecord.ErrorMessage</div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="panels-area">
+            <EpisodeTableComponent Records="@_records"
+                                    SelectedIndex="@Orchestrator.SelectedIndex"
+                                    OnRowSelected="SelectRow"
+                                    OnContextMenu="ShowContextMenu" />
+            <DetailPanelComponent Record="@_selectedRecord" />
+        </div>
+    }
+
     @* Pannello Log *@
-    <LogPanelComponent LogText="@Orchestrator.LogText" JsModule="@_jsModule" />
+    <LogPanelComponent LogText="@(_currentMode == RemuxForge.Core.Models.Options.MODE_SPLIT ? SplitOrchestrator.LogText : Orchestrator.LogText)" JsModule="@_jsModule" />
 
     @* Avanzamento *@
-    <ProgressPanelComponent Progress="@Orchestrator.Progress" />
+    <ProgressPanelComponent Progress="@(_currentMode == RemuxForge.Core.Models.Options.MODE_SPLIT ? SplitOrchestrator.Progress : Orchestrator.Progress)" />
 
     @* Barra di Stato *@
     <StatusBarComponent OnScan="DoScan"
@@ -48,13 +102,13 @@
                          OnMergeAll="DoMergeAll"
                          OnStop="DoStop"
                          OnShowConfig="ShowConfig"
-                         OnShowHelp="ShowHelp" />
+                         CurrentMode="@_currentMode" />
 </div>
 
 @* Dialog Configurazione *@
 @if (_showConfig)
 {
-    <ConfigDialogComponent Options="@Orchestrator.CurrentOptions"
+    <ConfigDialogComponent Options="@(_currentMode == RemuxForge.Core.Models.Options.MODE_SPLIT ? SplitOrchestrator.CurrentOptions : Orchestrator.CurrentOptions)"
                             OnClose="CloseConfig"
                             OnApply="ApplyConfig" />
 }
@@ -94,13 +148,7 @@
 @* Dialog Pipeline *@
 @if (_showPipeline)
 {
-    <PipelineDialogComponent Options="@Orchestrator.CurrentOptions" OnClose="ClosePipeline" />
-}
-
-@* Dialog Help *@
-@if (_showHelp)
-{
-    <HelpDialogComponent OnClose="CloseHelp" />
+    <PipelineDialogComponent Options="@(_currentMode == RemuxForge.Core.Models.Options.MODE_SPLIT ? SplitOrchestrator.CurrentOptions : Orchestrator.CurrentOptions)" OnClose="ClosePipeline" />
 }
 
 @* Dialog Info *@

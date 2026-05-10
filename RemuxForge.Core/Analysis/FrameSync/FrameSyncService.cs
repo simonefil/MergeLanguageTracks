@@ -52,12 +52,6 @@ namespace RemuxForge.Core.Analysis.FrameSync
         private const double INITIAL_FINGERPRINT_MIN_CORRELATION = 0.72;
 
         /// <summary>
-        /// Offset massimo considerato plausibile in FrameSync veloce
-        /// Offset maggiori sono tipicamente intro/tagli diversi e competono con DeepAnalysis
-        /// </summary>
-        private const int MAX_FAST_SYNC_OFFSET_MS = 30000;
-
-        /// <summary>
         /// FPS usato solo dal fallback visuale esteso quando i tagli scena non bastano
         /// </summary>
         private const double VISUAL_SCAN_FPS = 4.0;
@@ -257,7 +251,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
             this._resultBuilder = new FrameSyncResultBuilder();
             this._audioInitialResolver = new FrameSyncAudioInitialResolver(this._ffmpegPath, this._fsConfig, this._ffmpegConfig);
             this._offsetCandidateBuilder = new FrameSyncOffsetCandidateBuilder();
-            this._visualScanMatcher = new FrameSyncVisualScanMatcher(this._vsConfig, this._candidateScorer, VISUAL_SCAN_MAX_SAMPLES, VISUAL_SCAN_FAST_TOP_CANDIDATES, VISUAL_SCAN_OFFSET_STEP_MS, MAX_FAST_SYNC_OFFSET_MS, CHECKPOINT_LOCAL_MAX_SAMPLES, CHECKPOINT_LOCAL_MIN_SAMPLES);
+            this._visualScanMatcher = new FrameSyncVisualScanMatcher(this._vsConfig, this._candidateScorer, VISUAL_SCAN_MAX_SAMPLES, VISUAL_SCAN_FAST_TOP_CANDIDATES, VISUAL_SCAN_OFFSET_STEP_MS, CHECKPOINT_LOCAL_MAX_SAMPLES, CHECKPOINT_LOCAL_MIN_SAMPLES);
             this._checkpointGrouper = new FrameSyncCheckpointGrouper(this._vsConfig, this._fsConfig);
             this._videoExtractSemaphore = new SemaphoreSlim(MAX_CONCURRENT_VIDEO_EXTRACTS, MAX_CONCURRENT_VIDEO_EXTRACTS);
         }
@@ -752,6 +746,25 @@ namespace RemuxForge.Core.Analysis.FrameSync
         }
 
         /// <summary>
+        /// Calcola il range offset coperto dalla finestra estratta
+        /// </summary>
+        private void CalculateWindowOffsetRange(int sourceStartMs, double sourceDurationSec, double langDurationSec, out int minOffsetMs, out int maxOffsetMs)
+        {
+            minOffsetMs = -sourceStartMs - (int)Math.Ceiling(sourceDurationSec * 1000.0);
+            maxOffsetMs = (int)Math.Ceiling(langDurationSec * 1000.0) - sourceStartMs;
+        }
+
+        /// <summary>
+        /// Restituisce il massimo valore assoluto del range offset
+        /// </summary>
+        private int GetMaxAbsOffset(int minOffsetMs, int maxOffsetMs)
+        {
+            int absMin = Math.Abs(minOffsetMs);
+            int absMax = Math.Abs(maxOffsetMs);
+            return absMin > absMax ? absMin : absMax;
+        }
+
+        /// <summary>
         /// Ricerca delay iniziale tramite voting su coppie di tagli di scena
         /// </summary>
         /// <param name="sourceFile">Percorso file video sorgente</param>
@@ -782,6 +795,8 @@ namespace RemuxForge.Core.Analysis.FrameSync
             int srcCutCount;
             int lngCutCount;
             int candidateCount;
+            int minInitialOffsetMs;
+            int maxInitialOffsetMs;
             double[] candidates;
             int candidateIdx;
             List<FrameSyncCandidate> initialCandidates;
@@ -795,6 +810,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
             Stopwatch phaseStopwatch = new Stopwatch();
 
             this._lastInitialResult = new FrameSyncInitialResult();
+            this.CalculateWindowOffsetRange(this._fsConfig.SourceStartSec * 1000, this._fsConfig.SourceDurationSec, this._fsConfig.LangDurationSec, out minInitialOffsetMs, out maxInitialOffsetMs);
 
             if (clusterTolMs < INITIAL_CLUSTER_TOLERANCE_MIN_MS)
             {
@@ -855,6 +871,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
             else
             {
                 ConsoleHelper.Write(LogSection.FrameSync, LogLevel.Debug, "  Frame estratti: source=" + sourceFrames.Count + ", lang=" + langFrames.Count);
+                ConsoleHelper.Write(LogSection.FrameSync, LogLevel.Debug, "  Range offset initial da finestra: " + minInitialOffsetMs + "ms.." + maxInitialOffsetMs + "ms");
 
                 // Rileva tagli di scena in entrambi i segmenti
                 phaseStopwatch.Restart();
@@ -943,7 +960,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
 
                     // Ordina e trova cluster candidati su finestra temporale robusta ai PTS VFR
                     Array.Sort(candidates);
-                    initialCandidates = this._offsetCandidateBuilder.SelectInitialCandidates(candidates, candidateCount, clusterTolMs, MAX_INITIAL_CANDIDATES, MAX_FAST_SYNC_OFFSET_MS);
+                    initialCandidates = this._offsetCandidateBuilder.SelectInitialCandidates(candidates, candidateCount, clusterTolMs, MAX_INITIAL_CANDIDATES, this.GetMaxAbsOffset(minInitialOffsetMs, maxInitialOffsetMs));
                     this._lastInitialResult = new FrameSyncInitialResult();
                     phaseStopwatch.Stop();
                     this._timing.InitialVotingMs += phaseStopwatch.ElapsedMilliseconds;
@@ -1128,7 +1145,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
                     if (sourceTemporalFingerprints != null && langTemporalFingerprints != null && srcCutCount >= this._vsConfig.MinSceneCuts && lngCutCount >= this._vsConfig.MinSceneCuts)
                     {
                         phaseStopwatch.Restart();
-                        result = this.FindInitialDelayByTemporalCutMatching(sourceFrames, langFrames, sourceTemporalFingerprints, langTemporalFingerprints, sourceTimestampsMs, langTimestampsMs, validSourceCuts, validLangCuts, clusterTolMs, consistencyTolMs, nearestTolMs);
+                        result = this.FindInitialDelayByTemporalCutMatching(sourceFrames, langFrames, sourceTemporalFingerprints, langTemporalFingerprints, sourceTimestampsMs, langTimestampsMs, validSourceCuts, validLangCuts, clusterTolMs, consistencyTolMs, nearestTolMs, minInitialOffsetMs, maxInitialOffsetMs);
                         phaseStopwatch.Stop();
                         this._timing.InitialCandidateVerifyMs += phaseStopwatch.ElapsedMilliseconds;
                     }
@@ -1201,7 +1218,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
         /// Genera candidati initial accoppiando ogni cut sorgente con i cut lingua piu' simili per fingerprint temporale
         /// Questo evita che il voting su timestamp grezzi domini quando VFR o cut non equivalenti spostano i cluster
         /// </summary>
-        private int FindInitialDelayByTemporalCutMatching(List<byte[]> sourceFrames, List<byte[]> langFrames, double[][] sourceTemporalFingerprints, double[][] langTemporalFingerprints, double[] sourceTimestampsMs, double[] langTimestampsMs, List<int> validSourceCuts, List<int> validLangCuts, double clusterTolMs, double consistencyTolMs, double nearestTolMs)
+        private int FindInitialDelayByTemporalCutMatching(List<byte[]> sourceFrames, List<byte[]> langFrames, double[][] sourceTemporalFingerprints, double[][] langTemporalFingerprints, double[] sourceTimestampsMs, double[] langTimestampsMs, List<int> validSourceCuts, List<int> validLangCuts, double clusterTolMs, double consistencyTolMs, double nearestTolMs, int minInitialOffsetMs, int maxInitialOffsetMs)
         {
             int result = int.MinValue;
             List<FrameSyncCandidate> candidates;
@@ -1211,7 +1228,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
             FrameSyncCandidate secondCandidate;
             double candidateMargin;
             bool candidateAmbiguous;
-            candidates = this.BuildTemporalCutMatchCandidates(sourceFrames, langFrames, sourceTemporalFingerprints, langTemporalFingerprints, sourceTimestampsMs, langTimestampsMs, validSourceCuts, validLangCuts, clusterTolMs);
+            candidates = this.BuildTemporalCutMatchCandidates(sourceFrames, langFrames, sourceTemporalFingerprints, langTemporalFingerprints, sourceTimestampsMs, langTimestampsMs, validSourceCuts, validLangCuts, clusterTolMs, minInitialOffsetMs, maxInitialOffsetMs);
 
             if (candidates.Count == 0)
             {
@@ -1328,7 +1345,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
         /// <summary>
         /// Costruisce cluster offset partendo dai migliori match fingerprint per ogni cut sorgente
         /// </summary>
-        private List<FrameSyncCandidate> BuildTemporalCutMatchCandidates(List<byte[]> sourceFrames, List<byte[]> langFrames, double[][] sourceTemporalFingerprints, double[][] langTemporalFingerprints, double[] sourceTimestampsMs, double[] langTimestampsMs, List<int> validSourceCuts, List<int> validLangCuts, double clusterTolMs)
+        private List<FrameSyncCandidate> BuildTemporalCutMatchCandidates(List<byte[]> sourceFrames, List<byte[]> langFrames, double[][] sourceTemporalFingerprints, double[][] langTemporalFingerprints, double[] sourceTimestampsMs, double[] langTimestampsMs, List<int> validSourceCuts, List<int> validLangCuts, double clusterTolMs, int minInitialOffsetMs, int maxInitialOffsetMs)
         {
             int maxCandidateCount = validSourceCuts.Count * INITIAL_FINGERPRINT_TOP_MATCHES_PER_CUT;
             double[] offsets = new double[maxCandidateCount];
@@ -1372,7 +1389,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
                     }
 
                     double offsetMs = langTimestampsMs[validLangCuts[l]] - sourceTimestampsMs[validSourceCuts[s]];
-                    if (Math.Abs(offsetMs) > MAX_FAST_SYNC_OFFSET_MS)
+                    if (offsetMs < minInitialOffsetMs || offsetMs > maxInitialOffsetMs)
                     {
                         continue;
                     }
@@ -1407,7 +1424,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
             if (offsetCount > 0)
             {
                 Array.Sort(offsets, 0, offsetCount);
-                result = this._offsetCandidateBuilder.SelectInitialCandidates(offsets, offsetCount, clusterTolMs, MAX_INITIAL_CANDIDATES, MAX_FAST_SYNC_OFFSET_MS);
+                result = this._offsetCandidateBuilder.SelectInitialCandidates(offsets, offsetCount, clusterTolMs, MAX_INITIAL_CANDIDATES, this.GetMaxAbsOffset(minInitialOffsetMs, maxInitialOffsetMs));
                 for (int i = 0; i < result.Count; i++)
                 {
                     result[i].Source = FrameSyncCandidate.TEMPORAL_FINGERPRINT;
@@ -1669,21 +1686,25 @@ namespace RemuxForge.Core.Analysis.FrameSync
             int threadCount = Environment.ProcessorCount;
             Thread[] workers;
             int offsetCount;
+            int minVisualOffsetMs;
+            int maxVisualOffsetMs;
             int frameIntervalMs;
             int roundedOffset;
             ConsoleHelper.Write(LogSection.FrameSync, LogLevel.Notice, "  Fallback visuale esteso: finestra " + VISUAL_SCAN_SOURCE_DURATION_SEC + "s/" + VISUAL_SCAN_LANG_DURATION_SEC + "s a " + VISUAL_SCAN_FPS.ToString("F1", CultureInfo.InvariantCulture) + "fps");
+            this.CalculateWindowOffsetRange(this._fsConfig.SourceStartSec * 1000, VISUAL_SCAN_SOURCE_DURATION_SEC, VISUAL_SCAN_LANG_DURATION_SEC, out minVisualOffsetMs, out maxVisualOffsetMs);
 
             this.ExtractVisualScanSegments(sourceFile, languageFile, out sourceFrames, out sourceTimestampsMs, out langFrames, out langTimestampsMs);
 
             if (sourceFrames != null && langFrames != null && sourceFrames.Count > 2 && langFrames.Count > 2)
             {
+                ConsoleHelper.Write(LogSection.FrameSync, LogLevel.Debug, "  Range offset fallback visuale da finestra: " + minVisualOffsetMs + "ms.." + maxVisualOffsetMs + "ms");
                 sampleIndices = this._visualScanMatcher.SelectVisualScanSamples(sourceFrames, sourceTimestampsMs);
 
                 if (sampleIndices.Count >= 8)
                 {
                     sourceDescriptors = this._visualScanMatcher.BuildVisualScanDescriptors(sourceFrames);
                     langDescriptors = this._visualScanMatcher.BuildVisualScanDescriptors(langFrames);
-                    offsetCount = ((MAX_FAST_SYNC_OFFSET_MS * 2) / VISUAL_SCAN_OFFSET_STEP_MS) + 1;
+                    offsetCount = ((maxVisualOffsetMs - minVisualOffsetMs) / VISUAL_SCAN_OFFSET_STEP_MS) + 1;
                     if (threadCount > offsetCount)
                     {
                         threadCount = offsetCount;
@@ -1708,7 +1729,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
 
                             for (int offsetIndex = workerIndex; offsetIndex < offsetCount; offsetIndex += threadCount)
                             {
-                                int offsetMs = -MAX_FAST_SYNC_OFFSET_MS + (offsetIndex * VISUAL_SCAN_OFFSET_STEP_MS);
+                                int offsetMs = minVisualOffsetMs + (offsetIndex * VISUAL_SCAN_OFFSET_STEP_MS);
                                 VisualScanCandidate candidate = this._visualScanMatcher.ScoreVisualScanOffset(sourceDescriptors, langDescriptors, sourceTimestampsMs, langTimestampsMs, sampleIndices, offsetMs, VISUAL_SCAN_OFFSET_STEP_MS, false);
                                 this._visualScanMatcher.TrackVisualScanCandidate(candidate, ref localBest, ref localSecond);
                                 this._visualScanMatcher.AddTopVisualScanCandidate(localTop, candidate, VISUAL_SCAN_FAST_TOP_CANDIDATES);
@@ -1738,7 +1759,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
 
                     best = new VisualScanCandidate();
                     second = new VisualScanCandidate();
-                    exactOffsets = this._visualScanMatcher.BuildExactVisualScanOffsets(fastCandidates);
+                    exactOffsets = this._visualScanMatcher.BuildExactVisualScanOffsets(fastCandidates, minVisualOffsetMs, maxVisualOffsetMs);
                     for (int i = 0; i < exactOffsets.Count; i++)
                     {
                         VisualScanCandidate exactCandidate = this._visualScanMatcher.ScoreVisualScanOffset(sourceDescriptors, langDescriptors, sourceTimestampsMs, langTimestampsMs, sampleIndices, exactOffsets[i], VISUAL_SCAN_OFFSET_STEP_MS, true);
@@ -2441,7 +2462,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
                         searchRadiusMs = (int)Math.Round(nearestTolMs * 3.0);
                     }
 
-                    localCandidates = this._offsetCandidateBuilder.BuildOffsetCandidates(sourceTimestampsMs, langTimestampsMs, validSourceCuts, validLangCuts, baseOffset - searchRadiusMs, baseOffset + searchRadiusMs, frameIntervalMs, MAX_INITIAL_CANDIDATES, MAX_FAST_SYNC_OFFSET_MS);
+                    localCandidates = this._offsetCandidateBuilder.BuildOffsetCandidates(sourceTimestampsMs, langTimestampsMs, validSourceCuts, validLangCuts, baseOffset - searchRadiusMs, baseOffset + searchRadiusMs, frameIntervalMs, MAX_INITIAL_CANDIDATES, this.GetMaxAbsOffset(baseOffset - searchRadiusMs, baseOffset + searchRadiusMs));
 
                     for (int c = 0; c < localCandidates.Count; c++)
                     {

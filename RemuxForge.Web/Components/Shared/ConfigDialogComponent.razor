@@ -1,118 +1,244 @@
 <div class="dialog-overlay visible" @onclick="OnClose">
-    <div class="dialog-box" style="min-width: 70ch;" @onclick:stopPropagation="true">
+    <div class="dialog-box config-dialog-box" @onclick:stopPropagation="true">
         <div class="dialog-title">Configurazione</div>
-        <div class="dialog-body">
+        <div class="dialog-body config-dialog-body">
+            <div class="config-form-pane">
+            @if (_isSplitMode)
+            {
+                @* Sorgente Split *@
+                <div class="form-section">== Sorgente Split ==</div>
+                <div class="form-row">
+                    <span class="form-label">Source*:</span>
+                    <input class="form-input" @bind="_splitSource" @onfocus="@(() => SetFieldHelp("split.source"))" @onmouseenter="@(() => SetFieldHelp("split.source"))" />
+                    <span class="btn-browse" @onclick="() => BrowseSplit(10, true, true)">[ .. ]</span>
+                </div>
+                <div class="form-row">
+                    <span class="form-label">Output:</span>
+                    <input class="form-input" @bind="_splitOutputDir" @onfocus="@(() => SetFieldHelp("split.output"))" @onmouseenter="@(() => SetFieldHelp("split.output"))" />
+                    <span class="btn-browse" @onclick="() => BrowseSplit(11, false, true)">[ .. ]</span>
+                </div>
+                <div class="form-row">
+                    <span class="form-label">Source raw:</span>
+                    <input class="form-input" @bind="_splitSourceRaw" @onfocus="@(() => SetFieldHelp("split.sourceRaw"))" @onmouseenter="@(() => SetFieldHelp("split.sourceRaw"))" />
+                    <span class="btn-browse" @onclick="() => BrowseSplit(12, true, false)">[ .. ]</span>
+                </div>
+                <div class="form-row">
+                    <span class="ui-toggle" @onclick="() => _recursive = !_recursive" @onmouseenter="@(() => SetFieldHelp("split.recursive"))">@(_recursive ? "[X]" : "[ ]") Ricorsivo</span>
+                    <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _splitForce = !_splitForce" @onmouseenter="@(() => SetFieldHelp("split.force"))">@(_splitForce ? "[X]" : "[ ]") Force</span>
+                    <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _splitDryRun = !_splitDryRun" @onmouseenter="@(() => SetFieldHelp("split.dryRun"))">@(_splitDryRun ? "[X]" : "[ ]") Dry-run</span>
+                </div>
+
+                @* Modalita taglio *@
+                <div class="form-section">== Taglio ==</div>
+                <div class="form-row">
+                    <span class="form-label">Modalita*:</span>
+                    <select class="form-input" style="width: 22ch;" @bind="_splitCutMode" @onfocus="@(() => SetFieldHelp("split.mode"))" @onmouseenter="@(() => SetFieldHelp("split.mode"))">
+                        <option value="">(scegliere)</option>
+                        <option value="@SPLIT_CUT_PATTERN">Pattern capitoli</option>
+                        <option value="@SPLIT_CUT_RANGES">Ranges</option>
+                        <option value="@SPLIT_CUT_SPLIT_AT">Split at</option>
+                        <option value="@SPLIT_CUT_TRIM">Trim</option>
+                        <option value="@SPLIT_CUT_CHAPTERS_EACH">Chapters each</option>
+                    </select>
+                </div>
+                @if (_splitCutMode == SPLIT_CUT_PATTERN)
+                {
+                    <div class="form-row">
+                        <span class="form-label">Pattern*:</span>
+                        <input class="form-input" @bind="_splitPattern" placeholder="5,5,5" @onfocus="@(() => SetFieldHelp("split.pattern"))" @onmouseenter="@(() => SetFieldHelp("split.pattern"))" />
+                    </div>
+                }
+                else if (_splitCutMode == SPLIT_CUT_RANGES)
+                {
+                    <div class="form-row">
+                        <span class="form-label">Ranges*:</span>
+                        <input class="form-input" @bind="_splitRanges" placeholder="0-00:24:00.000,00:24:00.000-END" @onfocus="@(() => SetFieldHelp("split.ranges"))" @onmouseenter="@(() => SetFieldHelp("split.ranges"))" />
+                    </div>
+                }
+                else if (_splitCutMode == SPLIT_CUT_SPLIT_AT)
+                {
+                    <div class="form-row">
+                        <span class="form-label">Split at*:</span>
+                        <input class="form-input" @bind="_splitAt" placeholder="00:24:00.000" @onfocus="@(() => SetFieldHelp("split.splitAt"))" @onmouseenter="@(() => SetFieldHelp("split.splitAt"))" />
+                    </div>
+                }
+                else if (_splitCutMode == SPLIT_CUT_TRIM)
+                {
+                    <div class="form-row">
+                        <span class="form-label">Trim start:</span>
+                        <input class="form-input" @bind="_splitTrimStart" @onfocus="@(() => SetFieldHelp("split.trimStart"))" @onmouseenter="@(() => SetFieldHelp("split.trimStart"))" />
+                    </div>
+                    <div class="form-row">
+                        <span class="form-label">Trim end:</span>
+                        <input class="form-input" @bind="_splitTrimEnd" @onfocus="@(() => SetFieldHelp("split.trimEnd"))" @onmouseenter="@(() => SetFieldHelp("split.trimEnd"))" />
+                    </div>
+                }
+                else if (_splitCutMode == SPLIT_CUT_CHAPTERS_EACH)
+                {
+                }
+
+                <div class="form-row">
+                    <span class="form-label">Snap:</span>
+                    <select class="form-input" style="width: 14ch;" @bind="_splitSnap" @onfocus="@(() => SetFieldHelp("split.snap"))" @onmouseenter="@(() => SetFieldHelp("split.snap"))">
+                        <option value="@RemuxForge.Core.Models.MkvSplitSnapMode.Off">off</option>
+                        <option value="@RemuxForge.Core.Models.MkvSplitSnapMode.Before">before</option>
+                        <option value="@RemuxForge.Core.Models.MkvSplitSnapMode.After">after</option>
+                        <option value="@RemuxForge.Core.Models.MkvSplitSnapMode.Nearest">nearest</option>
+                    </select>
+                </div>
+
+                @* Naming *@
+                <div class="form-section">== Naming ==</div>
+                <div class="form-row">
+                    <span class="form-label">Template:</span>
+                    <input class="form-input" @bind="_splitOutputTemplate" placeholder="{source_name}.part{n:02d}.mkv" @onfocus="@(() => SetFieldHelp("split.template"))" @onmouseenter="@(() => SetFieldHelp("split.template"))" />
+                </div>
+
+                @* Opzioni *@
+                <div class="form-section">== Opzioni ==</div>
+                <div class="form-row">
+                    <span class="form-label">Estensioni:</span>
+                    <input class="form-input" @bind="_extensions" @onfocus="@(() => SetFieldHelp("split.extensions"))" @onmouseenter="@(() => SetFieldHelp("split.extensions"))" />
+                </div>
+            }
+            else
+            {
             @* Cartelle *@
             <div class="form-section">== Cartelle ==</div>
             <div class="form-row">
-                <span class="form-label">Source:</span>
-                <input class="form-input" @bind="_sourceFolder" />
+                <span class="form-label">Source*:</span>
+                <input class="form-input" @bind="_sourceFolder" @onfocus="@(() => SetFieldHelp("remux.source"))" @onmouseenter="@(() => SetFieldHelp("remux.source"))" />
                 <span class="btn-browse" @onclick="() => BrowseFolder(0)">[ .. ]</span>
             </div>
             <div class="form-row">
                 <span class="form-label">Lingua:</span>
-                <input class="form-input" @bind="_languageFolder" />
+                <input class="form-input" @bind="_languageFolder" @onfocus="@(() => SetFieldHelp("remux.language"))" @onmouseenter="@(() => SetFieldHelp("remux.language"))" />
                 <span class="btn-browse" @onclick="() => BrowseFolder(1)">[ .. ]</span>
             </div>
             <div class="form-row">
-                <span class="form-label">Destinazione:</span>
-                <input class="form-input" @bind="_destFolder" />
+                <span class="form-label">Destinazione@(_overwrite ? "" : "*"):</span>
+                <input class="form-input" @bind="_destFolder" @onfocus="@(() => SetFieldHelp("remux.destination"))" @onmouseenter="@(() => SetFieldHelp("remux.destination"))" />
                 <span class="btn-browse" @onclick="() => BrowseFolder(2)">[ .. ]</span>
             </div>
             <div class="form-row">
-                <span class="ui-toggle" @onclick="() => _overwrite = !_overwrite">@(_overwrite ? "[X]" : "[ ]") Sovrascrivi sorgente</span>
+                <span class="ui-toggle" @onclick="() => _overwrite = !_overwrite" @onmouseenter="@(() => SetFieldHelp("remux.overwrite"))">@(_overwrite ? "[X]" : "[ ]") Sovrascrivi sorgente</span>
             </div>
             <div class="form-row">
-                <span class="ui-toggle" @onclick="() => _recursive = !_recursive">@(_recursive ? "[X]" : "[ ]") Ricorsivo</span>
+                <span class="ui-toggle" @onclick="() => _recursive = !_recursive" @onmouseenter="@(() => SetFieldHelp("remux.recursive"))">@(_recursive ? "[X]" : "[ ]") Ricorsivo</span>
             </div>
 
             @* Lingua e Tracce *@
             <div class="form-section">== Lingua e Tracce ==</div>
             <div class="form-row">
                 <span class="form-label">Lingua target:</span>
-                <input class="form-input" @bind="_targetLang" />
+                <input class="form-input" @bind="_targetLang" @onfocus="@(() => SetFieldHelp("remux.target"))" @onmouseenter="@(() => SetFieldHelp("remux.target"))" />
             </div>
             <div class="form-row">
                 <span class="form-label">Codec audio:</span>
-                <input class="form-input" @bind="_audioCodec" />
+                <input class="form-input" @bind="_audioCodec" @onfocus="@(() => SetFieldHelp("remux.audioCodec"))" @onmouseenter="@(() => SetFieldHelp("remux.audioCodec"))" />
             </div>
             <div class="form-row">
                 <span class="form-label">Mantieni audio:</span>
-                <input class="form-input" @bind="_keepSrcAudio" />
+                <input class="form-input" @bind="_keepSrcAudio" @onfocus="@(() => SetFieldHelp("remux.keepAudio"))" @onmouseenter="@(() => SetFieldHelp("remux.keepAudio"))" />
             </div>
             <div class="form-row">
                 <span class="form-label">Mantieni codec:</span>
-                <input class="form-input" @bind="_keepSrcCodec" />
+                <input class="form-input" @bind="_keepSrcCodec" @onfocus="@(() => SetFieldHelp("remux.keepCodec"))" @onmouseenter="@(() => SetFieldHelp("remux.keepCodec"))" />
             </div>
             <div class="form-row">
                 <span class="form-label">Mantieni sub:</span>
-                <input class="form-input" @bind="_keepSrcSub" />
+                <input class="form-input" @bind="_keepSrcSub" @onfocus="@(() => SetFieldHelp("remux.keepSub"))" @onmouseenter="@(() => SetFieldHelp("remux.keepSub"))" />
             </div>
             <div class="form-row">
-                <span class="ui-toggle" @onclick="() => _subOnly = !_subOnly">@(_subOnly ? "[X]" : "[ ]") Solo sottotitoli</span>
-                <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioOnly = !_audioOnly">@(_audioOnly ? "[X]" : "[ ]") Solo audio</span>
+                <span class="ui-toggle" @onclick="() => _subOnly = !_subOnly" @onmouseenter="@(() => SetFieldHelp("remux.subOnly"))">@(_subOnly ? "[X]" : "[ ]") Solo sottotitoli</span>
+                <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioOnly = !_audioOnly" @onmouseenter="@(() => SetFieldHelp("remux.audioOnly"))">@(_audioOnly ? "[X]" : "[ ]") Solo audio</span>
             </div>
 
             @* Sincronizzazione *@
             <div class="form-section">== Sincronizzazione ==</div>
             <div class="form-row">
                 <span class="form-label">Speed:</span>
-                <select class="form-input" style="width: 14ch;" @bind="_speedCorrectionMode">
+                <select class="form-input" style="width: 14ch;" @bind="_speedCorrectionMode" @onfocus="@(() => SetFieldHelp("remux.speed"))" @onmouseenter="@(() => SetFieldHelp("remux.speed"))">
                     <option value="@Options.SPEED_CORRECTION_OFF">Off</option>
                     <option value="@Options.SPEED_CORRECTION_AUTO">Auto</option>
                     <option value="@Options.SPEED_CORRECTION_MANUAL">Manual</option>
                 </select>
                 <span style="margin-left: 1ch;">Stretch</span>
-                <input class="form-input" style="width: 14ch;" @bind="_manualStretchFactor" />
+                <input class="form-input" style="width: 14ch;" @bind="_manualStretchFactor" @onfocus="@(() => SetFieldHelp("remux.stretch"))" @onmouseenter="@(() => SetFieldHelp("remux.stretch"))" />
             </div>
             <div class="form-row">
-                <span class="ui-toggle" @onclick="ToggleFrameSync">@(_frameSync ? "[X]" : "[ ]") Frame-sync (confronto visivo)</span>
+                <span class="ui-toggle" @onclick="ToggleFrameSync" @onmouseenter="@(() => SetFieldHelp("remux.framesync"))">@(_frameSync ? "[X]" : "[ ]") Frame-sync (confronto visivo)</span>
             </div>
             <div class="form-row">
-                <span class="ui-toggle" @onclick="ToggleDeepAnalysis">@(_deepAnalysis ? "[X]" : "[ ]") Deep analysis (analisi completa)</span>
+                <span class="ui-toggle" @onclick="ToggleDeepAnalysis" @onmouseenter="@(() => SetFieldHelp("remux.deep"))">@(_deepAnalysis ? "[X]" : "[ ]") Deep analysis (analisi completa)</span>
             </div>
             <div class="form-row">
                 <span class="form-label">Delay audio:</span>
-                <input class="form-input" style="width: 8ch;" @bind="_audioDelay" /> <span style="margin-left: 0.5ch;">ms</span>
+                <input class="form-input" style="width: 8ch;" @bind="_audioDelay" @onfocus="@(() => SetFieldHelp("remux.audioDelay"))" @onmouseenter="@(() => SetFieldHelp("remux.audioDelay"))" /> <span style="margin-left: 0.5ch;">ms</span>
             </div>
             <div class="form-row">
                 <span class="form-label">Delay sub:</span>
-                <input class="form-input" style="width: 8ch;" @bind="_subDelay" /> <span style="margin-left: 0.5ch;">ms</span>
+                <input class="form-input" style="width: 8ch;" @bind="_subDelay" @onfocus="@(() => SetFieldHelp("remux.subDelay"))" @onmouseenter="@(() => SetFieldHelp("remux.subDelay"))" /> <span style="margin-left: 0.5ch;">ms</span>
+            </div>
+
+            @* Riempimento audio source *@
+            <div class="form-section">== Riempimento audio source ==</div>
+            <div class="form-row">
+                <span class="form-label">Audio source:</span>
+                <input class="form-input" style="width: 8ch;" @bind="_audioSourceFillThresholdMs" @onfocus="@(() => SetFieldHelp("remux.audioSourceFill"))" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFill"))" /> <span style="margin-left: 0.5ch;">ms</span>
+            </div>
+            <div class="form-row">
+                <span class="form-label">Lingua source:</span>
+                <input class="form-input" style="width: 10ch;" @bind="_audioSourceFillLanguage" @onfocus="@(() => SetFieldHelp("remux.audioSourceFillLang"))" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillLang"))" />
+            </div>
+            <div class="form-row">
+                <span class="ui-toggle" @onclick="() => _audioSourceFillStart = !_audioSourceFillStart" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillStart"))">@(_audioSourceFillStart ? "[X]" : "[ ]") Inizio</span>
+                <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioSourceFillEnd = !_audioSourceFillEnd" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillEnd"))">@(_audioSourceFillEnd ? "[X]" : "[ ]") Fine</span>
+                @if (_deepAnalysis)
+                {
+                    <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioSourceFillInsertSilence = !_audioSourceFillInsertSilence" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillInsert"))">@(_audioSourceFillInsertSilence ? "[X]" : "[ ]") Insert silence</span>
+                }
             </div>
 
             @* Matching *@
             <div class="form-section">== Matching ==</div>
             <div class="form-row">
                 <span class="form-label">Pattern match:</span>
-                <input class="form-input" @bind="_matchPattern" />
+                <input class="form-input" @bind="_matchPattern" @onfocus="@(() => SetFieldHelp("remux.match"))" @onmouseenter="@(() => SetFieldHelp("remux.match"))" />
             </div>
             <div class="form-row">
                 <span class="form-label">Estensioni:</span>
-                <input class="form-input" @bind="_extensions" />
+                <input class="form-input" @bind="_extensions" @onfocus="@(() => SetFieldHelp("remux.extensions"))" @onmouseenter="@(() => SetFieldHelp("remux.extensions"))" />
             </div>
 
             @* Post-Processing *@
             <div class="form-section">== Post-Processing ==</div>
             <div class="form-row">
                 <span class="form-label">Converti audio:</span>
-                <select class="form-input" style="width: 12ch;" @bind="_convertFormat">
+                <select class="form-input" style="width: 12ch;" @bind="_convertFormat" @onfocus="@(() => SetFieldHelp("remux.convert"))" @onmouseenter="@(() => SetFieldHelp("remux.convert"))">
                     <option value="0">No</option>
                     <option value="1">FLAC</option>
                     <option value="2">Opus</option>
                 </select>
             </div>
             <div class="form-row">
-                <span class="ui-toggle" @onclick="() => _renameAllTracks = !_renameAllTracks">@(_renameAllTracks ? "[X]" : "[ ]") Rinomina tutte le tracce audio</span>
+                <span class="ui-toggle" @onclick="() => _renameAllTracks = !_renameAllTracks" @onmouseenter="@(() => SetFieldHelp("remux.rename"))">@(_renameAllTracks ? "[X]" : "[ ]") Rinomina tutte le tracce audio</span>
             </div>
             <div class="form-row">
                 <span class="form-label">Encoding video:</span>
-                <select class="form-input" style="width: 30ch;" @bind="_encodingProfile">
+                <select class="form-input" style="width: 30ch;" @bind="_encodingProfile" @onfocus="@(() => SetFieldHelp("remux.encoding"))" @onmouseenter="@(() => SetFieldHelp("remux.encoding"))">
                     <option value="">(nessuno)</option>
                     @for (int i = 0; i < AppSettingsService.Instance.Settings.EncodingProfiles.Count; i++)
                     {
                         <option value="@AppSettingsService.Instance.Settings.EncodingProfiles[i].Name">@AppSettingsService.Instance.Settings.EncodingProfiles[i].Name</option>
                     }
                 </select>
+            </div>
+            }
+            </div>
+            <div class="config-help-pane">
+                <div class="config-help-title">@_fieldHelpTitle</div>
+                <div class="config-help-text">@_fieldHelpText</div>
             </div>
         </div>
         @if (_validationError.Length > 0)
@@ -130,11 +256,42 @@
 @if (_showBrowse)
 {
     <FolderBrowserDialog InitialPath="@_browseInitialPath"
+                          ShowFiles="@_browseShowFiles"
+                          AllowCurrentFolderSelection="@_browseAllowCurrentFolderSelection"
                           OnClose="CloseBrowse"
                           OnSelect="ApplyBrowse" />
 }
 
 @code {
+    #region Costanti
+
+    /// <summary>
+    /// Split per pattern capitoli
+    /// </summary>
+    private const string SPLIT_CUT_PATTERN = "pattern";
+
+    /// <summary>
+    /// Split per range espliciti
+    /// </summary>
+    private const string SPLIT_CUT_RANGES = "ranges";
+
+    /// <summary>
+    /// Split per punti di taglio
+    /// </summary>
+    private const string SPLIT_CUT_SPLIT_AT = "split-at";
+
+    /// <summary>
+    /// Trim singolo segmento
+    /// </summary>
+    private const string SPLIT_CUT_TRIM = "trim";
+
+    /// <summary>
+    /// Split capitolo per capitolo
+    /// </summary>
+    private const string SPLIT_CUT_CHAPTERS_EACH = "chapters-each";
+
+    #endregion
+
     /// <summary>
     /// Opzioni correnti da precompilare
     /// </summary>
@@ -161,9 +318,24 @@
     private string _browseInitialPath = "";
 
     /// <summary>
+    /// Flag: il dialog browse deve mostrare file selezionabili
+    /// </summary>
+    private bool _browseShowFiles;
+
+    /// <summary>
+    /// Flag: il dialog browse puo' confermare la cartella corrente
+    /// </summary>
+    private bool _browseAllowCurrentFolderSelection = true;
+
+    /// <summary>
     /// Indice campo destinazione del browse: 0=source, 1=lingua, 2=dest
     /// </summary>
     private int _browseFieldIndex = -1;
+
+    /// <summary>
+    /// Flag: configurazione modalita' split
+    /// </summary>
+    private bool _isSplitMode;
 
     /// <summary>
     /// Cartella sorgente
@@ -256,6 +428,31 @@
     private string _subDelay = "0";
 
     /// <summary>
+    /// Soglia audio source fill in ms (stringa per binding input)
+    /// </summary>
+    private string _audioSourceFillThresholdMs = "0";
+
+    /// <summary>
+    /// Lingua source per audio source fill
+    /// </summary>
+    private string _audioSourceFillLanguage = "";
+
+    /// <summary>
+    /// Audio source fill: inizio file
+    /// </summary>
+    private bool _audioSourceFillStart;
+
+    /// <summary>
+    /// Audio source fill: fine file
+    /// </summary>
+    private bool _audioSourceFillEnd;
+
+    /// <summary>
+    /// Audio source fill: INSERT_SILENCE DeepAnalysis
+    /// </summary>
+    private bool _audioSourceFillInsertSilence;
+
+    /// <summary>
     /// Pattern matching episodi
     /// </summary>
     private string _matchPattern = @"S(\d+)E(\d+)";
@@ -281,9 +478,89 @@
     private string _encodingProfile = "";
 
     /// <summary>
+    /// Sorgente split: file MKV o cartella
+    /// </summary>
+    private string _splitSource = "";
+
+    /// <summary>
+    /// Source raw split
+    /// </summary>
+    private string _splitSourceRaw = "";
+
+    /// <summary>
+    /// Cartella output split
+    /// </summary>
+    private string _splitOutputDir = "";
+
+    /// <summary>
+    /// Pattern capitoli split
+    /// </summary>
+    private string _splitPattern = "";
+
+    /// <summary>
+    /// Modalita' di taglio split selezionata
+    /// </summary>
+    private string _splitCutMode = "";
+
+    /// <summary>
+    /// Ranges split
+    /// </summary>
+    private string _splitRanges = "";
+
+    /// <summary>
+    /// Split-at split
+    /// </summary>
+    private string _splitAt = "";
+
+    /// <summary>
+    /// Trim start split
+    /// </summary>
+    private string _splitTrimStart = "";
+
+    /// <summary>
+    /// Trim end split
+    /// </summary>
+    private string _splitTrimEnd = "";
+
+    /// <summary>
+    /// Template output split
+    /// </summary>
+    private string _splitOutputTemplate = "";
+
+    /// <summary>
+    /// Modalita snap split
+    /// </summary>
+    private MkvSplitSnapMode _splitSnap = MkvSplitSnapMode.Off;
+
+    /// <summary>
+    /// Flag force split
+    /// </summary>
+    private bool _splitForce;
+
+    /// <summary>
+    /// Flag dry-run split
+    /// </summary>
+    private bool _splitDryRun;
+
+    /// <summary>
+    /// File log split
+    /// </summary>
+    private string _splitLog = "";
+
+    /// <summary>
     /// Errore di validazione configurazione
     /// </summary>
     private string _validationError = "";
+
+    /// <summary>
+    /// Titolo help campo corrente
+    /// </summary>
+    private string _fieldHelpTitle = "";
+
+    /// <summary>
+    /// Testo help campo corrente
+    /// </summary>
+    private string _fieldHelpText = "";
 
     /// <summary>
     /// Precompila campi dalle opzioni correnti
@@ -292,6 +569,7 @@
     {
         if (Options != null)
         {
+            _isSplitMode = Options.Mode == RemuxForge.Core.Models.Options.MODE_SPLIT;
             _sourceFolder = Options.SourceFolder;
             _languageFolder = Options.LanguageFolder;
             _destFolder = Options.DestinationFolder;
@@ -310,6 +588,11 @@
             _deepAnalysis = Options.DeepAnalysis;
             _audioDelay = Options.AudioDelay.ToString();
             _subDelay = Options.SubtitleDelay.ToString();
+            _audioSourceFillThresholdMs = Options.AudioSourceFillThresholdMs.ToString();
+            _audioSourceFillLanguage = Options.AudioSourceFillLanguage;
+            _audioSourceFillStart = Options.AudioSourceFillStart;
+            _audioSourceFillEnd = Options.AudioSourceFillEnd;
+            _audioSourceFillInsertSilence = Options.AudioSourceFillInsertSilence;
             _matchPattern = Options.MatchPattern;
             _extensions = string.Join(",", Options.FileExtensions);
 
@@ -320,6 +603,26 @@
             _renameAllTracks = Options.RenameAllTracks;
 
             _encodingProfile = Options.EncodingProfileName;
+
+            if (_isSplitMode)
+            {
+                _splitSource = Options.SourceFolder.Length > 0 ? Options.SourceFolder : Options.Split.SourcePath;
+                _splitSourceRaw = Options.Split.SourceRaw;
+                _splitOutputDir = Options.Split.OutputDir;
+                _splitPattern = Options.Split.Pattern;
+                _splitRanges = Options.Split.Ranges;
+                _splitAt = Options.Split.SplitAt;
+                _splitTrimStart = Options.Split.TrimStart;
+                _splitTrimEnd = Options.Split.TrimEnd;
+                _splitCutMode = DetectSplitCutMode(Options.Split);
+                _splitOutputTemplate = Options.Split.OutputTemplate;
+                _splitSnap = Options.Split.Snap;
+                _splitForce = Options.Split.Force;
+                _splitDryRun = Options.Split.DryRun || Options.DryRun;
+                _splitLog = Options.Split.Log;
+            }
+
+            SetFieldHelp(_isSplitMode ? "split.source" : "remux.source");
         }
     }
 
@@ -331,17 +634,25 @@
         Options opts = new Options();
         int audioDelay;
         int subDelay;
+        int audioSourceFillThresholdMs;
         string[] parts;
         string trimmed;
         OptionsValidationResult validation;
 
         _validationError = "";
 
+        if (_isSplitMode)
+        {
+            ApplySplit();
+            return;
+        }
+
         if (!ValidateInput())
         {
             return;
         }
 
+        opts.Mode = Options.MODE_REMUX;
         opts.SourceFolder = _sourceFolder;
         opts.LanguageFolder = _languageFolder;
         opts.DestinationFolder = _destFolder;
@@ -366,6 +677,12 @@
         opts.AudioDelay = audioDelay;
         int.TryParse(_subDelay, out subDelay);
         opts.SubtitleDelay = subDelay;
+        int.TryParse(_audioSourceFillThresholdMs, out audioSourceFillThresholdMs);
+        opts.AudioSourceFillThresholdMs = audioSourceFillThresholdMs;
+        opts.AudioSourceFillLanguage = _audioSourceFillLanguage.Trim();
+        opts.AudioSourceFillStart = _audioSourceFillStart;
+        opts.AudioSourceFillEnd = _audioSourceFillEnd;
+        opts.AudioSourceFillInsertSilence = _deepAnalysis && _audioSourceFillInsertSilence;
 
         opts.MatchPattern = _matchPattern;
 
@@ -400,6 +717,73 @@
     }
 
     /// <summary>
+    /// Applica configurazione split e notifica il parent
+    /// </summary>
+    private void ApplySplit()
+    {
+        Options opts = new Options();
+        OptionsValidationResult validation;
+        string[] parts;
+        string trimmed;
+
+        if (!ValidateSplitInput())
+        {
+            return;
+        }
+
+        opts.Mode = RemuxForge.Core.Models.Options.MODE_SPLIT;
+        opts.SourceFolder = _splitSource.Trim();
+        opts.Recursive = _recursive;
+        opts.DryRun = _splitDryRun;
+        opts.Split.SourcePath = opts.SourceFolder;
+        opts.Split.SourceRaw = _splitSourceRaw.Trim();
+        opts.Split.OutputDir = _splitOutputDir.Trim();
+        if (_splitCutMode == SPLIT_CUT_PATTERN)
+        {
+            opts.Split.Pattern = _splitPattern.Trim();
+        }
+        else if (_splitCutMode == SPLIT_CUT_RANGES)
+        {
+            opts.Split.Ranges = _splitRanges.Trim();
+        }
+        else if (_splitCutMode == SPLIT_CUT_SPLIT_AT)
+        {
+            opts.Split.SplitAt = _splitAt.Trim();
+        }
+        else if (_splitCutMode == SPLIT_CUT_TRIM)
+        {
+            opts.Split.TrimStart = _splitTrimStart.Trim();
+            opts.Split.TrimEnd = _splitTrimEnd.Trim();
+        }
+        else if (_splitCutMode == SPLIT_CUT_CHAPTERS_EACH)
+        {
+            opts.Split.ChaptersEach = true;
+        }
+        opts.Split.OutputTemplate = _splitOutputTemplate.Trim();
+        opts.Split.Snap = _splitSnap;
+        opts.Split.Force = _splitForce;
+        opts.Split.DryRun = _splitDryRun;
+        opts.Split.Log = _splitLog.Trim();
+
+        opts.FileExtensions.Clear();
+        parts = _extensions.Split(',');
+        for (int i = 0; i < parts.Length; i++)
+        {
+            trimmed = parts[i].Trim().TrimStart('.');
+            if (trimmed.Length > 0) { opts.FileExtensions.Add(trimmed); }
+        }
+
+        validation = OptionsValidator.Validate(opts, false, false);
+        if (!validation.IsValid)
+        {
+            _validationError = validation.ErrorMessage;
+            return;
+        }
+
+        OnApply.InvokeAsync(opts);
+    }
+
+    /// <summary>
     /// Valida i campi prima di costruire Options
     /// </summary>
     /// <returns>True se i campi sono validi</returns>
@@ -415,6 +799,62 @@
         if (!int.TryParse(_subDelay, out _))
         {
             errors.Add("Delay sub: valore intero non valido");
+        }
+
+        if (!int.TryParse(_audioSourceFillThresholdMs, out _))
+        {
+            errors.Add("Audio source: soglia intera non valida");
+        }
+
+        if (errors.Count > 0)
+        {
+            _validationError = string.Join("\n", errors);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Valida i campi split prima di costruire Options
+    /// </summary>
+    /// <returns>True se i campi sono validi</returns>
+    private bool ValidateSplitInput()
+    {
+        List<string> errors = new List<string>();
+        if (_splitSource.Trim().Length == 0)
+        {
+            errors.Add("Source: campo obbligatorio");
+        }
+
+        if (_splitSourceRaw.Trim().Length > 0 && System.IO.Directory.Exists(_splitSourceRaw.Trim()))
+        {
+            errors.Add("Source raw: deve essere un file, non una cartella");
+        }
+
+        if (_splitCutMode.Length == 0)
+        {
+            errors.Add("Modalita: scegliere una modalita' di taglio");
+        }
+
+        if (_splitCutMode == SPLIT_CUT_PATTERN && _splitPattern.Trim().Length == 0)
+        {
+            errors.Add("Pattern: campo obbligatorio per la modalita' pattern");
+        }
+
+        if (_splitCutMode == SPLIT_CUT_RANGES && _splitRanges.Trim().Length == 0)
+        {
+            errors.Add("Ranges: campo obbligatorio per la modalita' ranges");
+        }
+
+        if (_splitCutMode == SPLIT_CUT_SPLIT_AT && _splitAt.Trim().Length == 0)
+        {
+            errors.Add("Split at: campo obbligatorio per la modalita' split-at");
+        }
+
+        if (_splitCutMode == SPLIT_CUT_TRIM && _splitTrimStart.Trim().Length == 0 && _splitTrimEnd.Trim().Length == 0)
+        {
+            errors.Add("Trim: indicare trim start, trim end o entrambi");
         }
 
         if (errors.Count > 0)
@@ -449,17 +889,357 @@
     }
 
     /// <summary>
+    /// Aggiorna il pane help contestuale
+    /// </summary>
+    /// <param name="key">Chiave campo</param>
+    private void SetFieldHelp(string key)
+    {
+        if (key == "split.source")
+        {
+            _fieldHelpTitle = "Source";
+            _fieldHelpText = "Obbligatorio. Seleziona un file MKV singolo oppure una cartella. Con una cartella lo scan prepara un batch usando le stesse opzioni per tutti gli MKV trovati.";
+        }
+        else if (key == "split.output")
+        {
+            _fieldHelpTitle = "Output";
+            _fieldHelpText = "Opzionale. Deve essere una cartella. Se resta vuoto, ogni output viene scritto nella cartella del file input.";
+        }
+        else if (key == "split.sourceRaw")
+        {
+            _fieldHelpTitle = "Source raw";
+            _fieldHelpText = "Opzionale e solo single-file. Serve quando l'input e' un re-encode e vuoi leggere i PTS dal sorgente originale VFR. Deve essere un file, non una cartella.";
+        }
+        else if (key == "split.recursive")
+        {
+            _fieldHelpTitle = "Ricorsivo";
+            _fieldHelpText = "Usato solo quando Source e' una cartella. Include gli MKV nelle sottocartelle durante lo scan.";
+        }
+        else if (key == "split.force")
+        {
+            _fieldHelpTitle = "Force";
+            _fieldHelpText = "Se attivo, sovrascrive output esistenti. Se disattivo, i segmenti gia' presenti vengono saltati.";
+        }
+        else if (key == "split.dryRun")
+        {
+            _fieldHelpTitle = "Dry-run";
+            _fieldHelpText = "Mostra segmenti e pipeline senza scrivere file.";
+        }
+        else if (key == "split.mode")
+        {
+            _fieldHelpTitle = "Modalita";
+            _fieldHelpText = "Obbligatoria. Le modalita' di taglio sono alternative: scegline una sola. I campi del form cambiano in base alla modalita selezionata.";
+        }
+        else if (key == "split.pattern")
+        {
+            _fieldHelpTitle = "Pattern";
+            _fieldHelpText = "Obbligatorio in modalita Pattern capitoli. Esempio: 5,5,5,6. La somma deve coincidere con il numero di capitoli del file. Il naming si gestisce solo con Template.";
+        }
+        else if (key == "split.ranges")
+        {
+            _fieldHelpTitle = "Ranges";
+            _fieldHelpText = "Obbligatorio in modalita Ranges. Intervalli espliciti separati da virgola. Esempio: 00:00:00-00:21:40,00:21:40-END.";
+        }
+        else if (key == "split.splitAt")
+        {
+            _fieldHelpTitle = "Split at";
+            _fieldHelpText = "Obbligatorio in modalita Split at. Lista di punti di taglio; genera N+1 segmenti. Esempio: 20:00,40:00.";
+        }
+        else if (key == "split.trimStart")
+        {
+            _fieldHelpTitle = "Trim start";
+            _fieldHelpText = "In modalita Trim, scarta tutto prima di questo punto. Compilabile insieme a Trim end.";
+        }
+        else if (key == "split.trimEnd")
+        {
+            _fieldHelpTitle = "Trim end";
+            _fieldHelpText = "In modalita Trim, scarta tutto dopo questo punto. Compilabile insieme a Trim start.";
+        }
+        else if (key == "split.snap")
+        {
+            _fieldHelpTitle = "Snap";
+            _fieldHelpText = "off mantiene il taglio frame-perfect. before/after/nearest spostano lo start su keyframe ed evitano la ricodifica del GOP iniziale.";
+        }
+        else if (key == "split.extensions")
+        {
+            _fieldHelpTitle = "Estensioni";
+            _fieldHelpText = "Usato nello scan batch da cartella.\n\nDefault: mkv\n\nValori multipli separati da virgola.";
+        }
+        else if (key == "split.template")
+        {
+            _fieldHelpTitle = "Template";
+            _fieldHelpText = "Opzionale. Se vuoto usa il naming automatico.\n\nDefault:\nPattern, Ranges, Split at\n  {source_name}.part{n:02d}.mkv\n\nTrim\n  {source_name}_trimmed.mkv\n\nChapters each\n  {source_name}.ch{n:02d}.mkv\n\nKeyword:\n{source_name}\n  nome file input senza estensione\n\n{n}\n  numero segmento, parte da 1\n\n{n:02d}\n  numero con padding\n\n{n+213:03d}\n  numero con offset e padding\n\n{n-1}\n  numero con offset negativo\n\n{start}\n  timestamp inizio segmento\n\n{end}\n  timestamp fine segmento\n\n{chapter_name}\n  nome primo capitolo\n\nEsempi:\n{source_name}.part{n:02d}.mkv\nBleach.S12E{n+213:03d}.mkv";
+        }
+        else if (key == "remux.source")
+        {
+            _fieldHelpTitle = "Source";
+            _fieldHelpText = "Cartella con i file MKV sorgente. Remux lavora per scan/matching episodi.";
+        }
+        else if (key == "remux.language")
+        {
+            _fieldHelpTitle = "Lingua";
+            _fieldHelpText = "Cartella con i file MKV da cui importare tracce audio/sottotitoli. Se vuota, usa Source anche come cartella lingua.";
+        }
+        else if (key == "remux.destination")
+        {
+            _fieldHelpTitle = "Destinazione";
+            _fieldHelpText = "Cartella output. In alternativa si puo' usare Sovrascrivi sorgente.";
+        }
+        else if (key == "remux.overwrite")
+        {
+            _fieldHelpTitle = "Sovrascrivi sorgente";
+            _fieldHelpText = "Scrive il risultato al posto del file sorgente. Alternativa alla cartella Destinazione.";
+        }
+        else if (key == "remux.recursive")
+        {
+            _fieldHelpTitle = "Ricorsivo";
+            _fieldHelpText = "Include sottocartelle nello scan dei file.";
+        }
+        else if (key == "remux.target")
+        {
+            _fieldHelpTitle = "Lingua target";
+            _fieldHelpText = GetLanguageHelpText("Lingue delle tracce audio/sottotitoli da importare dal file Lingua.");
+        }
+        else if (key == "remux.audioCodec")
+        {
+            _fieldHelpTitle = "Codec audio";
+            _fieldHelpText = GetAudioCodecHelpText("Filtro opzionale sui codec audio da importare dal file Lingua. Vuoto = importa tutti i codec audio della lingua target.");
+        }
+        else if (key == "remux.keepAudio")
+        {
+            _fieldHelpTitle = "Mantieni audio";
+            _fieldHelpText = GetLanguageHelpText("Lingue audio da mantenere dal Source originale. Vuoto = mantiene tutte le tracce audio source che non vengono sostituite dalla lingua importata.");
+        }
+        else if (key == "remux.keepCodec")
+        {
+            _fieldHelpTitle = "Mantieni codec";
+            _fieldHelpText = GetAudioCodecHelpText("Filtro opzionale sui codec audio da mantenere dal Source originale. Vuoto = nessun filtro codec sulle tracce audio source mantenute.");
+        }
+        else if (key == "remux.keepSub")
+        {
+            _fieldHelpTitle = "Mantieni sub";
+            _fieldHelpText = GetLanguageHelpText("Lingue sottotitoli da mantenere dal Source originale. Vuoto = mantiene tutti i sottotitoli source.");
+        }
+        else if (key == "remux.subOnly")
+        {
+            _fieldHelpTitle = "Solo sottotitoli";
+            _fieldHelpText = "Importa solo sottotitoli dal file lingua, ignorando l'audio.";
+        }
+        else if (key == "remux.audioOnly")
+        {
+            _fieldHelpTitle = "Solo audio";
+            _fieldHelpText = "Importa solo audio dal file lingua, ignorando i sottotitoli.";
+        }
+        else if (key == "remux.speed")
+        {
+            _fieldHelpTitle = "Speed";
+            _fieldHelpText = "Correzione velocita' tramite stretch temporale, senza ricodifica audio/video.\n\nAuto rileva il fattore solo quando i metadati CFR sono affidabili.\nManual applica il valore indicato in Stretch.\n\nPAL/NTSC e' solo un caso tipico, per esempio 25025/24000 o 24000/25025. In manuale puoi usare qualsiasi fattore valido.";
+        }
+        else if (key == "remux.stretch")
+        {
+            _fieldHelpTitle = "Stretch";
+            _fieldHelpText = "Fattore manuale per Speed=Manual.\n\nAccetta un numero decimale o una frazione.\n\nEsempi:\n25025/24000\n24000/25025\n1.001\n0.95904";
+        }
+        else if (key == "remux.framesync")
+        {
+            _fieldHelpTitle = "Frame-sync";
+            _fieldHelpText = "Calcola un offset fisso confrontando i tagli scena. Non corregge edit/tagli nel mezzo.";
+        }
+        else if (key == "remux.deep")
+        {
+            _fieldHelpTitle = "Deep analysis";
+            _fieldHelpText = "Analisi completa per release con scene aggiunte/rimosse. Mutuamente esclusiva con Frame-sync.";
+        }
+        else if (key == "remux.audioDelay")
+        {
+            _fieldHelpTitle = "Delay audio";
+            _fieldHelpText = "Offset manuale in millisecondi sommato al risultato della sincronizzazione automatica.";
+        }
+        else if (key == "remux.subDelay")
+        {
+            _fieldHelpTitle = "Delay sub";
+            _fieldHelpText = "Offset manuale in millisecondi per i sottotitoli importati.";
+        }
+        else if (key == "remux.audioSourceFill")
+        {
+            _fieldHelpTitle = "Audio source";
+            _fieldHelpText = "Soglia unica in millisecondi per riempire parti mancanti usando una traccia audio gia' presente nel Source.\n\nNon e' un delay: quando una delle condizioni abilitate supera questa soglia, RemuxForge prende dal Source quello specifico segmento audio e lo concatena alla traccia importata dal file Lingua.\n\nLa traccia source scelta usa la lingua indicata in Lingua source. Se esistono piu' tracce della stessa lingua, preferisce stesso layout canali e poi bitrate piu' alto.";
+        }
+        else if (key == "remux.audioSourceFillLang")
+        {
+            _fieldHelpTitle = "Lingua source";
+            _fieldHelpText = GetLanguageHelpText("Lingua della traccia audio Source da cui prendere i segmenti di riempimento. Obbligatoria quando Audio source e' maggiore di 0.");
+        }
+        else if (key == "remux.audioSourceFillStart")
+        {
+            _fieldHelpTitle = "Inizio";
+            _fieldHelpText = "Applica il riempimento all'inizio del file.\n\nSe il delay audio iniziale positivo supera la soglia Audio source, RemuxForge prende dal Source i primi N millisecondi e li antepone alla traccia importata dal file Lingua.\n\nI sottotitoli importati non vengono concatenati: mantengono il delay calcolato.";
+        }
+        else if (key == "remux.audioSourceFillEnd")
+        {
+            _fieldHelpTitle = "Fine";
+            _fieldHelpText = "Applica il riempimento alla fine della traccia audio.\n\nLa condizione e': durata traccia audio source - (durata traccia Lingua + delay applicato) > soglia.\n\nSe nel Source non c'e' una traccia audio di riferimento, usa la durata della traccia video.";
+        }
+        else if (key == "remux.audioSourceFillInsert")
+        {
+            _fieldHelpTitle = "Insert silence";
+            _fieldHelpText = "Disponibile con Deep analysis.\n\nSe DeepAnalysis rileva una operazione INSERT_SILENCE maggiore della soglia Audio source, RemuxForge non inserisce silenzio: prende dal Source il segmento audio corrispondente e lo concatena alla traccia importata.";
+        }
+        else if (key == "remux.match")
+        {
+            _fieldHelpTitle = "Pattern match";
+            _fieldHelpText = "Regex usata per abbinare episodi tra Source e Lingua. I gruppi catturati formano l'ID episodio: due file matchano quando producono lo stesso ID.\n\nEsempi:\nS(\\d+)E(\\d+)\n  Bleach.S12E08.mkv -> 12/08\n\n(\\d+)x(\\d+)\n  Bleach.12x08.mkv -> 12/08\n\n[Ee]p(?:isode)?[ ._-]?(\\d+)\n  Episode 366.mkv -> 366\n\n(\\d{3})\n  366.mkv -> 366";
+        }
+        else if (key == "remux.extensions")
+        {
+            _fieldHelpTitle = "Estensioni";
+            _fieldHelpText = "Estensioni cercate nello scan. Default: mkv. Valori multipli separati da virgola.";
+        }
+        else if (key == "remux.convert")
+        {
+            _fieldHelpTitle = "Converti audio";
+            _fieldHelpText = "Converte tracce lossless in FLAC o Opus durante il merge. Alcuni codec object-based restano esclusi.";
+        }
+        else if (key == "remux.rename")
+        {
+            _fieldHelpTitle = "Rinomina tracce";
+            _fieldHelpText = "Rinomina tutte le tracce audio nel risultato usando codec, layout canali e parametri audio.";
+        }
+        else if (key == "remux.encoding")
+        {
+            _fieldHelpTitle = "Encoding video";
+            _fieldHelpText = "Profilo opzionale di ricodifica video post-merge. I profili si gestiscono da Impostazioni > Profili encoding.";
+        }
+        else
+        {
+            _fieldHelpTitle = "Campo";
+            _fieldHelpText = "Seleziona un campo per vedere dettagli e vincoli.";
+        }
+    }
+
+    /// <summary>
+    /// Restituisce help per campi lingua remux
+    /// </summary>
+    /// <param name="intro">Descrizione iniziale del campo</param>
+    /// <returns>Testo help</returns>
+    private static string GetLanguageHelpText(string intro)
+    {
+        return intro
+            + "\n\nFormato: codici separati da virgola."
+            + "\n\nAccetta codici ISO 639-2 a tre lettere riconosciuti dai metadati MKV."
+            + "\n\nComuni:"
+            + "\nita  italiano"
+            + "\neng  inglese"
+            + "\njpn  giapponese"
+            + "\nger/deu  tedesco"
+            + "\nfra/fre  francese"
+            + "\nspa  spagnolo"
+            + "\npor  portoghese"
+            + "\nrus  russo"
+            + "\nchi/zho  cinese"
+            + "\nkor  coreano"
+            + "\nara  arabo"
+            + "\nhin  hindi"
+            + "\npol  polacco"
+            + "\ntur  turco"
+            + "\nnld/dut  olandese"
+            + "\nswe  svedese"
+            + "\nnor  norvegese"
+            + "\ndan  danese"
+            + "\nfin  finlandese"
+            + "\nhun  ungherese"
+            + "\nces/cze  ceco"
+            + "\n\nSpeciali:"
+            + "\nund  undefined"
+            + "\nmul  multiple"
+            + "\nzxx  no language"
+            + "\n\nEsempi:"
+            + "\nita"
+            + "\nita,eng";
+    }
+
+    /// <summary>
+    /// Restituisce help per campi codec audio remux
+    /// </summary>
+    /// <param name="intro">Descrizione iniziale del campo</param>
+    /// <returns>Testo help</returns>
+    private static string GetAudioCodecHelpText(string intro)
+    {
+        return intro
+            + "\n\nFormato: codec o alias separati da virgola."
+            + "\n\nValori accettati:"
+            + "\nAC3, AC-3, DD"
+            + "\nEAC3, E-AC-3, DD+, DDP"
+            + "\nTRUEHD, ATMOS, MLP"
+            + "\nDTS"
+            + "\nDTS-HD, DTS-HD MA, DTS-HDMA"
+            + "\nDTS-HD HR, DTS-HDHR"
+            + "\nDTS-ES"
+            + "\nDTS:X, DTSX"
+            + "\nFLAC"
+            + "\nPCM, LPCM, WAV"
+            + "\nALAC"
+            + "\nAAC, HE-AAC"
+            + "\nMP3"
+            + "\nMP2"
+            + "\nOPUS"
+            + "\nVORBIS"
+            + "\n\nNote:"
+            + "\nDTS matcha solo il core DTS, non DTS-HD MA."
+            + "\nDTS-HD matcha DTS-HD MA e DTS-HD HR."
+            + "\nATMOS matcha TrueHD ed E-AC-3."
+            + "\n\nEsempi:"
+            + "\nE-AC-3"
+            + "\nDTS,E-AC-3"
+            + "\nDTS-HD MA";
+    }
+
+    /// <summary>
+    /// Determina la modalita' di taglio configurata
+    /// </summary>
+    /// <param name="split">Opzioni split</param>
+    /// <returns>Identificativo modalita' di taglio</returns>
+    private string DetectSplitCutMode(MkvSplitOptions split)
+    {
+        if (split == null) { return ""; }
+        if (split.Pattern.Length > 0) { return SPLIT_CUT_PATTERN; }
+        if (split.Ranges.Length > 0) { return SPLIT_CUT_RANGES; }
+        if (split.SplitAt.Length > 0) { return SPLIT_CUT_SPLIT_AT; }
+        if (split.TrimStart.Length > 0 || split.TrimEnd.Length > 0) { return SPLIT_CUT_TRIM; }
+        if (split.ChaptersEach) { return SPLIT_CUT_CHAPTERS_EACH; }
+        return "";
+    }
+
+    /// <summary>
     /// Apre il dialog browse cartella per il campo specificato
     /// </summary>
     /// <param name="fieldIndex">Indice campo: 0=source, 1=lingua, 2=dest</param>
     private void BrowseFolder(int fieldIndex)
     {
         _browseFieldIndex = fieldIndex;
+        _browseShowFiles = false;
 
         // Determina percorso iniziale dal campo corrente
         if (fieldIndex == 0) { _browseInitialPath = _sourceFolder; }
         else if (fieldIndex == 1) { _browseInitialPath = _languageFolder; }
         else if (fieldIndex == 2) { _browseInitialPath = _destFolder; }
+
+        _showBrowse = true;
+    }
+
+    /// <summary>
+    /// Apre il dialog browse per un campo split
+    /// </summary>
+    /// <param name="fieldIndex">Indice campo split</param>
+    /// <param name="showFiles">Flag: mostra file selezionabili</param>
+    private void BrowseSplit(int fieldIndex, bool showFiles, bool allowCurrentFolderSelection)
+    {
+        _browseFieldIndex = fieldIndex;
+        _browseShowFiles = showFiles;
+        _browseAllowCurrentFolderSelection = allowCurrentFolderSelection;
+
+        if (fieldIndex == 10) { _browseInitialPath = _splitSource; }
+        else if (fieldIndex == 11) { _browseInitialPath = _splitOutputDir; }
+        else if (fieldIndex == 12) { _browseInitialPath = _splitSourceRaw; }
 
         _showBrowse = true;
     }
@@ -486,6 +1266,9 @@
         if (_browseFieldIndex == 0) { _sourceFolder = selectedPath; }
         else if (_browseFieldIndex == 1) { _languageFolder = selectedPath; }
         else if (_browseFieldIndex == 2) { _destFolder = selectedPath; }
+        else if (_browseFieldIndex == 10) { _splitSource = selectedPath; }
+        else if (_browseFieldIndex == 11) { _splitOutputDir = selectedPath; }
+        else if (_browseFieldIndex == 12) { _splitSourceRaw = selectedPath; }
     }
 
     /// <summary>

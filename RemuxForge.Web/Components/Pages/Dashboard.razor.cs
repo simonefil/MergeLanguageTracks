@@ -33,14 +33,29 @@ namespace RemuxForge.Web.Components.Pages
         private List<FileProcessingRecord> _records;
 
         /// <summary>
+        /// Lista record split correnti
+        /// </summary>
+        private List<MkvSplitRecord> _splitRecords;
+
+        /// <summary>
         /// Record selezionato per il pannello dettaglio
         /// </summary>
         private FileProcessingRecord _selectedRecord;
 
         /// <summary>
+        /// Record split selezionato
+        /// </summary>
+        private MkvSplitRecord _selectedSplitRecord;
+
+        /// <summary>
         /// Tema corrente
         /// </summary>
         private string _currentTheme;
+
+        /// <summary>
+        /// Modalita' corrente UI
+        /// </summary>
+        private string _currentMode;
 
         /// <summary>
         /// Flag: mostra dialog configurazione
@@ -66,11 +81,6 @@ namespace RemuxForge.Web.Components.Pages
         /// Flag: mostra dialog delay
         /// </summary>
         private bool _showDelay;
-
-        /// <summary>
-        /// Flag: mostra dialog help
-        /// </summary>
-        private bool _showHelp;
 
         /// <summary>
         /// Flag: mostra dialog profili encoding
@@ -147,12 +157,16 @@ namespace RemuxForge.Web.Components.Pages
         protected override void OnInitialized()
         {
             this._currentTheme = AppSettingsService.Instance.Settings.Ui.Theme;
+            this._currentMode = AppSettingsService.Instance.Settings.Ui.LastMode;
+            if (this._currentMode != Options.MODE_REMUX && this._currentMode != Options.MODE_SPLIT)
+            {
+                this._currentMode = Options.MODE_REMUX;
+            }
             this._showConfig = false;
             this._showToolPaths = false;
             this._showAudioSettings = false;
             this._showAdvancedSettings = false;
             this._showDelay = false;
-            this._showHelp = false;
             this._showEncodingProfiles = false;
             this._showPipeline = false;
             this._showInfo = false;
@@ -165,12 +179,17 @@ namespace RemuxForge.Web.Components.Pages
 
             // Carica stato corrente dall'orchestratore
             this._records = this.Orchestrator.GetRecords();
+            this._splitRecords = this.SplitOrchestrator.GetRecords();
             this.SyncSelectedFromOrchestrator();
+            this.SyncSelectedFromSplitOrchestrator();
 
             // Sottoscrivi eventi orchestratore
             this.Orchestrator.OnLog += this.HandleLog;
             this.Orchestrator.OnRecordsChanged += this.HandleRecordsChanged;
             this.Orchestrator.OnProgressChanged += this.HandleProgressChanged;
+            this.SplitOrchestrator.OnLog += this.HandleLog;
+            this.SplitOrchestrator.OnRecordsChanged += this.HandleSplitRecordsChanged;
+            this.SplitOrchestrator.OnProgressChanged += this.HandleProgressChanged;
         }
 
         /// <summary>
@@ -206,6 +225,9 @@ namespace RemuxForge.Web.Components.Pages
                 this.Orchestrator.OnLog -= this.HandleLog;
                 this.Orchestrator.OnRecordsChanged -= this.HandleRecordsChanged;
                 this.Orchestrator.OnProgressChanged -= this.HandleProgressChanged;
+                this.SplitOrchestrator.OnLog -= this.HandleLog;
+                this.SplitOrchestrator.OnRecordsChanged -= this.HandleSplitRecordsChanged;
+                this.SplitOrchestrator.OnProgressChanged -= this.HandleProgressChanged;
             }
 
             // Dispose riferimento .NET per JS interop
@@ -265,6 +287,19 @@ namespace RemuxForge.Web.Components.Pages
         }
 
         /// <summary>
+        /// Gestisce aggiornamento record split
+        /// </summary>
+        private void HandleSplitRecordsChanged()
+        {
+            this.InvokeAsync(() =>
+            {
+                this._splitRecords = this.SplitOrchestrator.GetRecords();
+                this.SyncSelectedFromSplitOrchestrator();
+                this.StateHasChanged();
+            });
+        }
+
+        /// <summary>
         /// Gestisce aggiornamento avanzamento dall'orchestratore
         /// </summary>
         private void HandleProgressChanged()
@@ -283,17 +318,27 @@ namespace RemuxForge.Web.Components.Pages
         public void HandleKeyDown(string key, bool ctrl, bool shift, bool alt)
         {
             // Il binding JS passa anche i modifier: al momento le scorciatoie sono tasti funzione semplici
-            if (key == "F1") { this.ShowHelp(); }
-            else if (key == "F2") { this.ShowConfig(); }
-            else if (key == "F5") { this.DoScan(); }
-            else if (key == "F6") { this.DoAnalyzeSelected(); }
-            else if (key == "F7") { this.DoAnalyzeAll(); }
-            else if (key == "F8") { this.DoToggleSkip(); }
-            else if (key == "F9") { this.DoMergeSelected(); }
-            else if (key == "F10") { this.DoMergeAll(); }
-            else if (key == "F12") { this.DoStop(); }
-            else if (key == "Enter") { this.ShowContextMenuForSelected(); }
-            else if (key == "Escape") { this.CloseAllDialogs(); }
+            if (this._currentMode == Options.MODE_SPLIT)
+            {
+                if (key == "F2") { this.ShowConfig(); }
+                else if (key == "F5") { this.DoScan(); }
+                else if (key == "F10") { this.DoMergeAll(); }
+                else if (key == "F12") { this.DoStop(); }
+                else if (key == "Escape") { this.CloseAllDialogs(); }
+            }
+            else
+            {
+                if (key == "F2") { this.ShowConfig(); }
+                else if (key == "F5") { this.DoScan(); }
+                else if (key == "F6") { this.DoAnalyzeSelected(); }
+                else if (key == "F7") { this.DoAnalyzeAll(); }
+                else if (key == "F8") { this.DoToggleSkip(); }
+                else if (key == "F9") { this.DoMergeSelected(); }
+                else if (key == "F10") { this.DoMergeAll(); }
+                else if (key == "F12") { this.DoStop(); }
+                else if (key == "Enter") { this.ShowContextMenuForSelected(); }
+                else if (key == "Escape") { this.CloseAllDialogs(); }
+            }
 
             this.StateHasChanged();
         }
@@ -314,6 +359,23 @@ namespace RemuxForge.Web.Components.Pages
             else
             {
                 this._selectedRecord = null;
+            }
+        }
+
+        /// <summary>
+        /// Seleziona riga split
+        /// </summary>
+        /// <param name="index">Indice riga</param>
+        private void SelectSplitRow(int index)
+        {
+            this.SplitOrchestrator.SelectedIndex = index;
+            if (index >= 0 && index < this._splitRecords.Count)
+            {
+                this._selectedSplitRecord = this._splitRecords[index];
+            }
+            else
+            {
+                this._selectedSplitRecord = null;
             }
         }
 
@@ -453,15 +515,81 @@ namespace RemuxForge.Web.Components.Pages
             }
         }
 
+        /// <summary>
+        /// Sincronizza record split selezionato
+        /// </summary>
+        private void SyncSelectedFromSplitOrchestrator()
+        {
+            int index = this.SplitOrchestrator.SelectedIndex;
+
+            if (index >= 0 && index < this._splitRecords.Count)
+            {
+                this._selectedSplitRecord = this._splitRecords[index];
+            }
+            else
+            {
+                this._selectedSplitRecord = null;
+            }
+        }
+
         #endregion
 
         #region Azioni
+
+        /// <summary>
+        /// Cambia modalita' UI e salva preferenza
+        /// </summary>
+        /// <param name="mode">Modalita' richiesta</param>
+        private void SwitchMode(string mode)
+        {
+            if (mode != Options.MODE_REMUX && mode != Options.MODE_SPLIT)
+            {
+                return;
+            }
+
+            this._currentMode = mode;
+            AppSettingsService.Instance.Settings.Ui.LastMode = mode;
+            AppSettingsService.Instance.Save();
+        }
+
+        /// <summary>
+        /// Applica configurazione split rapida
+        /// </summary>
+        private bool ApplySplitConfig()
+        {
+            string errorMessage;
+            Options opts = this.SplitOrchestrator.CurrentOptions;
+            opts.Mode = Options.MODE_SPLIT;
+            opts.Split.SourcePath = opts.SourceFolder;
+            if (!this.SplitOrchestrator.ApplyOptions(opts, out errorMessage) && errorMessage.Length > 0)
+            {
+                this.SplitOrchestrator.Log(errorMessage);
+                this.StateHasChanged();
+                return false;
+            }
+
+            return true;
+        }
 
         /// <summary>
         /// Esegue scan cartelle
         /// </summary>
         private void DoScan()
         {
+            if (this._currentMode == Options.MODE_SPLIT)
+            {
+                if (!this.ApplySplitConfig())
+                {
+                    return;
+                }
+
+                if (!this.SplitOrchestrator.IsBusy)
+                {
+                    this.SplitOrchestrator.Scan();
+                }
+                return;
+            }
+
             if (!this.Orchestrator.IsBusy)
             {
                 this.Orchestrator.Scan();
@@ -477,6 +605,11 @@ namespace RemuxForge.Web.Components.Pages
         /// </summary>
         private void DoAnalyzeSelected()
         {
+            if (this._currentMode == Options.MODE_SPLIT)
+            {
+                return;
+            }
+
             if (!this.Orchestrator.IsBusy && this.Orchestrator.SelectedIndex >= 0)
             {
                 this.Orchestrator.AnalyzeFile(this.Orchestrator.SelectedIndex);
@@ -496,6 +629,11 @@ namespace RemuxForge.Web.Components.Pages
         /// </summary>
         private void DoAnalyzeAll()
         {
+            if (this._currentMode == Options.MODE_SPLIT)
+            {
+                return;
+            }
+
             if (!this.Orchestrator.IsBusy)
             {
                 this.Orchestrator.AnalyzeAll();
@@ -511,6 +649,11 @@ namespace RemuxForge.Web.Components.Pages
         /// </summary>
         private void DoToggleSkip()
         {
+            if (this._currentMode == Options.MODE_SPLIT)
+            {
+                return;
+            }
+
             if (this.Orchestrator.SelectedIndex >= 0)
             {
                 this.Orchestrator.ToggleSkip(this.Orchestrator.SelectedIndex);
@@ -526,6 +669,12 @@ namespace RemuxForge.Web.Components.Pages
         /// </summary>
         private void DoMergeSelected()
         {
+            if (this._currentMode == Options.MODE_SPLIT)
+            {
+                this.DoMergeAll();
+                return;
+            }
+
             if (!this.Orchestrator.IsBusy && this.Orchestrator.SelectedIndex >= 0)
             {
                 this.Orchestrator.MergeFile(this.Orchestrator.SelectedIndex);
@@ -545,6 +694,20 @@ namespace RemuxForge.Web.Components.Pages
         /// </summary>
         private void DoMergeAll()
         {
+            if (this._currentMode == Options.MODE_SPLIT)
+            {
+                if (!this.ApplySplitConfig())
+                {
+                    return;
+                }
+
+                if (!this.SplitOrchestrator.IsBusy)
+                {
+                    this.SplitOrchestrator.SplitAll();
+                }
+                return;
+            }
+
             if (!this.Orchestrator.IsBusy)
             {
                 this.Orchestrator.MergeAll();
@@ -560,6 +723,12 @@ namespace RemuxForge.Web.Components.Pages
         /// </summary>
         private void DoStop()
         {
+            if (this._currentMode == Options.MODE_SPLIT)
+            {
+                this.SplitOrchestrator.Stop();
+                return;
+            }
+
             if (this.Orchestrator.IsBusy)
             {
                 this.Orchestrator.RequestStop();
@@ -594,7 +763,18 @@ namespace RemuxForge.Web.Components.Pages
         {
             string errorMessage;
 
-            if (this.Orchestrator.ApplyOptions(opts, out errorMessage))
+            if (this._currentMode == Options.MODE_SPLIT)
+            {
+                if (this.SplitOrchestrator.ApplyOptions(opts, out errorMessage))
+                {
+                    this._showConfig = false;
+                }
+                else if (errorMessage.Length > 0)
+                {
+                    this.SplitOrchestrator.Log(errorMessage);
+                }
+            }
+            else if (this.Orchestrator.ApplyOptions(opts, out errorMessage))
             {
                 this._showConfig = false;
             }
@@ -675,22 +855,6 @@ namespace RemuxForge.Web.Components.Pages
         }
 
         /// <summary>
-        /// Mostra dialog help
-        /// </summary>
-        private void ShowHelp()
-        {
-            this._showHelp = true;
-        }
-
-        /// <summary>
-        /// Chiude dialog help
-        /// </summary>
-        private void CloseHelp()
-        {
-            this._showHelp = false;
-        }
-
-        /// <summary>
         /// Mostra dialog info
         /// </summary>
         private void ShowInfo()
@@ -748,7 +912,6 @@ namespace RemuxForge.Web.Components.Pages
             this._showAudioSettings = false;
             this._showAdvancedSettings = false;
             this._showDelay = false;
-            this._showHelp = false;
             this._showEncodingProfiles = false;
             this._showPipeline = false;
             this._showInfo = false;

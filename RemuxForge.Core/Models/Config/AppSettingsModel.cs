@@ -15,7 +15,10 @@ namespace RemuxForge.Core.Models
         public ToolsConfig()
         {
             this.MkvMergePath = "";
+            this.MkvExtractPath = "";
+            this.MkvPropEditPath = "";
             this.FfmpegPath = "";
+            this.FfprobePath = "";
             this.MediaInfoPath = "";
             this.TempFolder = "";
         }
@@ -30,9 +33,24 @@ namespace RemuxForge.Core.Models
         public string MkvMergePath { get; set; }
 
         /// <summary>
+        /// Percorso mkvextract
+        /// </summary>
+        public string MkvExtractPath { get; set; }
+
+        /// <summary>
+        /// Percorso mkvpropedit
+        /// </summary>
+        public string MkvPropEditPath { get; set; }
+
+        /// <summary>
         /// Percorso ffmpeg
         /// </summary>
         public string FfmpegPath { get; set; }
+
+        /// <summary>
+        /// Percorso ffprobe
+        /// </summary>
+        public string FfprobePath { get; set; }
 
         /// <summary>
         /// Percorso mediainfo
@@ -159,6 +177,7 @@ namespace RemuxForge.Core.Models
         public UiConfig()
         {
             this.Theme = "nord";
+            this.LastMode = Options.MODE_REMUX;
         }
 
         #endregion
@@ -169,6 +188,11 @@ namespace RemuxForge.Core.Models
         /// Tema grafico selezionato (kebab-case)
         /// </summary>
         public string Theme { get; set; }
+
+        /// <summary>
+        /// Ultima modalita' selezionata nella UI
+        /// </summary>
+        public string LastMode { get; set; }
 
         #endregion
     }

@@ -14,7 +14,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
         /// <summary>
         /// Seleziona i cluster di offset piu' promettenti dai voti ordinati
         /// </summary>
-        public List<FrameSyncCandidate> SelectInitialCandidates(double[] sortedCandidates, int candidateCount, double frameIntervalMs, int maxInitialCandidates, int maxFastSyncOffsetMs)
+        public List<FrameSyncCandidate> SelectInitialCandidates(double[] sortedCandidates, int candidateCount, double frameIntervalMs, int maxInitialCandidates, int maxAbsOffsetMs)
         {
             List<FrameSyncCandidate> result = new List<FrameSyncCandidate>();
             int left = 0;
@@ -65,7 +65,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
                 List<FrameSyncCandidate> plausible = new List<FrameSyncCandidate>();
                 for (int i = 0; i < result.Count; i++)
                 {
-                    if (Math.Abs(result[i].OffsetMs) <= maxFastSyncOffsetMs)
+                    if (Math.Abs(result[i].OffsetMs) <= maxAbsOffsetMs)
                     {
                         plausible.Add(result[i]);
                     }
@@ -89,7 +89,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
         /// <summary>
         /// Genera candidati offset da tutte le coppie di cut dentro un range locale
         /// </summary>
-        public List<FrameSyncCandidate> BuildOffsetCandidates(double[] sourceTimestampsMs, double[] langTimestampsMs, List<int> validSourceCuts, List<int> validLangCuts, double minOffsetMs, double maxOffsetMs, double frameIntervalMs, int maxInitialCandidates, int maxFastSyncOffsetMs)
+        public List<FrameSyncCandidate> BuildOffsetCandidates(double[] sourceTimestampsMs, double[] langTimestampsMs, List<int> validSourceCuts, List<int> validLangCuts, double minOffsetMs, double maxOffsetMs, double frameIntervalMs, int maxInitialCandidates, int maxAbsOffsetMs)
         {
             List<FrameSyncCandidate> result = new List<FrameSyncCandidate>();
             int maxCandidateCount = validSourceCuts.Count * validLangCuts.Count;
@@ -121,7 +121,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
                 if (candidateCount > 0)
                 {
                     Array.Sort(candidates, 0, candidateCount);
-                    result = this.SelectInitialCandidates(candidates, candidateCount, frameIntervalMs, maxInitialCandidates, maxFastSyncOffsetMs);
+                    result = this.SelectInitialCandidates(candidates, candidateCount, frameIntervalMs, maxInitialCandidates, maxAbsOffsetMs);
                 }
             }
 

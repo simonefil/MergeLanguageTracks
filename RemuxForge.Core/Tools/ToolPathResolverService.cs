@@ -1,5 +1,7 @@
 using RemuxForge.Core.Configuration;
+using System;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace RemuxForge.Core.Tools
 {
@@ -106,6 +108,97 @@ namespace RemuxForge.Core.Tools
         /// <returns>Path mkvextract o stringa vuota</returns>
         public string ResolveMkvExtractPath(string mkvMergePath, bool autoSave)
         {
+            string result = ResolveConfiguredOrPath("mkvextract", AppSettingsService.Instance.Settings.Tools.MkvExtractPath);
+            string mkvPath = mkvMergePath;
+            if (result.Length == 0)
+            {
+                result = this.ResolveSiblingToolPath("mkvextract", mkvPath, autoSave);
+            }
+
+            if (autoSave && result.Length > 0 && AppSettingsService.Instance.Settings.Tools.MkvExtractPath != result)
+            {
+                AppSettingsService.Instance.Settings.Tools.MkvExtractPath = result;
+                AppSettingsService.Instance.Save();
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Risolve mkvpropedit partendo da configurazione, PATH o cartella mkvmerge
+        /// </summary>
+        /// <param name="mkvMergePath">Percorso mkvmerge</param>
+        /// <param name="autoSave">True per salvare il risultato in AppSettings quando valido</param>
+        /// <returns>Path mkvpropedit o stringa vuota</returns>
+        public string ResolveMkvPropEditPath(string mkvMergePath, bool autoSave)
+        {
+            string result = ResolveConfiguredOrPath("mkvpropedit", AppSettingsService.Instance.Settings.Tools.MkvPropEditPath);
+            if (result.Length == 0)
+            {
+                result = this.ResolveSiblingToolPath("mkvpropedit", mkvMergePath, autoSave);
+            }
+
+            if (autoSave && result.Length > 0 && AppSettingsService.Instance.Settings.Tools.MkvPropEditPath != result)
+            {
+                AppSettingsService.Instance.Settings.Tools.MkvPropEditPath = result;
+                AppSettingsService.Instance.Save();
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Risolve ffprobe partendo da configurazione, PATH o cartella ffmpeg
+        /// </summary>
+        /// <param name="ffmpegPath">Percorso ffmpeg</param>
+        /// <param name="autoSave">True per salvare il risultato in AppSettings quando valido</param>
+        /// <returns>Path ffprobe o stringa vuota</returns>
+        public string ResolveFfprobePath(string ffmpegPath, bool autoSave)
+        {
+            string result = ResolveConfiguredOrPath("ffprobe", AppSettingsService.Instance.Settings.Tools.FfprobePath);
+            if (result.Length == 0)
+            {
+                result = this.ResolveSiblingExecutable("ffprobe", ffmpegPath);
+            }
+
+            if (autoSave && result.Length > 0 && AppSettingsService.Instance.Settings.Tools.FfprobePath != result)
+            {
+                AppSettingsService.Instance.Settings.Tools.FfprobePath = result;
+                AppSettingsService.Instance.Save();
+            }
+
+            return result;
+        }
+
+        #endregion
+
+        #region Metodi privati
+
+        /// <summary>
+        /// Risolve un tool configurato o nel PATH
+        /// </summary>
+        private static string ResolveConfiguredOrPath(string toolName, string configuredPath)
+        {
+            string result = "";
+            string executableName = toolName + GetExecutableExtension();
+
+            if (configuredPath != null && configuredPath.Length > 0 && File.Exists(configuredPath))
+            {
+                result = configuredPath;
+            }
+            else
+            {
+                result = FindInSystemPath(executableName);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Risolve un tool MKVToolNix nella stessa cartella di mkvmerge
+        /// </summary>
+        private string ResolveSiblingToolPath(string toolName, string mkvMergePath, bool autoSave)
+        {
             string result = "";
             string mkvPath = mkvMergePath;
             if (mkvPath.Length == 0 && autoSave)
@@ -115,20 +208,74 @@ namespace RemuxForge.Core.Tools
 
             if (mkvPath.Length > 0)
             {
-                string folder = Path.GetDirectoryName(mkvPath);
-                if (folder.Length > 0)
+                result = this.ResolveSiblingExecutable(toolName, mkvPath);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Risolve un eseguibile nella stessa cartella di un tool noto
+        /// </summary>
+        private string ResolveSiblingExecutable(string toolName, string siblingPath)
+        {
+            string result = "";
+            string folder;
+            string candidate;
+
+            if (siblingPath != null && siblingPath.Length > 0)
+            {
+                folder = Path.GetDirectoryName(siblingPath);
+                if (folder != null && folder.Length > 0)
                 {
-                    string candidate = Path.Combine(folder, "mkvextract");
-                    string windowsCandidate = Path.Combine(folder, "mkvextract.exe");
+                    candidate = Path.Combine(folder, toolName + GetExecutableExtension());
                     if (File.Exists(candidate))
                     {
                         result = candidate;
                     }
-                    else if (File.Exists(windowsCandidate))
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Cerca un eseguibile nel PATH
+        /// </summary>
+        private static string FindInSystemPath(string executableName)
+        {
+            string result = "";
+            string pathEnv = Environment.GetEnvironmentVariable("PATH");
+            char separator = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ';' : ':';
+            string[] paths;
+            string candidate;
+
+            if (pathEnv != null)
+            {
+                paths = pathEnv.Split(separator);
+                for (int i = 0; i < paths.Length; i++)
+                {
+                    candidate = Path.Combine(paths[i], executableName);
+                    if (File.Exists(candidate))
                     {
-                        result = windowsCandidate;
+                        result = candidate;
+                        break;
                     }
                 }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Restituisce l'estensione eseguibile per la piattaforma corrente
+        /// </summary>
+        private static string GetExecutableExtension()
+        {
+            string result = "";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                result = ".exe";
             }
 
             return result;

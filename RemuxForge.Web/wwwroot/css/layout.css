@@ -9,6 +9,49 @@
     color: var(--foreground0);
 }
 
+.mode-switch {
+    position: fixed;
+    top: 0;
+    right: 1ch;
+    z-index: 150;
+    display: flex;
+    height: calc(1lh - 1px);
+    align-items: center;
+    background-color: var(--background1);
+    border-bottom: 1px solid var(--foreground2);
+}
+
+.mode-switch button {
+    height: calc(1lh - 1px);
+    border: 0;
+    padding: 0 1ch;
+    background-color: var(--background1);
+    color: var(--foreground1);
+    font: inherit;
+    cursor: pointer;
+    line-height: calc(1lh - 1px);
+}
+
+.mode-switch button.active {
+    background-color: var(--foreground0);
+    color: var(--background0);
+}
+
+.mode-switch button:hover {
+    background-color: var(--background2);
+    color: var(--foreground0);
+}
+
+.mode-switch button.active:hover {
+    background-color: var(--foreground0);
+    color: var(--background0);
+}
+
+.mode-switch-separator {
+    color: var(--foreground2);
+    line-height: calc(1lh - 1px);
+}
+
 /* Panels area - 2 columns */
 .panels-area {
     display: grid;
@@ -42,6 +85,14 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding: 0;
+}
+
+.split-input-body {
+    padding: 0;
+}
+
+.split-table {
+    width: 100%;
 }
 
 /* Log panel */
@@ -572,6 +623,66 @@
     display: flex;
     align-items: center;
     line-height: 1.5lh;
+}
+
+.config-dialog-box {
+    width: min(132ch, 94vw);
+    min-width: min(126ch, 94vw);
+    height: 86vh;
+    max-width: 94vw;
+    max-height: 86vh;
+}
+
+.config-dialog-body {
+    display: grid;
+    grid-template-columns: minmax(0, 82ch) minmax(34ch, 42ch);
+    gap: 2ch;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.config-form-pane {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 1ch;
+}
+
+.config-help-pane {
+    border-left: 1px solid var(--foreground2);
+    padding-left: 2ch;
+    color: var(--foreground1);
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    font-size: 0.88rem;
+}
+
+.config-help-title {
+    color: var(--foreground0);
+    font-weight: bold;
+    margin-bottom: 1lh;
+    font-size: 0.95rem;
+}
+
+.config-help-section {
+    color: var(--foreground0);
+    font-weight: bold;
+    margin-top: 2lh;
+    margin-bottom: 0.5lh;
+    font-size: 0.88rem;
+}
+
+.config-help-text {
+    white-space: pre-wrap;
+    line-height: 1.25lh;
+    font-size: 0.84rem;
+}
+
+.config-dialog-body .form-label {
+    width: 16ch;
+    white-space: nowrap;
 }
 
 .form-label {

@@ -46,6 +46,11 @@ namespace RemuxForge.Core.Models
         Merge,
 
         /// <summary>
+        /// Split MKV (MkvSplitService)
+        /// </summary>
+        Split,
+
+        /// <summary>
         /// Setup e download ffmpeg (FfmpegProvider)
         /// </summary>
         Ffmpeg,

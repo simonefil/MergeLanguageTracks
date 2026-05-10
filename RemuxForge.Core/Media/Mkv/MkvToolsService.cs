@@ -278,6 +278,7 @@ namespace RemuxForge.Core.Media.Mkv
             bool hasConvertedSource = (req.ConvertedSourceTracks != null && req.ConvertedSourceTracks.Count > 0);
             bool hasConvertedLang = (req.ConvertedLangTracks != null && req.ConvertedLangTracks.Count > 0);
             bool hasProcessedSubs = (req.ProcessedLangSubTracks != null && req.ProcessedLangSubTracks.Count > 0);
+            bool bypassAudioDelay;
 
             // File output
             mkvArgs.Add("-o");
@@ -505,12 +506,13 @@ namespace RemuxForge.Core.Media.Mkv
                         int langId = req.LangAudioTracks[i].Id;
                         if (req.ConvertedLangTracks.ContainsKey(langId))
                         {
+                            bypassAudioDelay = req.AudioDelayBypassedLangIds != null && req.AudioDelayBypassedLangIds.Contains(langId);
                             // File convertito: no video, no sottotitoli
                             mkvArgs.Add("-D");
                             mkvArgs.Add("-S");
 
                             // Applica delay e/o stretch (trackId 0 nel file convertito)
-                            if (req.AudioDelayMs != 0 || req.StretchFactor.Length > 0)
+                            if (!bypassAudioDelay && (req.AudioDelayMs != 0 || req.StretchFactor.Length > 0))
                             {
                                 syncValue = "0:" + req.AudioDelayMs;
                                 if (req.StretchFactor.Length > 0)
@@ -526,7 +528,15 @@ namespace RemuxForge.Core.Media.Mkv
                             TrackInfo origLangTrack = FindTrackById(req.LangAudioTracks, langId);
                             if (origLangTrack != null)
                             {
-                                string langConvertFmt = req.CodecConvertedLangIds.Contains(langId) ? req.ConvertFormat : "";
+                                string langConvertFmt = "";
+                                if (req.ProcessedLangAudioFormats != null && req.ProcessedLangAudioFormats.ContainsKey(langId))
+                                {
+                                    langConvertFmt = req.ProcessedLangAudioFormats[langId];
+                                }
+                                else if (req.CodecConvertedLangIds.Contains(langId))
+                                {
+                                    langConvertFmt = req.ConvertFormat;
+                                }
                                 AddTrackMetadata(mkvArgs, origLangTrack, langConvertFmt, req.RenameAllTracks);
                             }
 
@@ -711,9 +721,43 @@ namespace RemuxForge.Core.Media.Mkv
                 {
                     track.SamplingFrequency = freqEl.GetInt32();
                 }
+
+                if (propsEl.TryGetProperty("audio_bit_rate", out JsonElement audioBitrateEl))
+                {
+                    track.Bitrate = ReadIntProperty(audioBitrateEl);
+                }
+                else if (propsEl.TryGetProperty("bitrate", out JsonElement bitrateEl))
+                {
+                    track.Bitrate = ReadIntProperty(bitrateEl);
+                }
+                else if (propsEl.TryGetProperty("tag_bps", out JsonElement tagBpsEl))
+                {
+                    track.Bitrate = ReadIntProperty(tagBpsEl);
+                }
             }
 
             return track;
+        }
+
+        /// <summary>
+        /// Legge una proprietà intera da JSON accettando numero o stringa
+        /// </summary>
+        private static int ReadIntProperty(JsonElement element)
+        {
+            int result = 0;
+            string text;
+
+            if (element.ValueKind == JsonValueKind.Number)
+            {
+                element.TryGetInt32(out result);
+            }
+            else if (element.ValueKind == JsonValueKind.String)
+            {
+                text = element.GetString();
+                int.TryParse(text, out result);
+            }
+
+            return result;
         }
 
         /// <summary>

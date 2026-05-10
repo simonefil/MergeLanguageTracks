@@ -326,11 +326,14 @@ namespace RemuxForge.Core.Analysis.Deep
 
                 if (transition.LocalVerification == null || !transition.LocalVerification.Verified)
                 {
-                    // Timeline-first non blocca su verifica locale fallita, ma lo espone chiaramente nella diagnostica
                     if (timelineMode)
                     {
-                        transition.Status = audioCrossover && string.Equals(refineMethod, "audio", StringComparison.Ordinal) ? "AcceptedAudio" : "AcceptedTimeline";
-                        transition.RejectReason = "Verifica locale non vincolante su timeline-first";
+                        transition.Status = "SkippedUnverified";
+                        transition.RejectReason = "Verifica locale timeline-first fallita, operazione scartata";
+                        transition.OperationType = "";
+                        operations.RemoveAt(operations.Count - 1);
+                        ConsoleHelper.Write(LogSection.Deep, LogLevel.Warning, "  Transizione " + (r + 1) + ": verifica locale fallita, operazione timeline scartata");
+                        continue;
                     }
                     else
                     {

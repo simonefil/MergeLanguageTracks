@@ -185,6 +185,7 @@ namespace RemuxForge.Core.Infrastructure
             else if (section == LogSection.Conv) { result = "[CONV] "; }
             else if (section == LogSection.Encode) { result = "[ENC] "; }
             else if (section == LogSection.Merge) { result = "[MERGE] "; }
+            else if (section == LogSection.Split) { result = "[SPLIT] "; }
             else if (section == LogSection.Ffmpeg) { result = "[FFMPEG] "; }
             else if (section == LogSection.Report) { result = "[REPORT] "; }
 
@@ -279,6 +280,7 @@ namespace RemuxForge.Core.Infrastructure
             else if (section == LogSection.Conv) { result = "CONV"; }
             else if (section == LogSection.Encode) { result = "ENC"; }
             else if (section == LogSection.Merge) { result = "MERGE"; }
+            else if (section == LogSection.Split) { result = "SPLIT"; }
             else if (section == LogSection.Ffmpeg) { result = "FFMPEG"; }
             else if (section == LogSection.Report) { result = "REPORT"; }
 

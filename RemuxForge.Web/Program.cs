@@ -54,7 +54,10 @@ namespace RemuxForge.Web
             AppSettingsService.Instance.Initialize();
             ToolPathResolverService toolPathResolver = new ToolPathResolverService(AppSettingsService.Instance.ConfigFolder);
             string mkvMergePath;
+            string mkvExtractPath;
+            string mkvPropEditPath;
             string ffmpegPath;
+            string ffprobePath;
             string mediaInfoPath;
 
             // Auto-find tool (mkvmerge, ffmpeg, mediainfo)
@@ -69,10 +72,31 @@ namespace RemuxForge.Web
                 }
             }
 
+            mkvExtractPath = toolPathResolver.ResolveMkvExtractPath(mkvMergePath, false);
+            if (mkvExtractPath.Length > 0 && !string.Equals(AppSettingsService.Instance.Settings.Tools.MkvExtractPath, mkvExtractPath, System.StringComparison.Ordinal))
+            {
+                AppSettingsService.Instance.Settings.Tools.MkvExtractPath = mkvExtractPath;
+                toolsChanged = true;
+            }
+
+            mkvPropEditPath = toolPathResolver.ResolveMkvPropEditPath(mkvMergePath, false);
+            if (mkvPropEditPath.Length > 0 && !string.Equals(AppSettingsService.Instance.Settings.Tools.MkvPropEditPath, mkvPropEditPath, System.StringComparison.Ordinal))
+            {
+                AppSettingsService.Instance.Settings.Tools.MkvPropEditPath = mkvPropEditPath;
+                toolsChanged = true;
+            }
+
             ffmpegPath = toolPathResolver.ResolveFfmpegPath(false, false);
             if (ffmpegPath.Length > 0 && !string.Equals(AppSettingsService.Instance.Settings.Tools.FfmpegPath, ffmpegPath, System.StringComparison.Ordinal))
             {
                 AppSettingsService.Instance.Settings.Tools.FfmpegPath = ffmpegPath;
+                toolsChanged = true;
+            }
+
+            ffprobePath = toolPathResolver.ResolveFfprobePath(ffmpegPath, false);
+            if (ffprobePath.Length > 0 && !string.Equals(AppSettingsService.Instance.Settings.Tools.FfprobePath, ffprobePath, System.StringComparison.Ordinal))
+            {
+                AppSettingsService.Instance.Settings.Tools.FfprobePath = ffprobePath;
                 toolsChanged = true;
             }
 
@@ -93,6 +117,7 @@ namespace RemuxForge.Web
 
             // Registra servizi
             builder.Services.AddSingleton<MergeOrchestrator>();
+            builder.Services.AddSingleton<SplitOrchestrator>();
             builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
             WebApplication app = builder.Build();

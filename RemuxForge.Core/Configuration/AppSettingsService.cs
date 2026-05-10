@@ -297,7 +297,10 @@ namespace RemuxForge.Core.Configuration
             bool result;
             // Trim percorsi
             this._model.Tools.MkvMergePath = this._model.Tools.MkvMergePath.Trim();
+            this._model.Tools.MkvExtractPath = this._model.Tools.MkvExtractPath.Trim();
+            this._model.Tools.MkvPropEditPath = this._model.Tools.MkvPropEditPath.Trim();
             this._model.Tools.FfmpegPath = this._model.Tools.FfmpegPath.Trim();
+            this._model.Tools.FfprobePath = this._model.Tools.FfprobePath.Trim();
             this._model.Tools.MediaInfoPath = this._model.Tools.MediaInfoPath.Trim();
 
             // Verifica esistenza mkvmerge
@@ -306,10 +309,28 @@ namespace RemuxForge.Core.Configuration
                 errors.Add("Percorso mkvmerge non trovato: " + this._model.Tools.MkvMergePath);
             }
 
+            // Verifica esistenza mkvextract
+            if (this._model.Tools.MkvExtractPath.Length > 0 && !File.Exists(this._model.Tools.MkvExtractPath))
+            {
+                errors.Add("Percorso mkvextract non trovato: " + this._model.Tools.MkvExtractPath);
+            }
+
+            // Verifica esistenza mkvpropedit
+            if (this._model.Tools.MkvPropEditPath.Length > 0 && !File.Exists(this._model.Tools.MkvPropEditPath))
+            {
+                errors.Add("Percorso mkvpropedit non trovato: " + this._model.Tools.MkvPropEditPath);
+            }
+
             // Verifica esistenza ffmpeg
             if (this._model.Tools.FfmpegPath.Length > 0 && !File.Exists(this._model.Tools.FfmpegPath))
             {
                 errors.Add("Percorso ffmpeg non trovato: " + this._model.Tools.FfmpegPath);
+            }
+
+            // Verifica esistenza ffprobe
+            if (this._model.Tools.FfprobePath.Length > 0 && !File.Exists(this._model.Tools.FfprobePath))
+            {
+                errors.Add("Percorso ffprobe non trovato: " + this._model.Tools.FfprobePath);
             }
 
             // Verifica esistenza mediainfo
@@ -417,10 +438,14 @@ namespace RemuxForge.Core.Configuration
 
             // Assicura stringhe non null nei percorsi tool
             if (this._model.Tools.MkvMergePath == null) { this._model.Tools.MkvMergePath = ""; }
+            if (this._model.Tools.MkvExtractPath == null) { this._model.Tools.MkvExtractPath = ""; }
+            if (this._model.Tools.MkvPropEditPath == null) { this._model.Tools.MkvPropEditPath = ""; }
             if (this._model.Tools.FfmpegPath == null) { this._model.Tools.FfmpegPath = ""; }
+            if (this._model.Tools.FfprobePath == null) { this._model.Tools.FfprobePath = ""; }
             if (this._model.Tools.MediaInfoPath == null) { this._model.Tools.MediaInfoPath = ""; }
             if (this._model.Tools.TempFolder == null) { this._model.Tools.TempFolder = ""; }
             if (this._model.Ui.Theme == null) { this._model.Ui.Theme = "nord"; }
+            if (this._model.Ui.LastMode == null) { this._model.Ui.LastMode = Options.MODE_REMUX; }
 
             // Assicura sotto-oggetti Advanced non null
             if (this._model.Advanced == null) { this._model.Advanced = new AdvancedConfig(); }
@@ -470,6 +495,11 @@ namespace RemuxForge.Core.Configuration
             if (!themeValid)
             {
                 this._model.Ui.Theme = "nord";
+            }
+
+            if (this._model.Ui.LastMode != Options.MODE_REMUX && this._model.Ui.LastMode != Options.MODE_SPLIT)
+            {
+                this._model.Ui.LastMode = Options.MODE_REMUX;
             }
 
             // Sanitizzazione Advanced — VideoSync

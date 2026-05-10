@@ -1,12 +1,18 @@
 <div class="status-bar">
-    <span class="cmd-key" @onclick="OnShowHelp"><span class="key-label">F1</span>Aiuto</span>
     <span class="cmd-key" @onclick="OnShowConfig"><span class="key-label">F2</span>Config</span>
     <span class="cmd-key" @onclick="OnScan"><span class="key-label">F5</span>Scan</span>
-    <span class="cmd-key" @onclick="OnAnalyzeSelected"><span class="key-label">F6</span>Analizza</span>
-    <span class="cmd-key" @onclick="OnAnalyzeAll"><span class="key-label">F7</span>Tutti</span>
-    <span class="cmd-key" @onclick="OnSkip"><span class="key-label">F8</span>Skip</span>
-    <span class="cmd-key" @onclick="OnMergeSelected"><span class="key-label">F9</span>Processa</span>
-    <span class="cmd-key" @onclick="OnMergeAll"><span class="key-label">F10</span>Tutti</span>
+    @if (CurrentMode == Options.MODE_SPLIT)
+    {
+        <span class="cmd-key" @onclick="OnMergeAll"><span class="key-label">F10</span>Split tutti</span>
+    }
+    else
+    {
+        <span class="cmd-key" @onclick="OnAnalyzeSelected"><span class="key-label">F6</span>Analizza</span>
+        <span class="cmd-key" @onclick="OnAnalyzeAll"><span class="key-label">F7</span>Tutti</span>
+        <span class="cmd-key" @onclick="OnSkip"><span class="key-label">F8</span>Skip</span>
+        <span class="cmd-key" @onclick="OnMergeSelected"><span class="key-label">F9</span>Processa</span>
+        <span class="cmd-key" @onclick="OnMergeAll"><span class="key-label">F10</span>Tutti</span>
+    }
     <span class="cmd-key" @onclick="OnStop"><span class="key-label">F12</span>Stop</span>
 </div>
 
@@ -52,7 +58,7 @@
     [Parameter] public EventCallback OnShowConfig { get; set; }
 
     /// <summary>
-    /// Evento mostra help
+    /// Modalita' corrente
     /// </summary>
-    [Parameter] public EventCallback OnShowHelp { get; set; }
+    [Parameter] public string CurrentMode { get; set; }
 }
