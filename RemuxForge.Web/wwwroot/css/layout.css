@@ -243,7 +243,8 @@
     color: var(--foreground0);
 }
 
-.menu-dropdown-item:hover {
+.menu-dropdown-item:hover,
+.menu-dropdown-item.active {
     background-color: var(--background2);
 }
 
@@ -324,6 +325,15 @@
 .episode-table tr.selected {
     background-color: var(--background2);
     color: var(--foreground0);
+}
+
+.episode-table tr.focused td:first-child {
+    text-decoration: underline;
+}
+
+.episode-table tr.selected.focused {
+    background-color: var(--foreground0);
+    color: var(--background0);
 }
 
 .episode-table tr.status-done td:first-child {
@@ -841,7 +851,8 @@ textarea.form-input {
     white-space: nowrap;
 }
 
-.ctx-menu-item:hover {
+.ctx-menu-item:hover,
+.ctx-menu-item.active {
     background-color: var(--foreground0);
     color: var(--background0);
 }

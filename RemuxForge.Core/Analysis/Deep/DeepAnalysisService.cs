@@ -23,6 +23,7 @@ namespace RemuxForge.Core.Analysis.Deep
         private const int INITIAL_VISUAL_GUARD_SEARCH_STEP_MS = 500;
         private const int INITIAL_VISUAL_GUARD_DISTINCT_OFFSET_MS = 5000;
         private const double INITIAL_VISUAL_GUARD_MAX_REGION_SEC = 60.0;
+        private const double INITIAL_VISUAL_GUARD_TIMELINE_LEAD_IN_SEC = 20.0;
         private const int VISUAL_BASELINE_CONFLICT_THRESHOLD_MS = 250;
 
         #endregion
@@ -603,8 +604,26 @@ namespace RemuxForge.Core.Analysis.Deep
             OffsetRegion firstRegion = regions[0];
             OffsetRegion guardRegion = new OffsetRegion();
             double guardEndSec = visualStartEndSec;
+            double firstSupportStartSec = firstRegion.SupportStartSrcSec;
+            double bridgedGuardEndSec;
 
             if (guardEndSec < 20.0) { guardEndSec = 20.0; }
+            if (guardEndSec > sourceDurationSec) { guardEndSec = sourceDurationSec; }
+
+            if (firstSupportStartSec > guardEndSec + INITIAL_VISUAL_GUARD_TIMELINE_LEAD_IN_SEC)
+            {
+                bridgedGuardEndSec = firstSupportStartSec - INITIAL_VISUAL_GUARD_TIMELINE_LEAD_IN_SEC;
+                if (bridgedGuardEndSec > guardEndSec)
+                {
+                    guardEndSec = bridgedGuardEndSec;
+                }
+            }
+
+            if (guardEndSec > firstRegion.EndSrcSec - 1.0 && firstRegion.EndSrcSec > 1.0)
+            {
+                guardEndSec = firstRegion.EndSrcSec - 1.0;
+            }
+
             if (guardEndSec > sourceDurationSec) { guardEndSec = sourceDurationSec; }
 
             guardRegion.StartSrcSec = 0.0;

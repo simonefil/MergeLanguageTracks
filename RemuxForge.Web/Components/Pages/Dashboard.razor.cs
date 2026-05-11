@@ -2,6 +2,7 @@ using RemuxForge.Core.Configuration;
 using RemuxForge.Core.Media;
 using RemuxForge.Core.Models;
 using RemuxForge.Core.Tools;
+using RemuxForge.Web.Components.Shared;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using System;
@@ -46,6 +47,16 @@ namespace RemuxForge.Web.Components.Pages
         /// Record split selezionato
         /// </summary>
         private MkvSplitRecord _selectedSplitRecord;
+
+        /// <summary>
+        /// Indici episodi selezionati in modalita' multi-select
+        /// </summary>
+        private List<int> _selectedIndices;
+
+        /// <summary>
+        /// Anchor per selezione range con Shift
+        /// </summary>
+        private int _selectionAnchorIndex;
 
         /// <summary>
         /// Tema corrente
@@ -113,6 +124,11 @@ namespace RemuxForge.Web.Components.Pages
         private List<Action> _contextMenuActions;
 
         /// <summary>
+        /// Voce attiva nel context menu per navigazione tastiera
+        /// </summary>
+        private int _contextMenuSelectedIndex;
+
+        /// <summary>
         /// Coordinata X del context menu (pixel dal bordo sinistro viewport)
         /// </summary>
         private double _contextMenuX;
@@ -147,6 +163,11 @@ namespace RemuxForge.Web.Components.Pages
         /// </summary>
         private DotNetObjectReference<Dashboard> _dotNetRef;
 
+        /// <summary>
+        /// Riferimento menu bar per navigazione tastiera
+        /// </summary>
+        private MenuBarComponent _menuBar;
+
         #endregion
 
         #region Lifecycle
@@ -176,6 +197,9 @@ namespace RemuxForge.Web.Components.Pages
             this._showMediaInfo = false;
             this._mediaInfoTitle = "";
             this._mediaInfoReport = "";
+            this._selectedIndices = new List<int>();
+            this._selectionAnchorIndex = -1;
+            this._contextMenuSelectedIndex = 0;
 
             // Carica stato corrente dall'orchestratore
             this._records = this.Orchestrator.GetRecords();
@@ -281,6 +305,7 @@ namespace RemuxForge.Web.Components.Pages
             this.InvokeAsync(() =>
             {
                 this._records = this.Orchestrator.GetRecords();
+                this.NormalizeSelection();
                 this.SyncSelectedFromOrchestrator();
                 this.StateHasChanged();
             });
@@ -317,7 +342,29 @@ namespace RemuxForge.Web.Components.Pages
         [JSInvokable("OnKeyDown")]
         public void HandleKeyDown(string key, bool ctrl, bool shift, bool alt)
         {
-            // Il binding JS passa anche i modifier: al momento le scorciatoie sono tasti funzione semplici
+            if (this.IsBlockingDialogOpen())
+            {
+                if (key == "Escape")
+                {
+                    this.CloseAllDialogs();
+                    this.StateHasChanged();
+                }
+
+                return;
+            }
+
+            if (this._showContextMenu && this.HandleContextMenuKey(key))
+            {
+                this.StateHasChanged();
+                return;
+            }
+
+            if (this._menuBar != null && this._menuBar.HandleKeyboardKey(key, ctrl, shift, alt))
+            {
+                this.StateHasChanged();
+                return;
+            }
+
             if (this._currentMode == Options.MODE_SPLIT)
             {
                 if (key == "F2") { this.ShowConfig(); }
@@ -325,6 +372,10 @@ namespace RemuxForge.Web.Components.Pages
                 else if (key == "F10") { this.DoMergeAll(); }
                 else if (key == "F12") { this.DoStop(); }
                 else if (key == "Escape") { this.CloseAllDialogs(); }
+                else if (key == "ArrowUp") { this.MoveSplitSelection(-1); }
+                else if (key == "ArrowDown") { this.MoveSplitSelection(1); }
+                else if (key == "Home") { this.SelectSplitRow(0); }
+                else if (key == "End") { this.SelectSplitRow(this._splitRecords.Count - 1); }
             }
             else
             {
@@ -338,6 +389,14 @@ namespace RemuxForge.Web.Components.Pages
                 else if (key == "F12") { this.DoStop(); }
                 else if (key == "Enter") { this.ShowContextMenuForSelected(); }
                 else if (key == "Escape") { this.CloseAllDialogs(); }
+                else if (ctrl && string.Equals(key, "a", StringComparison.OrdinalIgnoreCase)) { this.SelectAllRows(); }
+                else if (key == "ArrowUp") { this.MoveSelection(-1, shift, ctrl); }
+                else if (key == "ArrowDown") { this.MoveSelection(1, shift, ctrl); }
+                else if (key == "Home") { this.SelectIndexFromKeyboard(0, shift, ctrl); }
+                else if (key == "End") { this.SelectIndexFromKeyboard(this._records.Count - 1, shift, ctrl); }
+                else if (key == "PageUp") { this.MoveSelection(-10, shift, ctrl); }
+                else if (key == "PageDown") { this.MoveSelection(10, shift, ctrl); }
+                else if (key == " ") { this.ToggleFocusedSelection(); }
             }
 
             this.StateHasChanged();
@@ -346,20 +405,10 @@ namespace RemuxForge.Web.Components.Pages
         /// <summary>
         /// Seleziona riga nella tabella episodi
         /// </summary>
-        /// <param name="index">Indice riga</param>
-        private void SelectRow(int index)
+        /// <param name="args">Indice riga e modifier tastiera</param>
+        private void SelectRow((int Index, bool Ctrl, bool Shift) args)
         {
-            // Salva la selezione nell'orchestratore
-            this.Orchestrator.SelectedIndex = index;
-
-            if (index >= 0 && index < this._records.Count)
-            {
-                this._selectedRecord = this._records[index];
-            }
-            else
-            {
-                this._selectedRecord = null;
-            }
+            this.ApplyRowSelection(args.Index, args.Ctrl, args.Shift);
         }
 
         /// <summary>
@@ -372,10 +421,382 @@ namespace RemuxForge.Web.Components.Pages
             if (index >= 0 && index < this._splitRecords.Count)
             {
                 this._selectedSplitRecord = this._splitRecords[index];
+                this.ScrollSplitRowIntoView(index);
             }
             else
             {
                 this._selectedSplitRecord = null;
+            }
+        }
+
+        /// <summary>
+        /// Applica selezione mouse stile file explorer
+        /// </summary>
+        /// <param name="index">Indice riga</param>
+        /// <param name="ctrl">True se selezione additiva/toggle</param>
+        /// <param name="shift">True se selezione range</param>
+        private void ApplyRowSelection(int index, bool ctrl, bool shift)
+        {
+            if (index < 0 || index >= this._records.Count)
+            {
+                return;
+            }
+
+            if (shift)
+            {
+                if (this._selectionAnchorIndex < 0 || this._selectionAnchorIndex >= this._records.Count)
+                {
+                    this._selectionAnchorIndex = this.Orchestrator.SelectedIndex >= 0 ? this.Orchestrator.SelectedIndex : index;
+                }
+
+                if (!ctrl)
+                {
+                    this._selectedIndices.Clear();
+                }
+
+                this.AddSelectionRange(this._selectionAnchorIndex, index);
+            }
+            else if (ctrl)
+            {
+                if (this.IsRowSelected(index))
+                {
+                    this._selectedIndices.Remove(index);
+                }
+                else
+                {
+                    this._selectedIndices.Add(index);
+                    this.SortSelectedIndices();
+                }
+
+                this._selectionAnchorIndex = index;
+            }
+            else
+            {
+                this._selectedIndices.Clear();
+                this._selectedIndices.Add(index);
+                this._selectionAnchorIndex = index;
+            }
+
+            this.SetFocusedRow(index);
+        }
+
+        /// <summary>
+        /// Aggiorna focus riga mantenendo invariata la selezione multi
+        /// </summary>
+        /// <param name="index">Indice riga</param>
+        private void SetFocusedRow(int index)
+        {
+            this.Orchestrator.SelectedIndex = index;
+
+            if (index >= 0 && index < this._records.Count)
+            {
+                this._selectedRecord = this._records[index];
+                this.ScrollEpisodeRowIntoView(index);
+            }
+            else
+            {
+                this._selectedRecord = null;
+            }
+        }
+
+        /// <summary>
+        /// Muove la selezione da tastiera
+        /// </summary>
+        /// <param name="delta">Spostamento relativo</param>
+        /// <param name="shift">True se estende range</param>
+        /// <param name="ctrl">True se muove solo focus</param>
+        private void MoveSelection(int delta, bool shift, bool ctrl)
+        {
+            int currentIndex = this.Orchestrator.SelectedIndex;
+            int targetIndex;
+
+            if (this._records.Count == 0)
+            {
+                return;
+            }
+
+            if (currentIndex < 0)
+            {
+                currentIndex = 0;
+            }
+
+            targetIndex = currentIndex + delta;
+            this.SelectIndexFromKeyboard(targetIndex, shift, ctrl);
+        }
+
+        /// <summary>
+        /// Seleziona un indice da tastiera applicando modifier
+        /// </summary>
+        /// <param name="index">Indice richiesto</param>
+        /// <param name="shift">True se estende range</param>
+        /// <param name="ctrl">True se muove solo focus</param>
+        private void SelectIndexFromKeyboard(int index, bool shift, bool ctrl)
+        {
+            int targetIndex = index;
+
+            if (this._records.Count == 0)
+            {
+                return;
+            }
+
+            if (targetIndex < 0) { targetIndex = 0; }
+            if (targetIndex >= this._records.Count) { targetIndex = this._records.Count - 1; }
+
+            if (ctrl && !shift)
+            {
+                this.SetFocusedRow(targetIndex);
+                return;
+            }
+
+            this.ApplyRowSelection(targetIndex, ctrl, shift);
+        }
+
+        /// <summary>
+        /// Muove selezione split con frecce
+        /// </summary>
+        /// <param name="delta">Spostamento relativo</param>
+        private void MoveSplitSelection(int delta)
+        {
+            int currentIndex = this.SplitOrchestrator.SelectedIndex;
+            int targetIndex;
+
+            if (this._splitRecords.Count == 0)
+            {
+                return;
+            }
+
+            if (currentIndex < 0)
+            {
+                currentIndex = 0;
+            }
+
+            targetIndex = currentIndex + delta;
+            if (targetIndex < 0) { targetIndex = 0; }
+            if (targetIndex >= this._splitRecords.Count) { targetIndex = this._splitRecords.Count - 1; }
+            this.SelectSplitRow(targetIndex);
+        }
+
+        /// <summary>
+        /// Seleziona tutti gli episodi
+        /// </summary>
+        private void SelectAllRows()
+        {
+            this._selectedIndices.Clear();
+            for (int i = 0; i < this._records.Count; i++)
+            {
+                this._selectedIndices.Add(i);
+            }
+
+            if (this._records.Count > 0 && this.Orchestrator.SelectedIndex < 0)
+            {
+                this.SetFocusedRow(0);
+                this._selectionAnchorIndex = 0;
+            }
+        }
+
+        /// <summary>
+        /// Toggle selezione della riga con focus
+        /// </summary>
+        private void ToggleFocusedSelection()
+        {
+            int index = this.Orchestrator.SelectedIndex;
+            if (index < 0 || index >= this._records.Count)
+            {
+                return;
+            }
+
+            if (this.IsRowSelected(index))
+            {
+                this._selectedIndices.Remove(index);
+            }
+            else
+            {
+                this._selectedIndices.Add(index);
+                this.SortSelectedIndices();
+            }
+
+            this._selectionAnchorIndex = index;
+        }
+
+        /// <summary>
+        /// Aggiunge range selezione inclusivo
+        /// </summary>
+        private void AddSelectionRange(int startIndex, int endIndex)
+        {
+            int first = Math.Min(startIndex, endIndex);
+            int last = Math.Max(startIndex, endIndex);
+
+            for (int i = first; i <= last; i++)
+            {
+                if (!this.IsRowSelected(i))
+                {
+                    this._selectedIndices.Add(i);
+                }
+            }
+
+            this.SortSelectedIndices();
+        }
+
+        /// <summary>
+        /// True se una riga e' nella selezione multi
+        /// </summary>
+        private bool IsRowSelected(int index)
+        {
+            bool result = false;
+
+            for (int i = 0; i < this._selectedIndices.Count; i++)
+            {
+                if (this._selectedIndices[i] == index)
+                {
+                    result = true;
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Ordina gli indici selezionati
+        /// </summary>
+        private void SortSelectedIndices()
+        {
+            this._selectedIndices.Sort();
+        }
+
+        /// <summary>
+        /// Restituisce gli indici su cui applicare un'azione selezionata
+        /// </summary>
+        private List<int> GetActionSelectionIndices()
+        {
+            List<int> result = new List<int>();
+
+            for (int i = 0; i < this._selectedIndices.Count; i++)
+            {
+                if (this._selectedIndices[i] >= 0 && this._selectedIndices[i] < this._records.Count && !result.Contains(this._selectedIndices[i]))
+                {
+                    result.Add(this._selectedIndices[i]);
+                }
+            }
+
+            if (result.Count == 0 && this.Orchestrator.SelectedIndex >= 0 && this.Orchestrator.SelectedIndex < this._records.Count)
+            {
+                result.Add(this.Orchestrator.SelectedIndex);
+            }
+
+            result.Sort();
+            return result;
+        }
+
+        /// <summary>
+        /// Rimuove selezioni non piu' valide dopo refresh record
+        /// </summary>
+        private void NormalizeSelection()
+        {
+            for (int i = this._selectedIndices.Count - 1; i >= 0; i--)
+            {
+                if (this._selectedIndices[i] < 0 || this._selectedIndices[i] >= this._records.Count)
+                {
+                    this._selectedIndices.RemoveAt(i);
+                }
+            }
+
+            if (this._selectionAnchorIndex >= this._records.Count)
+            {
+                this._selectionAnchorIndex = this._records.Count - 1;
+            }
+        }
+
+        /// <summary>
+        /// True se c'e' un dialog modale aperto che deve bloccare scorciatoie tabella
+        /// </summary>
+        private bool IsBlockingDialogOpen()
+        {
+            return this._showConfig || this._showToolPaths || this._showAudioSettings || this._showAdvancedSettings || this._showDelay || this._showEncodingProfiles || this._showPipeline || this._showInfo || this._showMediaInfo;
+        }
+
+        /// <summary>
+        /// Gestisce tastiera context menu
+        /// </summary>
+        /// <param name="key">Tasto</param>
+        /// <returns>True se gestito</returns>
+        private bool HandleContextMenuKey(string key)
+        {
+            bool result = false;
+
+            if (key == "Escape")
+            {
+                this.CloseContextMenu();
+                result = true;
+            }
+            else if (key == "ArrowDown")
+            {
+                if (this._contextMenuItems.Count > 0)
+                {
+                    this._contextMenuSelectedIndex++;
+                    if (this._contextMenuSelectedIndex >= this._contextMenuItems.Count) { this._contextMenuSelectedIndex = 0; }
+                }
+
+                result = true;
+            }
+            else if (key == "ArrowUp")
+            {
+                if (this._contextMenuItems.Count > 0)
+                {
+                    this._contextMenuSelectedIndex--;
+                    if (this._contextMenuSelectedIndex < 0) { this._contextMenuSelectedIndex = this._contextMenuItems.Count - 1; }
+                }
+
+                result = true;
+            }
+            else if (key == "Enter" || key == " ")
+            {
+                this.HandleContextMenuSelect(this._contextMenuSelectedIndex);
+                result = true;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Scorre la riga episodio selezionata dentro la viewport tabella
+        /// </summary>
+        /// <param name="index">Indice riga</param>
+        private void ScrollEpisodeRowIntoView(int index)
+        {
+            if (this._jsModule == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _ = this._jsModule.InvokeVoidAsync("scrollEpisodeRowIntoView", index);
+            }
+            catch
+            {
+                // Ignora errori JS se il circuito si sta chiudendo
+            }
+        }
+
+        /// <summary>
+        /// Scorre la riga split selezionata dentro la viewport tabella
+        /// </summary>
+        /// <param name="index">Indice riga</param>
+        private void ScrollSplitRowIntoView(int index)
+        {
+            if (this._jsModule == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _ = this._jsModule.InvokeVoidAsync("scrollSplitRowIntoView", index);
+            }
+            catch
+            {
+                // Ignora errori JS se il circuito si sta chiudendo
             }
         }
 
@@ -385,13 +806,21 @@ namespace RemuxForge.Web.Components.Pages
         /// <param name="args">Tupla (indice riga, clientX, clientY)</param>
         private void ShowContextMenu((int Index, double X, double Y) args)
         {
-            this.SelectRow(args.Index);
+            if (!this.IsRowSelected(args.Index))
+            {
+                this.ApplyRowSelection(args.Index, false, false);
+            }
+            else
+            {
+                this.SetFocusedRow(args.Index);
+            }
 
             if (this._selectedRecord == null) { return; }
 
             this._contextMenuX = args.X;
             this._contextMenuY = args.Y;
             this.BuildContextMenu(this._selectedRecord);
+            this._contextMenuSelectedIndex = 0;
             this._showContextMenu = true;
         }
 
@@ -406,6 +835,7 @@ namespace RemuxForge.Web.Components.Pages
             this._contextMenuX = 400;
             this._contextMenuY = 300;
             this.BuildContextMenu(this._selectedRecord);
+            this._contextMenuSelectedIndex = 0;
             this._showContextMenu = true;
         }
 
@@ -605,14 +1035,20 @@ namespace RemuxForge.Web.Components.Pages
         /// </summary>
         private void DoAnalyzeSelected()
         {
+            List<int> selectedIndices;
             if (this._currentMode == Options.MODE_SPLIT)
             {
                 return;
             }
 
-            if (!this.Orchestrator.IsBusy && this.Orchestrator.SelectedIndex >= 0)
+            selectedIndices = this.GetActionSelectionIndices();
+            if (!this.Orchestrator.IsBusy && selectedIndices.Count > 1)
             {
-                this.Orchestrator.AnalyzeFile(this.Orchestrator.SelectedIndex);
+                this.Orchestrator.AnalyzeFiles(selectedIndices);
+            }
+            else if (!this.Orchestrator.IsBusy && selectedIndices.Count == 1)
+            {
+                this.Orchestrator.AnalyzeFile(selectedIndices[0]);
             }
             else if (this.Orchestrator.IsBusy)
             {
@@ -649,14 +1085,20 @@ namespace RemuxForge.Web.Components.Pages
         /// </summary>
         private void DoToggleSkip()
         {
+            List<int> selectedIndices;
             if (this._currentMode == Options.MODE_SPLIT)
             {
                 return;
             }
 
-            if (this.Orchestrator.SelectedIndex >= 0)
+            selectedIndices = this.GetActionSelectionIndices();
+            if (selectedIndices.Count > 1)
             {
-                this.Orchestrator.ToggleSkip(this.Orchestrator.SelectedIndex);
+                this.Orchestrator.ToggleSkip(selectedIndices);
+            }
+            else if (selectedIndices.Count == 1)
+            {
+                this.Orchestrator.ToggleSkip(selectedIndices[0]);
             }
             else
             {
@@ -669,15 +1111,21 @@ namespace RemuxForge.Web.Components.Pages
         /// </summary>
         private void DoMergeSelected()
         {
+            List<int> selectedIndices;
             if (this._currentMode == Options.MODE_SPLIT)
             {
                 this.DoMergeAll();
                 return;
             }
 
-            if (!this.Orchestrator.IsBusy && this.Orchestrator.SelectedIndex >= 0)
+            selectedIndices = this.GetActionSelectionIndices();
+            if (!this.Orchestrator.IsBusy && selectedIndices.Count > 1)
             {
-                this.Orchestrator.MergeFile(this.Orchestrator.SelectedIndex);
+                this.Orchestrator.MergeFiles(selectedIndices);
+            }
+            else if (!this.Orchestrator.IsBusy && selectedIndices.Count == 1)
+            {
+                this.Orchestrator.MergeFile(selectedIndices[0]);
             }
             else if (this.Orchestrator.IsBusy)
             {

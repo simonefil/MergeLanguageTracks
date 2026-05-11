@@ -20,9 +20,11 @@
                     int idx = i;
                     FileProcessingRecord r = Records[i];
                     string statusCss = GetStatusCss(r.Status);
-                    string selectedCss = (idx == SelectedIndex) ? " selected" : "";
-                    <tr class="@(statusCss + selectedCss)"
-                        @onclick="() => OnRowSelected.InvokeAsync(idx)"
+                    string selectedCss = IsIndexSelected(idx) ? " selected" : "";
+                    string focusedCss = (idx == SelectedIndex) ? " focused" : "";
+                    <tr class="@(statusCss + selectedCss + focusedCss)"
+                        data-episode-row-index="@idx"
+                        @onclick="args => SelectRow(idx, args)"
                         @oncontextmenu="e => OnContextMenu.InvokeAsync((idx, e.ClientX, e.ClientY))"
                         @oncontextmenu:preventDefault="true">
                         <td>@r.EpisodeId</td>
@@ -52,9 +54,14 @@
     [Parameter] public int SelectedIndex { get; set; }
 
     /// <summary>
+    /// Indici righe selezionate
+    /// </summary>
+    [Parameter] public List<int> SelectedIndices { get; set; }
+
+    /// <summary>
     /// Evento selezione riga
     /// </summary>
-    [Parameter] public EventCallback<int> OnRowSelected { get; set; }
+    [Parameter] public EventCallback<(int Index, bool Ctrl, bool Shift)> OnRowSelected { get; set; }
 
     /// <summary>
     /// Evento context menu su riga (right-click) - passa (indice, clientX, clientY)
@@ -72,6 +79,40 @@
         if (status == FileStatus.Done) result = "status-done";
         else if (status == FileStatus.Error) result = "status-error";
         else if (status == FileStatus.Skipped) result = "status-skipped";
+        return result;
+    }
+
+    /// <summary>
+    /// Gestisce selezione mouse con modifier stile file explorer
+    /// </summary>
+    /// <param name="index">Indice riga</param>
+    /// <param name="args">Argomenti mouse</param>
+    private void SelectRow(int index, MouseEventArgs args)
+    {
+        OnRowSelected.InvokeAsync((index, args.CtrlKey || args.MetaKey, args.ShiftKey));
+    }
+
+    /// <summary>
+    /// True se la riga e' selezionata
+    /// </summary>
+    /// <param name="index">Indice riga</param>
+    /// <returns>True se selezionata</returns>
+    private bool IsIndexSelected(int index)
+    {
+        bool result = false;
+
+        if (this.SelectedIndices != null)
+        {
+            for (int i = 0; i < this.SelectedIndices.Count; i++)
+            {
+                if (this.SelectedIndices[i] == index)
+                {
+                    result = true;
+                    break;
+                }
+            }
+        }
+
         return result;
     }
 }

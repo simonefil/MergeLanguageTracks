@@ -1,4 +1,4 @@
-<div class="menu-bar">
+<div class="menu-bar" tabindex="0">
     @for (int i = 0; i < _menus.Count; i++)
     {
         int idx = i;
@@ -15,15 +15,19 @@
 {
     <div class="menu-overlay" @onclick="CloseMenu"></div>
     <div class="menu-dropdown" style="left: @(_menuPositions[_activeIndex])ch;">
-        @foreach (MenuItemDef item in _menus[_activeIndex].Items)
+        @for (int i = 0; i < _menus[_activeIndex].Items.Count; i++)
         {
+            int itemIndex = i;
+            MenuItemDef item = _menus[_activeIndex].Items[i];
             if (item.IsSeparator)
             {
                 <hr />
             }
             else
             {
-                <div class="menu-dropdown-item" @onclick="() => InvokeItem(item)">
+                <div class="menu-dropdown-item @(_activeItemIndex == itemIndex ? "active" : "")"
+                     @onclick="() => InvokeItem(item)"
+                     @onmouseenter="() => SetActiveItem(itemIndex)">
                     <span>@item.Label</span>
                     @if (item.Shortcut.Length > 0)
                     {
@@ -169,6 +173,11 @@
     private int _activeIndex = -1;
 
     /// <summary>
+    /// Indice voce attiva nel menu aperto
+    /// </summary>
+    private int _activeItemIndex = -1;
+
+    /// <summary>
     /// Lista definizioni menu
     /// </summary>
     private List<MenuDef> _menus;
@@ -280,6 +289,84 @@
             // Larghezza = lunghezza label + 2 (padding 1ch per lato)
             pos = pos + this._menus[i].Label.Length + 2;
         }
+
+        this.NormalizeActiveMenu();
+    }
+
+    /// <summary>
+    /// Gestisce navigazione tastiera della menu bar
+    /// </summary>
+    /// <param name="key">Tasto premuto</param>
+    /// <param name="ctrl">Flag Ctrl</param>
+    /// <param name="shift">Flag Shift</param>
+    /// <param name="alt">Flag Alt</param>
+    /// <returns>True se il tasto e' stato gestito dal menu</returns>
+    public bool HandleKeyboardKey(string key, bool ctrl, bool shift, bool alt)
+    {
+        bool result = false;
+        int mnemonicIndex;
+
+        if (this._menus == null || this._menus.Count == 0 || ctrl)
+        {
+            return result;
+        }
+
+        if (this._activeIndex >= 0)
+        {
+            result = true;
+            if (key == "Escape" || key == "Alt")
+            {
+                this.CloseMenu();
+            }
+            else if (key == "ArrowRight")
+            {
+                this.MoveMenu(1);
+            }
+            else if (key == "ArrowLeft")
+            {
+                this.MoveMenu(-1);
+            }
+            else if (key == "ArrowDown")
+            {
+                this.MoveMenuItem(1);
+            }
+            else if (key == "ArrowUp")
+            {
+                this.MoveMenuItem(-1);
+            }
+            else if (key == "Home")
+            {
+                this.SetFirstSelectableItem();
+            }
+            else if (key == "End")
+            {
+                this.SetLastSelectableItem();
+            }
+            else if (key == "Enter" || key == " ")
+            {
+                this.InvokeActiveItem();
+            }
+            else if (alt && this.TryFindMenuMnemonic(key, out mnemonicIndex))
+            {
+                this.OpenMenu(mnemonicIndex);
+            }
+            else
+            {
+                result = false;
+            }
+        }
+        else if (key == "Alt")
+        {
+            this.OpenMenu(0);
+            result = true;
+        }
+        else if (alt && this.TryFindMenuMnemonic(key, out mnemonicIndex))
+        {
+            this.OpenMenu(mnemonicIndex);
+            result = true;
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -291,10 +378,11 @@
         if (this._activeIndex == index)
         {
             this._activeIndex = -1;
+            this._activeItemIndex = -1;
         }
         else
         {
-            this._activeIndex = index;
+            this.OpenMenu(index);
         }
     }
 
@@ -306,7 +394,7 @@
     {
         if (this._activeIndex >= 0)
         {
-            this._activeIndex = index;
+            this.OpenMenu(index);
         }
     }
 
@@ -316,6 +404,7 @@
     private void CloseMenu()
     {
         this._activeIndex = -1;
+        this._activeItemIndex = -1;
     }
 
     /// <summary>
@@ -324,10 +413,203 @@
     /// <param name="item">Voce menu</param>
     private void InvokeItem(MenuItemDef item)
     {
-        this._activeIndex = -1;
+        this.CloseMenu();
         if (item.Callback != null)
         {
             item.Callback.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Apre il menu indicato e seleziona la prima voce utile
+    /// </summary>
+    /// <param name="index">Indice menu</param>
+    private void OpenMenu(int index)
+    {
+        if (index < 0 || index >= this._menus.Count)
+        {
+            return;
+        }
+
+        this._activeIndex = index;
+        this.SetFirstSelectableItem();
+    }
+
+    /// <summary>
+    /// Cambia menu attivo
+    /// </summary>
+    /// <param name="delta">Spostamento relativo</param>
+    private void MoveMenu(int delta)
+    {
+        int index = this._activeIndex + delta;
+
+        if (index < 0) { index = this._menus.Count - 1; }
+        if (index >= this._menus.Count) { index = 0; }
+        this.OpenMenu(index);
+    }
+
+    /// <summary>
+    /// Cambia voce attiva nel menu aperto saltando separatori
+    /// </summary>
+    /// <param name="delta">Spostamento relativo</param>
+    private void MoveMenuItem(int delta)
+    {
+        List<MenuItemDef> items;
+        int index;
+        int attempts = 0;
+
+        if (this._activeIndex < 0 || this._activeIndex >= this._menus.Count)
+        {
+            return;
+        }
+
+        items = this._menus[this._activeIndex].Items;
+        if (items.Count == 0)
+        {
+            this._activeItemIndex = -1;
+            return;
+        }
+
+        index = this._activeItemIndex;
+        if (index < 0)
+        {
+            index = delta >= 0 ? -1 : items.Count;
+        }
+
+        do
+        {
+            index += delta;
+            if (index < 0) { index = items.Count - 1; }
+            if (index >= items.Count) { index = 0; }
+            attempts++;
+        }
+        while (attempts <= items.Count && items[index].IsSeparator);
+
+        if (attempts <= items.Count)
+        {
+            this._activeItemIndex = index;
+        }
+    }
+
+    /// <summary>
+    /// Seleziona prima voce attivabile
+    /// </summary>
+    private void SetFirstSelectableItem()
+    {
+        this._activeItemIndex = this.FindSelectableItem(0, 1);
+    }
+
+    /// <summary>
+    /// Seleziona ultima voce attivabile
+    /// </summary>
+    private void SetLastSelectableItem()
+    {
+        if (this._activeIndex < 0 || this._activeIndex >= this._menus.Count)
+        {
+            this._activeItemIndex = -1;
+            return;
+        }
+
+        this._activeItemIndex = this.FindSelectableItem(this._menus[this._activeIndex].Items.Count - 1, -1);
+    }
+
+    /// <summary>
+    /// Imposta voce attiva da hover mouse
+    /// </summary>
+    /// <param name="itemIndex">Indice voce</param>
+    private void SetActiveItem(int itemIndex)
+    {
+        this._activeItemIndex = itemIndex;
+    }
+
+    /// <summary>
+    /// Invoca la voce attiva
+    /// </summary>
+    private void InvokeActiveItem()
+    {
+        if (this._activeIndex < 0 || this._activeIndex >= this._menus.Count)
+        {
+            return;
+        }
+
+        if (this._activeItemIndex < 0 || this._activeItemIndex >= this._menus[this._activeIndex].Items.Count)
+        {
+            return;
+        }
+
+        if (this._menus[this._activeIndex].Items[this._activeItemIndex].IsSeparator)
+        {
+            return;
+        }
+
+        this.InvokeItem(this._menus[this._activeIndex].Items[this._activeItemIndex]);
+    }
+
+    /// <summary>
+    /// Cerca una voce selezionabile nel menu attivo
+    /// </summary>
+    private int FindSelectableItem(int startIndex, int direction)
+    {
+        int result = -1;
+        List<MenuItemDef> items;
+
+        if (this._activeIndex < 0 || this._activeIndex >= this._menus.Count)
+        {
+            return result;
+        }
+
+        items = this._menus[this._activeIndex].Items;
+        for (int i = startIndex; i >= 0 && i < items.Count; i += direction)
+        {
+            if (!items[i].IsSeparator)
+            {
+                result = i;
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Trova menu tramite iniziale label
+    /// </summary>
+    private bool TryFindMenuMnemonic(string key, out int index)
+    {
+        bool result = false;
+        string normalizedKey = key != null ? key.ToUpperInvariant() : "";
+        index = -1;
+
+        if (normalizedKey.Length == 1)
+        {
+            for (int i = 0; i < this._menus.Count; i++)
+            {
+                if (this._menus[i].Label.ToUpperInvariant().StartsWith(normalizedKey, StringComparison.Ordinal))
+                {
+                    index = i;
+                    result = true;
+                    break;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Normalizza indici attivi dopo rebuild menu
+    /// </summary>
+    private void NormalizeActiveMenu()
+    {
+        if (this._activeIndex >= this._menus.Count)
+        {
+            this.CloseMenu();
+            return;
+        }
+
+        if (this._activeIndex >= 0 && this._activeItemIndex < 0)
+        {
+            this.SetFirstSelectableItem();
         }
     }
 }

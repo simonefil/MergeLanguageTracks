@@ -299,6 +299,62 @@ namespace RemuxForge.Web.Services
         }
 
         /// <summary>
+        /// Analizza una selezione di episodi in background
+        /// </summary>
+        /// <param name="indices">Indici dei record da analizzare</param>
+        public void AnalyzeFiles(List<int> indices)
+        {
+            List<FileProcessingRecord> selected = this.GetRecordsByIndices(indices);
+
+            if (selected.Count == 0 || this._isBusy)
+            {
+                return;
+            }
+
+            Thread thread = new Thread(() =>
+            {
+                this.SetBusy(true);
+                bool stopped = false;
+                this.BeginProgress("Analisi selezione", selected.Count, false);
+
+                try
+                {
+                    for (int i = 0; i < selected.Count; i++)
+                    {
+                        if (this.IsStopRequested())
+                        {
+                            stopped = true;
+                            this.AppendLog("Analisi selezione interrotta dall'utente");
+                            this.CompleteProgress("Analisi interrotta");
+                            break;
+                        }
+
+                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i, 5, "Analisi", false, false);
+                        this._pipeline.AnalyzeFile(selected[i]);
+                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i, 85, "Comando merge", false, false);
+                        this._pipeline.BuildMergeCommand(selected[i]);
+                        this.OnRecordsChanged?.Invoke();
+                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i + 1, 100, "Completato", false, false);
+                    }
+
+                    if (!stopped)
+                    {
+                        this.CompleteProgress("Analisi selezione completata");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this.AppendLog("Errore durante analisi selezione: " + ex.Message);
+                    this.CompleteProgress("Errore analisi selezione");
+                }
+
+                this.SetBusy(false);
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
+
+        /// <summary>
         /// Analizza tutti gli episodi pendenti in background
         /// </summary>
         public void AnalyzeAll()
@@ -406,6 +462,61 @@ namespace RemuxForge.Web.Services
         }
 
         /// <summary>
+        /// Esegue merge di una selezione di episodi in background
+        /// </summary>
+        /// <param name="indices">Indici dei record da processare</param>
+        public void MergeFiles(List<int> indices)
+        {
+            List<FileProcessingRecord> selected = this.GetRecordsByIndices(indices);
+
+            if (selected.Count == 0 || this._isBusy)
+            {
+                return;
+            }
+
+            Thread thread = new Thread(() =>
+            {
+                this.SetBusy(true);
+                bool stopped = false;
+                this.BeginProgress("Merge selezione", selected.Count, false);
+
+                try
+                {
+                    for (int i = 0; i < selected.Count; i++)
+                    {
+                        if (this.IsStopRequested())
+                        {
+                            stopped = true;
+                            this.AppendLog("Merge selezione interrotto dall'utente");
+                            this.CompleteProgress("Merge interrotto");
+                            break;
+                        }
+
+                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i, 10, "Merge", false, false);
+                        this._pipeline.MergeFile(selected[i]);
+                        this.OnRecordsChanged?.Invoke();
+                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i + 1, 100, "Completato", false, false);
+                    }
+
+                    if (!stopped)
+                    {
+                        this.AppendLog("Merge selezione completato.");
+                        this.CompleteProgress("Merge selezione completato");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this.AppendLog("Errore durante merge selezione: " + ex.Message);
+                    this.CompleteProgress("Errore merge selezione");
+                }
+
+                this.SetBusy(false);
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
+
+        /// <summary>
         /// Esegue merge di tutti gli episodi analizzati in background
         /// </summary>
         public void MergeAll()
@@ -485,19 +596,26 @@ namespace RemuxForge.Web.Services
                 return;
             }
 
-            if (record.Status == FileStatus.Skipped)
+            this.ToggleSkipInternal(record);
+            this.OnRecordsChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Alterna lo stato skip di una selezione di episodi
+        /// </summary>
+        /// <param name="indices">Indici dei record nella lista</param>
+        public void ToggleSkip(List<int> indices)
+        {
+            List<FileProcessingRecord> selected = this.GetRecordsByIndices(indices);
+
+            if (selected.Count == 0)
             {
-                // In merge mode, consenti unskip solo se c'e' un file lingua associato
-                if (this._options.TargetLanguage.Count == 0 || record.LangFilePath.Length > 0)
-                {
-                    record.Status = FileStatus.Pending;
-                    record.SkipReason = "";
-                }
+                return;
             }
-            else if (record.Status == FileStatus.Pending || record.Status == FileStatus.Analyzed || record.Status == FileStatus.Error)
+
+            for (int i = 0; i < selected.Count; i++)
             {
-                record.Status = FileStatus.Skipped;
-                record.SkipReason = "Skippato dall'utente";
+                this.ToggleSkipInternal(selected[i]);
             }
 
             this.OnRecordsChanged?.Invoke();
@@ -579,6 +697,61 @@ namespace RemuxForge.Web.Services
         #endregion
 
         #region Metodi privati
+
+        /// <summary>
+        /// Restituisce record originali per una lista di indici, senza duplicati
+        /// </summary>
+        /// <param name="indices">Indici richiesti</param>
+        /// <returns>Lista record originali</returns>
+        private List<FileProcessingRecord> GetRecordsByIndices(List<int> indices)
+        {
+            List<FileProcessingRecord> result = new List<FileProcessingRecord>();
+
+            if (indices == null)
+            {
+                return result;
+            }
+
+            lock (this._lock)
+            {
+                for (int i = 0; i < indices.Count; i++)
+                {
+                    if (indices[i] < 0 || indices[i] >= this._records.Count)
+                    {
+                        continue;
+                    }
+
+                    if (!result.Contains(this._records[indices[i]]))
+                    {
+                        result.Add(this._records[indices[i]]);
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Applica la logica skip/unskip su un record
+        /// </summary>
+        /// <param name="record">Record da aggiornare</param>
+        private void ToggleSkipInternal(FileProcessingRecord record)
+        {
+            if (record.Status == FileStatus.Skipped)
+            {
+                // In merge mode, consenti unskip solo se c'e' un file lingua associato
+                if (this._options.TargetLanguage.Count == 0 || record.LangFilePath.Length > 0)
+                {
+                    record.Status = FileStatus.Pending;
+                    record.SkipReason = "";
+                }
+            }
+            else if (record.Status == FileStatus.Pending || record.Status == FileStatus.Analyzed || record.Status == FileStatus.Error)
+            {
+                record.Status = FileStatus.Skipped;
+                record.SkipReason = "Skippato dall'utente";
+            }
+        }
 
         /// <summary>
         /// Imposta lo stato busy e notifica

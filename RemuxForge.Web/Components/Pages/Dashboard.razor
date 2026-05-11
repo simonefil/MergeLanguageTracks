@@ -7,7 +7,8 @@
 <div class="rf-layout">
 
     @* Barra Menu *@
-    <MenuBarComponent OnScan="DoScan"
+    <MenuBarComponent @ref="_menuBar"
+                       OnScan="DoScan"
                        OnAnalyzeSelected="DoAnalyzeSelected"
                        OnAnalyzeAll="DoAnalyzeAll"
                        OnSkip="DoToggleSkip"
@@ -47,7 +48,7 @@
                             {
                                 int idx = i;
                                 MkvSplitRecord rec = _splitRecords[i];
-                                <tr class="@(SplitOrchestrator.SelectedIndex == idx ? "selected" : "")" @onclick="() => SelectSplitRow(idx)">
+                                <tr class="@(SplitOrchestrator.SelectedIndex == idx ? "selected" : "")" data-split-row-index="@idx" @onclick="() => SelectSplitRow(idx)">
                                     <td>@System.IO.Path.GetFileName(rec.InputFile)</td>
                                     <td>@rec.Status</td>
                                 </tr>
@@ -81,6 +82,7 @@
         <div class="panels-area">
             <EpisodeTableComponent Records="@_records"
                                     SelectedIndex="@Orchestrator.SelectedIndex"
+                                    SelectedIndices="@_selectedIndices"
                                     OnRowSelected="SelectRow"
                                     OnContextMenu="ShowContextMenu" />
             <DetailPanelComponent Record="@_selectedRecord" />
@@ -163,6 +165,7 @@
     <ContextMenuComponent Items="@_contextMenuItems"
                            X="@_contextMenuX"
                            Y="@_contextMenuY"
+                           SelectedIndex="@_contextMenuSelectedIndex"
                            OnClose="CloseContextMenu"
                            OnSelect="HandleContextMenuSelect" />
 }
