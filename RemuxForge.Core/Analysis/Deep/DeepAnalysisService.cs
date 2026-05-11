@@ -297,8 +297,11 @@ namespace RemuxForge.Core.Analysis.Deep
 
             if (!this.ValidateTimelineTransitions(transitions))
             {
-                this.StoreFailedAnalysis(stopwatch, diagnostics, stretchFactor, regions, operations, baselineMse);
-                return result;
+                if (!this.TryFallbackTimelineToConstantInitial(sourceDurationMs, transitions, operations, ref regions, diagnostics))
+                {
+                    this.StoreFailedAnalysis(stopwatch, diagnostics, stretchFactor, regions, operations, baselineMse);
+                    return result;
+                }
             }
 
             // Fase 4: Verifica globale
@@ -333,6 +336,72 @@ namespace RemuxForge.Core.Analysis.Deep
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Success, "  EditMap: delay=" + result.InitialDelayMs + "ms, " + operations.Count + " operazioni, analisi " + this._analysisTimeMs + "ms");
             ConsoleHelper.Progress(LogSection.Deep, 88, "Deep: edit map");
 
+            return result;
+        }
+
+        /// <summary>
+        /// Degrada una timeline audio-common a offset costante quando le transizioni non sono confermate dal video
+        /// </summary>
+        private bool TryFallbackTimelineToConstantInitial(int sourceDurationMs, List<DeepAnalysisTransitionDiagnostic> transitions, List<EditOperation> operations, ref List<OffsetRegion> regions, DeepAnalysisDiagnostics diagnostics)
+        {
+            bool result = false;
+            bool hasUnverifiedTransition = false;
+            int initialOffsetMs;
+
+            if (!this._currentAnalysisUsesTimelineMap || !this._currentAnalysisHasCommonAudio)
+            {
+                return result;
+            }
+
+            if (regions == null || regions.Count == 0 || transitions == null || operations == null)
+            {
+                return result;
+            }
+
+            if (operations.Count > 0)
+            {
+                return result;
+            }
+
+            for (int i = 0; i < transitions.Count; i++)
+            {
+                if (Math.Abs(transitions[i].DeltaMs) < 500)
+                {
+                    continue;
+                }
+
+                if (string.Equals(transitions[i].Status, "SkippedUnverified", StringComparison.Ordinal))
+                {
+                    hasUnverifiedTransition = true;
+                }
+                else
+                {
+                    return result;
+                }
+            }
+
+            if (!hasUnverifiedTransition)
+            {
+                return result;
+            }
+
+            initialOffsetMs = (int)Math.Round(regions[0].OffsetMs);
+            regions = this.BuildConstantOffsetRegions(initialOffsetMs, sourceDurationMs);
+            operations.Clear();
+
+            if (diagnostics != null)
+            {
+                diagnostics.Regions = this.BuildRegionDiagnostics(regions);
+                if (diagnostics.InitialAlignment != null)
+                {
+                    diagnostics.InitialAlignment.SelectedOffsetMs = initialOffsetMs;
+                    diagnostics.InitialAlignment.SelectedSource = "timeline-constant-fallback";
+                    diagnostics.InitialAlignment.DecisionReason = "timeline audio-common degradata a offset costante: transizioni non confermate dalla verifica video locale";
+                }
+            }
+
+            ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Timeline audio-common degradata a offset costante: delay=" + initialOffsetMs.ToString(CultureInfo.InvariantCulture) + "ms, transizioni non verificate scartate");
+            result = true;
             return result;
         }
 
