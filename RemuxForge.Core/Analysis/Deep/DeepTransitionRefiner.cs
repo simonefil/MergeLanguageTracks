@@ -155,6 +155,10 @@ namespace RemuxForge.Core.Analysis.Deep
             double boundaryToleranceSec;
             double unsupportedGapStartSrc;
             double unsupportedGapEndSrc;
+            double fallbackCrossover;
+            string fallbackRefineMethod;
+            DeepAnalysisLocalVerificationDiagnostic fallbackVerification;
+            bool fallbackAccepted;
             DeepAnalysisTransitionDiagnostic transition;
             // Ogni coppia di regioni adiacenti puo' generare un cut o un insert silence
             for (int r = 0; r < regions.Count - 1; r++)
@@ -201,6 +205,12 @@ namespace RemuxForge.Core.Analysis.Deep
                 {
                     searchStartSrc = unsupportedGapStartSrc;
                     searchEndSrc = unsupportedGapEndSrc + 90.0;
+                    if (searchEndSrc > regions[r + 1].EndSrcSec) { searchEndSrc = regions[r + 1].EndSrcSec; }
+                }
+                if (timelineMode && regions[r].SupportEndSrcSec > regions[r + 1].SupportStartSrcSec)
+                {
+                    searchStartSrc = Math.Min(searchStartSrc, regions[r + 1].SupportStartSrcSec);
+                    searchEndSrc = Math.Max(searchEndSrc, regions[r].SupportEndSrcSec + 10.0);
                     if (searchEndSrc > regions[r + 1].EndSrcSec) { searchEndSrc = regions[r + 1].EndSrcSec; }
                 }
                 if (timelineMode && regions[r + 1].MatchCount <= 1 && regions[r + 1].SupportEndSrcSec > searchEndSrc)
@@ -271,16 +281,6 @@ namespace RemuxForge.Core.Analysis.Deep
                     refineMethod = "dense-linear";
                     performanceDiagnostics.TransitionDenseLinearRefineCount++;
                 }
-                else if (newOffsetSec > oldOffsetSec)
-                {
-                    // Per insert silence il punto operativo in language precede il crossover source del delta
-                    if (!audioCrossover || (Math.Abs(bestCrossover - breakpointSrc) > 2.0 && (newOffsetSec - oldOffsetSec) >= 2.0))
-                    {
-                        bestCrossover = bestCrossover - (newOffsetSec - oldOffsetSec);
-                        validationStartSrc = searchStartSrc - (newOffsetSec - oldOffsetSec) - 1.0;
-                    }
-                }
-
                 boundaryToleranceSec = timelineMode ? Math.Max(2.0, (durationMs / 1000.0) + 1.5) : 0.0;
                 if (bestCrossover < validationStartSrc - boundaryToleranceSec || bestCrossover > searchEndSrc + boundaryToleranceSec)
                 {
@@ -328,6 +328,63 @@ namespace RemuxForge.Core.Analysis.Deep
                 transition.SourceTimestampMs = sourceTimestampMs;
                 transition.DurationMs = durationMs;
                 transition.LocalVerification = this._localTransitionVerifier(sourceFile, langFile, bestCrossover, oldOffsetSec, newOffsetSec, inverseRatio);
+
+                if ((transition.LocalVerification == null || !transition.LocalVerification.Verified) && timelineMode && audioCrossover && newOffsetSec < oldOffsetSec)
+                {
+                    fallbackAccepted = false;
+                    fallbackVerification = null;
+                    fallbackRefineMethod = "visual-differential";
+                    fallbackCrossover = this._visualCrossoverScanner(sourceFile, langFile, searchStartSrc, searchEndSrc, oldOffsetSec, newOffsetSec, inverseRatio);
+                    if (fallbackCrossover >= 0.0 && fallbackCrossover >= validationStartSrc - boundaryToleranceSec && fallbackCrossover <= searchEndSrc + boundaryToleranceSec)
+                    {
+                        performanceDiagnostics.TransitionVisualRefineCount++;
+                        fallbackVerification = this._localTransitionVerifier(sourceFile, langFile, fallbackCrossover, oldOffsetSec, newOffsetSec, inverseRatio);
+                        if (fallbackVerification != null && fallbackVerification.Verified)
+                        {
+                            fallbackAccepted = true;
+                        }
+                    }
+
+                    if (!fallbackAccepted)
+                    {
+                        fallbackRefineMethod = "dense-linear";
+                        fallbackCrossover = this._denseCrossoverScanner(sourceFile, langFile, searchStartSrc, searchEndSrc, oldOffsetSec, inverseRatio);
+                        fallbackCrossover = this._linearCrossoverConfirmer(sourceFile, langFile, fallbackCrossover, oldOffsetSec, newOffsetSec, inverseRatio);
+                        if (fallbackCrossover >= 0.0 && fallbackCrossover >= validationStartSrc - boundaryToleranceSec && fallbackCrossover <= searchEndSrc + boundaryToleranceSec)
+                        {
+                            performanceDiagnostics.TransitionDenseLinearRefineCount++;
+                            fallbackVerification = this._localTransitionVerifier(sourceFile, langFile, fallbackCrossover, oldOffsetSec, newOffsetSec, inverseRatio);
+                            if (fallbackVerification != null && fallbackVerification.Verified)
+                            {
+                                fallbackAccepted = true;
+                            }
+                        }
+                    }
+
+                    if (fallbackAccepted)
+                    {
+                        bestCrossover = fallbackCrossover;
+                        audioCrossover = false;
+                        refineMethod = fallbackRefineMethod;
+                        sourceTimestampMs = (int)Math.Round(bestCrossover * 1000.0);
+                        langTimestampMs = (int)Math.Round((bestCrossover - oldOffsetSec) * 1000.0);
+                        if (Math.Abs(inverseRatio - 1.0) > 0.0001)
+                        {
+                            langTimestampMs = (int)Math.Round(langTimestampMs * inverseRatio);
+                        }
+
+                        op.LangTimestampMs = langTimestampMs;
+                        op.SourceTimestampMs = sourceTimestampMs;
+                        transition.RejectReason = "";
+                        transition.AudioCrossover = audioCrossover;
+                        transition.RefineMethod = refineMethod;
+                        transition.CrossoverSrcSec = bestCrossover;
+                        transition.LangTimestampMs = langTimestampMs;
+                        transition.SourceTimestampMs = sourceTimestampMs;
+                        transition.LocalVerification = fallbackVerification;
+                        ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Refine visuale fallback: crossover src " + bestCrossover.ToString("F2", CultureInfo.InvariantCulture) + "s");
+                    }
+                }
 
                 if (transition.LocalVerification == null || !transition.LocalVerification.Verified)
                 {

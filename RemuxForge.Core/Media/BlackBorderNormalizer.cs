@@ -232,20 +232,24 @@ namespace RemuxForge.Core.Media
         /// <returns>Margine stabile in pixel</returns>
         private int DetectVerticalSideMargin(List<byte[]> frames, bool leftSide, int width, int height)
         {
-            List<int> margins = new List<int>();
+            List<int> frameMargins = new List<int>();
             int[] scanYs = new int[] { height / 4, height / 2, (height * 3) / 4 };
             int maxMargin = width / MAX_AUTO_CROP_DIVISOR;
+            List<int> lineMargins;
 
             for (int f = 0; f < frames.Count; f++)
             {
+                lineMargins = new List<int>();
                 for (int i = 0; i < scanYs.Length; i++)
                 {
                     // Scansioniamo tre righe per frame per evitare che un dettaglio locale condizioni il crop
-                    margins.Add(this.MeasureVerticalLineMargin(frames[f], leftSide, width, scanYs[i], maxMargin));
+                    lineMargins.Add(this.MeasureVerticalLineMargin(frames[f], leftSide, width, scanYs[i], maxMargin));
                 }
+
+                frameMargins.Add(this.StableMargin(lineMargins));
             }
 
-            return this.StableMargin(margins);
+            return this.StableGlobalMargin(frameMargins);
         }
 
         /// <summary>
@@ -258,20 +262,24 @@ namespace RemuxForge.Core.Media
         /// <returns>Margine stabile in pixel</returns>
         private int DetectHorizontalSideMargin(List<byte[]> frames, bool topSide, int width, int height)
         {
-            List<int> margins = new List<int>();
+            List<int> frameMargins = new List<int>();
             int[] scanXs = new int[] { width / 4, width / 2, (width * 3) / 4 };
             int maxMargin = height / MAX_AUTO_CROP_DIVISOR;
+            List<int> lineMargins;
 
             for (int f = 0; f < frames.Count; f++)
             {
+                lineMargins = new List<int>();
                 for (int i = 0; i < scanXs.Length; i++)
                 {
                     // Scansioniamo tre colonne per frame per verificare che il bordo non sia locale
-                    margins.Add(this.MeasureHorizontalLineMargin(frames[f], topSide, width, height, scanXs[i], maxMargin));
+                    lineMargins.Add(this.MeasureHorizontalLineMargin(frames[f], topSide, width, height, scanXs[i], maxMargin));
                 }
+
+                frameMargins.Add(this.StableMargin(lineMargins));
             }
 
-            return this.StableMargin(margins);
+            return this.StableGlobalMargin(frameMargins);
         }
 
         /// <summary>
@@ -384,6 +392,50 @@ namespace RemuxForge.Core.Media
             }
 
             if (stableCount >= requiredCount)
+            {
+                result = median;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Riduce i margini per-frame a un crop globale: ogni campione deve confermare il bordo
+        /// </summary>
+        /// <param name="margins">Margine stabile misurato per ogni frame campione</param>
+        /// <returns>Margine globale, oppure 0 se anche un campione non conferma</returns>
+        private int StableGlobalMargin(List<int> margins)
+        {
+            int result = 0;
+            int median;
+            int tolerance;
+            int stableCount = 0;
+            if (margins == null || margins.Count == 0)
+            {
+                return result;
+            }
+
+            for (int i = 0; i < margins.Count; i++)
+            {
+                if (margins[i] < MIN_BORDER_MARGIN)
+                {
+                    return result;
+                }
+            }
+
+            margins.Sort();
+            median = margins[margins.Count / 2];
+            tolerance = Math.Max(2, median / 10);
+
+            for (int i = 0; i < margins.Count; i++)
+            {
+                if (Math.Abs(margins[i] - median) <= tolerance)
+                {
+                    stableCount++;
+                }
+            }
+
+            if (stableCount == margins.Count)
             {
                 result = median;
             }
