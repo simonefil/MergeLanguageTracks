@@ -704,13 +704,13 @@ namespace RemuxForge.Core.Analysis.Speed
             ConsoleHelper.Progress(LogSection.Speed, 28, "Speed: estrazione");
 
             // Estrae segmenti in parallelo a fps nativo
-            bool cropSrcCopy = this._cropSourceTo43;
-            bool cropLngCopy = this._cropLangTo43;
+            bool sourceGeometryCropCopy = this._geometryCropSourceToFourThree;
+            bool languageGeometryCropCopy = this._geometryCropLanguageToFourThree;
             Thread sourceThread = new Thread(() =>
             {
                 List<byte[]> f;
                 double[] t;
-                this.ExtractSegment(sourceFileCopy, this._scConfig.SourceStartSec * 1000, this._scConfig.SourceDurationSec, 0, cropSrcCopy, out f, out t);
+                this.ExtractSegment(sourceFileCopy, this._scConfig.SourceStartSec * 1000, this._scConfig.SourceDurationSec, 0, sourceGeometryCropCopy, out f, out t);
                 sourceFrames = f;
                 sourceTimestampsMs = t;
             });
@@ -718,7 +718,7 @@ namespace RemuxForge.Core.Analysis.Speed
             {
                 List<byte[]> f;
                 double[] t;
-                this.ExtractSegment(langFileCopy, 0, this._scConfig.LangDurationSec, 0, cropLngCopy, out f, out t);
+                this.ExtractSegment(langFileCopy, 0, this._scConfig.LangDurationSec, 0, languageGeometryCropCopy, out f, out t);
                 langFrames = f;
                 langTimestampsMs = t;
             });
@@ -1234,13 +1234,13 @@ namespace RemuxForge.Core.Analysis.Speed
             langStartMsCopy = langStartMs;
 
             // Estrae i due segmenti in parallelo a fps nativo
-            bool cropSrcCopy = this._cropSourceTo43;
-            bool cropLngCopy = this._cropLangTo43;
+            bool sourceGeometryCropCopy = this._geometryCropSourceToFourThree;
+            bool languageGeometryCropCopy = this._geometryCropLanguageToFourThree;
             Thread sourceThread = new Thread(() =>
             {
                 List<byte[]> f;
                 double[] t;
-                this.ExtractSegment(sourceFileCopy, sourceStartMsCopy, sourceDurationSec, 0, cropSrcCopy, out f, out t);
+                this.ExtractSegment(sourceFileCopy, sourceStartMsCopy, sourceDurationSec, 0, sourceGeometryCropCopy, out f, out t);
                 sourceFrames = f;
                 sourceTimestampsMs = t;
             });
@@ -1248,7 +1248,7 @@ namespace RemuxForge.Core.Analysis.Speed
             {
                 List<byte[]> f;
                 double[] t;
-                this.ExtractSegment(langFileCopy, langStartMsCopy, langDurationSec, 0, cropLngCopy, out f, out t);
+                this.ExtractSegment(langFileCopy, langStartMsCopy, langDurationSec, 0, languageGeometryCropCopy, out f, out t);
                 langFrames = f;
                 langTimestampsMs = t;
             });

@@ -74,7 +74,7 @@ namespace RemuxForge.Core.Media
         /// <summary>
         /// Prepara il profilo crop del file usando campioni distribuiti sulla durata completa
         /// </summary>
-        public void PrepareFile(string filePath, int durationMs, bool cropTo43)
+        public void PrepareFile(string filePath, int durationMs, bool geometryCropToFourThree)
         {
             BorderCropProfile profile;
             List<byte[]> frames;
@@ -91,7 +91,7 @@ namespace RemuxForge.Core.Media
                 }
             }
 
-            frames = this.ExtractGlobalSampleFrames(filePath, durationMs, cropTo43);
+            frames = this.ExtractGlobalSampleFrames(filePath, durationMs, geometryCropToFourThree);
             profile = this.BuildProfile(frames);
             this.StoreCropProfile(filePath, profile);
 
@@ -138,9 +138,9 @@ namespace RemuxForge.Core.Media
         /// </summary>
         /// <param name="filePath">File video da campionare</param>
         /// <param name="durationMs">Durata nota in millisecondi, oppure 0 per leggerla da ffmpeg</param>
-        /// <param name="cropTo43">Compatibilita' storica del servizio estrazione frame</param>
+        /// <param name="geometryCropToFourThree">Normalizzazione geometrica 4:3 da applicare ai campioni</param>
         /// <returns>Frame grayscale campionati</returns>
-        private List<byte[]> ExtractGlobalSampleFrames(string filePath, int durationMs, bool cropTo43)
+        private List<byte[]> ExtractGlobalSampleFrames(string filePath, int durationMs, bool geometryCropToFourThree)
         {
             List<byte[]> result = new List<byte[]>();
             int[] percentages = new int[] { 20, 40, 60, 80 };
@@ -170,7 +170,7 @@ namespace RemuxForge.Core.Media
                 if (startMs + SAMPLE_DURATION_MS > actualDurationMs) { startMs = actualDurationMs - SAMPLE_DURATION_MS; }
                 if (startMs < 0) { startMs = 0; }
 
-                extractor.ExtractSegment(filePath, startMs, SAMPLE_DURATION_MS / 1000.0, 1.0, cropTo43, out frames, out _);
+                extractor.ExtractSegment(filePath, startMs, SAMPLE_DURATION_MS / 1000.0, 1.0, geometryCropToFourThree, out frames, out _);
                 if (frames != null && frames.Count > 0)
                 {
                     result.Add(frames[0]);

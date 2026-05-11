@@ -20,10 +20,10 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="startMs">Inizio segmento in millisecondi</param>
         /// <param name="durationSec">Durata segmento in secondi</param>
         /// <param name="targetFps">FPS target, oppure 0 per frame nativi</param>
-        /// <param name="cropTo43">Compatibilita' storica del servizio estrazione</param>
+        /// <param name="geometryCropToFourThree">Normalizzazione geometrica 4:3</param>
         /// <param name="frames">Frame estratti</param>
         /// <param name="timestampsMs">Timestamp reali dei frame estratti</param>
-        public delegate void FrameExtractor(string filePath, int startMs, double durationSec, double targetFps, bool cropTo43, out List<byte[]> frames, out double[] timestampsMs);
+        public delegate void FrameExtractor(string filePath, int startMs, double durationSec, double targetFps, bool geometryCropToFourThree, out List<byte[]> frames, out double[] timestampsMs);
 
         /// <summary>
         /// Calcola una metrica tra due frame
@@ -77,10 +77,10 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="regionEnd">Fine regione source in secondi</param>
         /// <param name="offsetSec">Offset corrente in secondi</param>
         /// <param name="inverseRatio">Rapporto inverso speed correction</param>
-        /// <param name="cropSourceTo43">Compatibilita' legacy crop source</param>
-        /// <param name="cropLangTo43">Compatibilita' legacy crop lingua</param>
+        /// <param name="geometryCropSourceToFourThree">Normalizzazione geometrica 4:3 source</param>
+        /// <param name="geometryCropLanguageToFourThree">Normalizzazione geometrica 4:3 lingua</param>
         /// <returns>Lista timestamp source dove inizia un dip</returns>
-        public List<double> FindDipsInRegion(string sourceFile, string langFile, double regionStart, double regionEnd, double offsetSec, double inverseRatio, bool cropSourceTo43, bool cropLangTo43)
+        public List<double> FindDipsInRegion(string sourceFile, string langFile, double regionStart, double regionEnd, double offsetSec, double inverseRatio, bool geometryCropSourceToFourThree, bool geometryCropLanguageToFourThree)
         {
             List<double> dips = new List<double>();
             double duration = regionEnd - regionStart;
@@ -99,7 +99,7 @@ namespace RemuxForge.Core.Analysis.Deep
             int nearestIdx;
             double nearestDistMs;
             // Estrae la regione source e la regione lang attesa in base all'offset corrente
-            this._extractor(sourceFile, (int)(regionStart * 1000), duration, this._config.DenseScanFps, cropSourceTo43, out srcFrames, out sourceTimestampsMs);
+            this._extractor(sourceFile, (int)(regionStart * 1000), duration, this._config.DenseScanFps, geometryCropSourceToFourThree, out srcFrames, out sourceTimestampsMs);
             if (srcFrames.Count < 4)
             {
                 ConsoleHelper.Write(LogSection.Deep, LogLevel.Warning, "    FindDips: estrazione source fallita (" + srcFrames.Count + " frame su " + duration.ToString("F0", CultureInfo.InvariantCulture) + "s attesi)");
@@ -110,7 +110,7 @@ namespace RemuxForge.Core.Analysis.Deep
             if (Math.Abs(inverseRatio - 1.0) > 0.0001) { langStart = langStart * inverseRatio; }
             if (langStart < 0.0) { langStart = 0.0; }
 
-            this._extractor(langFile, (int)(langStart * 1000), duration, this._config.DenseScanFps, cropLangTo43, out langFrames, out langTimestampsMs);
+            this._extractor(langFile, (int)(langStart * 1000), duration, this._config.DenseScanFps, geometryCropLanguageToFourThree, out langFrames, out langTimestampsMs);
 
             if (langFrames.Count < 4 || langTimestampsMs.Length < 4)
             {
@@ -227,10 +227,10 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="searchEndSrc">Fine finestra source</param>
         /// <param name="oldOffsetSec">Offset precedente</param>
         /// <param name="inverseRatio">Rapporto inverso speed correction</param>
-        /// <param name="cropSourceTo43">Compatibilita' legacy crop source</param>
-        /// <param name="cropLangTo43">Compatibilita' legacy crop lingua</param>
+        /// <param name="geometryCropSourceToFourThree">Normalizzazione geometrica 4:3 source</param>
+        /// <param name="geometryCropLanguageToFourThree">Normalizzazione geometrica 4:3 lingua</param>
         /// <returns>Timestamp crossover source stimato</returns>
-        public double DenseScanCrossover(string sourceFile, string langFile, double searchStartSrc, double searchEndSrc, double oldOffsetSec, double inverseRatio, bool cropSourceTo43, bool cropLangTo43)
+        public double DenseScanCrossover(string sourceFile, string langFile, double searchStartSrc, double searchEndSrc, double oldOffsetSec, double inverseRatio, bool geometryCropSourceToFourThree, bool geometryCropLanguageToFourThree)
         {
             double result = (searchStartSrc + searchEndSrc) / 2.0;
             double duration = searchEndSrc - searchStartSrc;
@@ -251,7 +251,7 @@ namespace RemuxForge.Core.Analysis.Deep
             int nearestIdx;
             double nearestDistMs;
             // La scansione densa confronta source con il vecchio offset per trovare dove la similarita' crolla
-            this._extractor(sourceFile, (int)(searchStartSrc * 1000), duration, this._config.DenseScanFps, cropSourceTo43, out srcFrames, out sourceTimestampsMs);
+            this._extractor(sourceFile, (int)(searchStartSrc * 1000), duration, this._config.DenseScanFps, geometryCropSourceToFourThree, out srcFrames, out sourceTimestampsMs);
             if (srcFrames.Count < 4)
             {
                 ConsoleHelper.Write(LogSection.Deep, LogLevel.Warning, "    DenseScan: estrazione source fallita (" + srcFrames.Count + " frame su " + duration.ToString("F0", CultureInfo.InvariantCulture) + "s attesi)");
@@ -262,7 +262,7 @@ namespace RemuxForge.Core.Analysis.Deep
             if (Math.Abs(inverseRatio - 1.0) > 0.0001) { langStartOld = langStartOld * inverseRatio; }
             if (langStartOld < 0.0) { langStartOld = 0.0; }
 
-            this._extractor(langFile, (int)(langStartOld * 1000), duration, this._config.DenseScanFps, cropLangTo43, out langOldFrames, out langTimestampsMs);
+            this._extractor(langFile, (int)(langStartOld * 1000), duration, this._config.DenseScanFps, geometryCropLanguageToFourThree, out langOldFrames, out langTimestampsMs);
 
             if (langOldFrames.Count < 4 || langTimestampsMs.Length < 4)
             {
@@ -345,10 +345,10 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="oldOffsetSec">Offset precedente</param>
         /// <param name="newOffsetSec">Offset successivo</param>
         /// <param name="inverseRatio">Rapporto inverso speed correction</param>
-        /// <param name="cropSourceTo43">Compatibilita' legacy crop source</param>
-        /// <param name="cropLangTo43">Compatibilita' legacy crop lingua</param>
+        /// <param name="geometryCropSourceToFourThree">Normalizzazione geometrica 4:3 source</param>
+        /// <param name="geometryCropLanguageToFourThree">Normalizzazione geometrica 4:3 lingua</param>
         /// <returns>Timestamp crossover source, oppure -1</returns>
-        public double RepeatedFrameCrossover(string sourceFile, string langFile, double searchStartSrc, double searchEndSrc, double oldOffsetSec, double newOffsetSec, double inverseRatio, bool cropSourceTo43, bool cropLangTo43)
+        public double RepeatedFrameCrossover(string sourceFile, string langFile, double searchStartSrc, double searchEndSrc, double oldOffsetSec, double newOffsetSec, double inverseRatio, bool geometryCropSourceToFourThree, bool geometryCropLanguageToFourThree)
         {
             double result = -1.0;
             double duration = searchEndSrc - searchStartSrc;
@@ -391,9 +391,9 @@ namespace RemuxForge.Core.Analysis.Deep
             if (langStartOld < 0.0) { langStartOld = 0.0; }
             if (langStartNew < 0.0) { langStartNew = 0.0; }
 
-            this._extractor(sourceFile, (int)(searchStartSrc * 1000), duration, 0.0, cropSourceTo43, out srcFrames, out sourceTimestampsMs);
-            this._extractor(langFile, (int)(langStartOld * 1000), duration, 0.0, cropLangTo43, out langOldFrames, out langOldTimestampsMs);
-            this._extractor(langFile, (int)(langStartNew * 1000), duration, 0.0, cropLangTo43, out langNewFrames, out langNewTimestampsMs);
+            this._extractor(sourceFile, (int)(searchStartSrc * 1000), duration, 0.0, geometryCropSourceToFourThree, out srcFrames, out sourceTimestampsMs);
+            this._extractor(langFile, (int)(langStartOld * 1000), duration, 0.0, geometryCropLanguageToFourThree, out langOldFrames, out langOldTimestampsMs);
+            this._extractor(langFile, (int)(langStartNew * 1000), duration, 0.0, geometryCropLanguageToFourThree, out langNewFrames, out langNewTimestampsMs);
 
             if (srcFrames.Count < 4 || langOldFrames.Count < 4 || langNewFrames.Count < 4 || sourceTimestampsMs.Length < 4 || langOldTimestampsMs.Length < 4 || langNewTimestampsMs.Length < 4)
             {
@@ -470,16 +470,24 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="offsetSec">Offset da applicare</param>
         /// <param name="inverseRatio">Rapporto inverso speed correction</param>
         /// <param name="coarseFps">FPS estrazione</param>
-        /// <param name="cropSourceTo43">Compatibilita' legacy crop source</param>
-        /// <param name="cropLangTo43">Compatibilita' legacy crop lingua</param>
+        /// <param name="geometryCropSourceToFourThree">Normalizzazione geometrica 4:3 source</param>
+        /// <param name="geometryCropLanguageToFourThree">Normalizzazione geometrica 4:3 lingua</param>
         /// <returns>MSE locale, oppure double.MaxValue</returns>
-        public double ComputeLocalMseAt(string sourceFile, string langFile, double srcSec, double offsetSec, double inverseRatio, double coarseFps, bool cropSourceTo43, bool cropLangTo43)
+        public double ComputeLocalMseAt(string sourceFile, string langFile, double srcSec, double offsetSec, double inverseRatio, double coarseFps, bool geometryCropSourceToFourThree, bool geometryCropLanguageToFourThree)
         {
-            double result = 0.0;
+            double result = double.MaxValue;
             int srcMs = (int)Math.Round(srcSec * 1000.0);
             double langMs = (srcSec - offsetSec) * 1000.0;
             List<byte[]> srcFrames;
+            double[] srcFramesTs;
             List<byte[]> langFrames;
+            double[] langFramesTs;
+            double toleranceMs = (1000.0 / Math.Max(coarseFps, 1.0)) * 2.0;
+            double srcRelMs;
+            double targetLangMs;
+            int nearestIdx;
+            double nearestDistMs;
+            double currentMse;
             if (Math.Abs(inverseRatio - 1.0) > 0.0001)
             {
                 langMs = langMs * inverseRatio;
@@ -490,13 +498,35 @@ namespace RemuxForge.Core.Analysis.Deep
                 return result;
             }
 
-            this._extractor(sourceFile, srcMs, 1.0, coarseFps, cropSourceTo43, out srcFrames, out _);
-            this._extractor(langFile, (int)Math.Round(langMs), 1.0, coarseFps, cropLangTo43, out langFrames, out _);
+            this._extractor(sourceFile, srcMs, 2.0, coarseFps, geometryCropSourceToFourThree, out srcFrames, out srcFramesTs);
+            this._extractor(langFile, (int)Math.Round(langMs), 2.0, coarseFps, geometryCropLanguageToFourThree, out langFrames, out langFramesTs);
 
-            // La verifica locale usa il primo frame valido del segmento breve
-            if (srcFrames.Count > 0 && langFrames.Count > 0)
+            if (srcFrames.Count == 0 || langFrames.Count == 0 || srcFramesTs.Length == 0 || langFramesTs.Length == 0)
             {
-                result = this._mseMetric(srcFrames[0], langFrames[0]);
+                return result;
+            }
+
+            for (int i = 0; i < srcFrames.Count && i < srcFramesTs.Length; i++)
+            {
+                srcRelMs = srcFramesTs[i] - srcFramesTs[0];
+                targetLangMs = langFramesTs[0] + srcRelMs;
+                nearestIdx = this.NearestTimestampIndex(langFramesTs, targetLangMs);
+                if (nearestIdx < 0 || nearestIdx >= langFrames.Count)
+                {
+                    continue;
+                }
+
+                nearestDistMs = Math.Abs(langFramesTs[nearestIdx] - targetLangMs);
+                if (nearestDistMs > toleranceMs)
+                {
+                    continue;
+                }
+
+                currentMse = this._mseMetric(srcFrames[i], langFrames[nearestIdx]);
+                if (currentMse < result)
+                {
+                    result = currentMse;
+                }
             }
 
             return result;
@@ -511,11 +541,11 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="srcPointMs">Timestamp source in millisecondi</param>
         /// <param name="inverseRatio">Rapporto inverso speed correction</param>
         /// <param name="coarseFps">FPS estrazione</param>
-        /// <param name="cropSourceTo43">Compatibilita' legacy crop source</param>
-        /// <param name="cropLangTo43">Compatibilita' legacy crop lingua</param>
+        /// <param name="geometryCropSourceToFourThree">Normalizzazione geometrica 4:3 source</param>
+        /// <param name="geometryCropLanguageToFourThree">Normalizzazione geometrica 4:3 lingua</param>
         /// <param name="mse">MSE migliore trovato</param>
         /// <returns>True se almeno un confronto valido e' stato eseguito</returns>
-        public bool TryComputeGlobalPointMse(string sourceFile, string langFile, List<OffsetRegion> regions, double srcPointMs, double inverseRatio, double coarseFps, bool cropSourceTo43, bool cropLangTo43, out double mse)
+        public bool TryComputeGlobalPointMse(string sourceFile, string langFile, List<OffsetRegion> regions, double srcPointMs, double inverseRatio, double coarseFps, bool geometryCropSourceToFourThree, bool geometryCropLanguageToFourThree, out double mse)
         {
             bool result = false;
             double offsetSec;
@@ -543,8 +573,8 @@ namespace RemuxForge.Core.Analysis.Deep
                 return result;
             }
 
-            this._extractor(sourceFile, (int)srcPointMs, 2, coarseFps, cropSourceTo43, out srcFrames, out srcFramesTs);
-            this._extractor(langFile, (int)langPointMs, 2, coarseFps, cropLangTo43, out langFrames, out langFramesTs);
+            this._extractor(sourceFile, (int)srcPointMs, 2, coarseFps, geometryCropSourceToFourThree, out srcFrames, out srcFramesTs);
+            this._extractor(langFile, (int)langPointMs, 2, coarseFps, geometryCropLanguageToFourThree, out langFrames, out langFramesTs);
 
             if (srcFrames.Count == 0 || langFrames.Count == 0 || srcFramesTs.Length == 0 || langFramesTs.Length == 0)
             {

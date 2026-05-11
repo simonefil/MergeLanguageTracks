@@ -24,6 +24,7 @@
                     string focusedCss = (idx == SelectedIndex) ? " focused" : "";
                     <tr class="@(statusCss + selectedCss + focusedCss)"
                         data-episode-row-index="@idx"
+                        tabindex="-1"
                         @onclick="args => SelectRow(idx, args)"
                         @oncontextmenu="e => OnContextMenu.InvokeAsync((idx, e.ClientX, e.ClientY))"
                         @oncontextmenu:preventDefault="true">

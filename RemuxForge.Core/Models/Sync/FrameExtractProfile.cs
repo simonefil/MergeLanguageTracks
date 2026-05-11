@@ -16,7 +16,7 @@ namespace RemuxForge.Core.Models
             this.StartMs = 0;
             this.DurationSec = 0.0;
             this.TargetFps = 0.0;
-            this.CropTo43 = false;
+            this.GeometryCropToFourThree = false;
         }
 
         #endregion
@@ -46,7 +46,7 @@ namespace RemuxForge.Core.Models
         /// <summary>
         /// True se applicare crop 4:3/pillarbox
         /// </summary>
-        public bool CropTo43 { get; set; }
+        public bool GeometryCropToFourThree { get; set; }
 
         /// <summary>
         /// Fine estrazione in millisecondi
@@ -72,7 +72,7 @@ namespace RemuxForge.Core.Models
                 this.StartMs == other.StartMs &&
                 System.Math.Abs(this.DurationSec - other.DurationSec) <= 0.0001 &&
                 System.Math.Abs(this.TargetFps - other.TargetFps) <= 0.0001 &&
-                this.CropTo43 == other.CropTo43)
+                this.GeometryCropToFourThree == other.GeometryCropToFourThree)
             {
                 result = true;
             }
@@ -90,7 +90,7 @@ namespace RemuxForge.Core.Models
             if (parent != null &&
                 string.Equals(this.FilePath, parent.FilePath, System.StringComparison.OrdinalIgnoreCase) &&
                 System.Math.Abs(this.TargetFps - parent.TargetFps) <= 0.0001 &&
-                this.CropTo43 == parent.CropTo43 &&
+                this.GeometryCropToFourThree == parent.GeometryCropToFourThree &&
                 this.StartMs >= parent.StartMs &&
                 this.EndMs <= parent.EndMs)
             {

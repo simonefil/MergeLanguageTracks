@@ -17,19 +17,24 @@ namespace RemuxForge.Core.Tools
         #region Costanti
 
         /// <summary>
+        /// Release branch FFmpeg stabile usata per i download BtbN
+        /// </summary>
+        private const string FFMPEG_STABLE_BRANCH = "8.1";
+
+        /// <summary>
         /// URL download Windows x64
         /// </summary>
         private const string WINDOWS_X64_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
 
         /// <summary>
-        /// URL download Linux x64
+        /// URL download Linux x64 dalla release branch stabile BtbN
         /// </summary>
-        private const string LINUX_X64_URL = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz";
+        private const string LINUX_X64_URL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n" + FFMPEG_STABLE_BRANCH + "-latest-linux64-gpl-" + FFMPEG_STABLE_BRANCH + ".tar.xz";
 
         /// <summary>
-        /// URL download Linux arm64
+        /// URL download Linux arm64 dalla release branch stabile BtbN
         /// </summary>
-        private const string LINUX_ARM64_URL = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz";
+        private const string LINUX_ARM64_URL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n" + FFMPEG_STABLE_BRANCH + "-latest-linuxarm64-gpl-" + FFMPEG_STABLE_BRANCH + ".tar.xz";
 
         /// <summary>
         /// URL download macOS universal binary
@@ -288,6 +293,8 @@ namespace RemuxForge.Core.Tools
             WebClient webClient = null;
             int tarExitCode;
             string foundFfmpeg;
+            string foundFfprobe;
+            string ffprobeDest;
             try
             {
                 ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Info, "\n  Download ffmpeg per Linux " + archName + "...");
@@ -314,11 +321,19 @@ namespace RemuxForge.Core.Tools
                 else
                 {
                     foundFfmpeg = FindFileRecursive(extractPath, "ffmpeg");
+                    foundFfprobe = FindFileRecursive(extractPath, "ffprobe");
 
                     if (foundFfmpeg.Length > 0)
                     {
                         File.Copy(foundFfmpeg, ffmpegDest, true);
                         RunCommand("chmod", new string[] { "+x", ffmpegDest });
+                        if (foundFfprobe.Length > 0)
+                        {
+                            ffprobeDest = Path.Combine(this._toolsFolder, "ffprobe");
+                            File.Copy(foundFfprobe, ffprobeDest, true);
+                            RunCommand("chmod", new string[] { "+x", ffprobeDest });
+                        }
+
                         this._resolvedPath = ffmpegDest;
                         success = true;
                         ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Success, "  ffmpeg scaricato in: " + this._toolsFolder);
@@ -333,7 +348,7 @@ namespace RemuxForge.Core.Tools
             {
                 // Download o estrazione fallita
                 ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Warning, "Impossibile scaricare ffmpeg: " + ex.Message);
-                ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Info, "  Scaricalo manualmente da https://johnvansickle.com/ffmpeg/");
+                ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Info, "  Scaricalo manualmente da https://github.com/BtbN/FFmpeg-Builds/releases");
                 ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Info, "  Oppure installa con: sudo apt install ffmpeg");
             }
             finally

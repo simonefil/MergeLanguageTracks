@@ -898,6 +898,15 @@ namespace RemuxForge.Web.Components.Pages
         }
 
         /// <summary>
+        /// Aggiorna voce attiva del context menu da hover mouse
+        /// </summary>
+        /// <param name="index">Indice voce attiva</param>
+        private void SetContextMenuActiveIndex(int index)
+        {
+            this._contextMenuSelectedIndex = index;
+        }
+
+        /// <summary>
         /// Chiude context menu
         /// </summary>
         private void CloseContextMenu()

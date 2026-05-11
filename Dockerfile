@@ -13,12 +13,13 @@ RUN dotnet publish RemuxForge.Web/RemuxForge.Web.csproj -c Release -p:Version=${
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 ENV LANG=C.UTF-8
+ARG FFMPEG_RELEASE_BRANCH=8.1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     mkvtoolnix mediainfo curl xz-utils \
-    && curl -L -o /tmp/ffmpeg.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz \
+    && curl -L -o /tmp/ffmpeg.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n${FFMPEG_RELEASE_BRANCH}-latest-linux64-gpl-${FFMPEG_RELEASE_BRANCH}.tar.xz \
     && tar -xf /tmp/ffmpeg.tar.xz -C /tmp \
-    && cp /tmp/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /usr/local/bin/ \
-    && cp /tmp/ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/ \
+    && cp /tmp/ffmpeg-n${FFMPEG_RELEASE_BRANCH}-latest-linux64-gpl-${FFMPEG_RELEASE_BRANCH}/bin/ffmpeg /usr/local/bin/ \
+    && cp /tmp/ffmpeg-n${FFMPEG_RELEASE_BRANCH}-latest-linux64-gpl-${FFMPEG_RELEASE_BRANCH}/bin/ffprobe /usr/local/bin/ \
     && rm -rf /tmp/ffmpeg* \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app .

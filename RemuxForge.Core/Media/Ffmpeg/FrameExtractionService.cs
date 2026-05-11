@@ -65,7 +65,7 @@ namespace RemuxForge.Core.Media.Ffmpeg
         /// <summary>
         /// Estrae frame di un segmento video come byte array grayscale
         /// </summary>
-        public void ExtractSegment(string filePath, int startMs, double durationSec, double targetFps, bool cropTo43, out List<byte[]> frames, out double[] timestampsMs)
+        public void ExtractSegment(string filePath, int startMs, double durationSec, double targetFps, bool geometryCropToFourThree, out List<byte[]> frames, out double[] timestampsMs)
         {
             frames = new List<byte[]>();
             timestampsMs = new double[0];
@@ -113,7 +113,7 @@ namespace RemuxForge.Core.Media.Ffmpeg
                 args.Add("-fps_mode");
                 args.Add(useFpsFilter ? "vfr" : "passthrough");
 
-                filterChain = this.BuildFilterChain(targetFps, cropTo43, useFpsFilter, resolution);
+                filterChain = this.BuildFilterChain(targetFps, geometryCropToFourThree, useFpsFilter, resolution);
                 args.Add("-vf");
                 args.Add(filterChain);
                 args.Add("-f");
@@ -175,14 +175,14 @@ namespace RemuxForge.Core.Media.Ffmpeg
         /// <summary>
         /// Costruisce filter chain ffmpeg per normalizzare frame
         /// </summary>
-        private string BuildFilterChain(double targetFps, bool cropTo43, bool useFpsFilter, string resolution)
+        private string BuildFilterChain(double targetFps, bool geometryCropToFourThree, bool useFpsFilter, string resolution)
         {
             string filterChain = "";
             if (useFpsFilter)
             {
                 filterChain = "fps=fps=" + targetFps.ToString("F6", CultureInfo.InvariantCulture);
             }
-            if (cropTo43)
+            if (geometryCropToFourThree)
             {
                 if (filterChain.Length > 0)
                 {

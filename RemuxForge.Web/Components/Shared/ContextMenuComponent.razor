@@ -3,7 +3,9 @@
         @for (int i = 0; i < Items.Count; i++)
         {
             int idx = i;
-            <div class="ctx-menu-item @(idx == SelectedIndex ? "active" : "")" @onclick="() => SelectItem(idx)">@Items[i]</div>
+            <div class="ctx-menu-item @(idx == SelectedIndex ? "active" : "")"
+                 @onclick="() => SelectItem(idx)"
+                 @onmouseenter="() => SetActiveItem(idx)">@Items[i]</div>
         }
     </div>
 </div>
@@ -40,11 +42,25 @@
     [Parameter] public EventCallback<int> OnSelect { get; set; }
 
     /// <summary>
+    /// Evento cambio voce attiva da hover mouse
+    /// </summary>
+    [Parameter] public EventCallback<int> OnActiveChanged { get; set; }
+
+    /// <summary>
     /// Gestisce click su voce del menu
     /// </summary>
     /// <param name="index">Indice voce selezionata</param>
     private void SelectItem(int index)
     {
         OnSelect.InvokeAsync(index);
+    }
+
+    /// <summary>
+    /// Imposta voce attiva da hover mouse
+    /// </summary>
+    /// <param name="index">Indice voce attiva</param>
+    private void SetActiveItem(int index)
+    {
+        OnActiveChanged.InvokeAsync(index);
     }
 }

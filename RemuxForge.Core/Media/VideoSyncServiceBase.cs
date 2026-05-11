@@ -37,12 +37,12 @@ namespace RemuxForge.Core.Media
         /// <summary>
         /// Croppa i frame del file sorgente a 4:3 centrato quando richiesto dall'autocrop geometry
         /// </summary>
-        protected bool _cropSourceTo43;
+        protected bool _geometryCropSourceToFourThree;
 
         /// <summary>
         /// Croppa i frame del file lingua a 4:3 centrato quando richiesto dall'autocrop geometry
         /// </summary>
-        protected bool _cropLangTo43;
+        protected bool _geometryCropLanguageToFourThree;
 
         /// <summary>
         /// Analyzer geometry video condiviso dal servizio
@@ -89,8 +89,8 @@ namespace RemuxForge.Core.Media
             this._logSection = logSection;
             this._vsConfig = AppSettingsService.Instance.Settings.Advanced.VideoSync;
             this._ffmpegConfig = AppSettingsService.Instance.Settings.Advanced.Ffmpeg;
-            this._cropSourceTo43 = false;
-            this._cropLangTo43 = false;
+            this._geometryCropSourceToFourThree = false;
+            this._geometryCropLanguageToFourThree = false;
             this._geometryAnalyzer = new VideoGeometryAnalyzer(this._ffmpegPath, this._ffmpegConfig, this._logSection);
             this._blackBorderNormalizer = new BlackBorderNormalizer(this._ffmpegPath, this._vsConfig, this._ffmpegConfig, this._logSection, this._geometryAnalyzer);
             this._sceneCutDetector = new SceneCutDetector(this._vsConfig);
@@ -112,13 +112,13 @@ namespace RemuxForge.Core.Media
         /// <param name="startMs">Inizio estrazione in millisecondi</param>
         /// <param name="durationSec">Durata estrazione in secondi</param>
         /// <param name="targetFps">FPS target per normalizzazione (0 = passthrough senza decimazione)</param>
-        /// <param name="cropTo43">Se true, croppa il frame a 4:3 centrato prima dello scale (rimuove pillarbox)</param>
+        /// <param name="geometryCropToFourThree">Se true, croppa il frame a 4:3 centrato prima dello scale (rimuove pillarbox)</param>
         /// <param name="frames">Lista frame grayscale estratti (output)</param>
         /// <param name="timestampsMs">Array di timestamp assoluti in ms, uno per frame estratto (output)</param>
-        protected void ExtractSegment(string filePath, int startMs, double durationSec, double targetFps, bool cropTo43, out List<byte[]> frames, out double[] timestampsMs)
+        protected void ExtractSegment(string filePath, int startMs, double durationSec, double targetFps, bool geometryCropToFourThree, out List<byte[]> frames, out double[] timestampsMs)
         {
             FrameExtractionService extractor = new FrameExtractionService(this._ffmpegPath, this._vsConfig, this._ffmpegConfig, this._logSection);
-            extractor.ExtractSegment(filePath, startMs, durationSec, targetFps, cropTo43, out frames, out timestampsMs);
+            extractor.ExtractSegment(filePath, startMs, durationSec, targetFps, geometryCropToFourThree, out frames, out timestampsMs);
             this.NormalizeBlackBorders(filePath, frames);
         }
 
@@ -218,8 +218,8 @@ namespace RemuxForge.Core.Media
             VideoGeometryProfile languageGeometry;
             this._lastSourceGeometryInfo = null;
             this._lastLanguageGeometryInfo = null;
-            this._cropSourceTo43 = false;
-            this._cropLangTo43 = false;
+            this._geometryCropSourceToFourThree = false;
+            this._geometryCropLanguageToFourThree = false;
             this._blackBorderNormalizer.Reset();
 
             sourceGeometry = this.AnalyzeVideoGeometry(sourceFile);
@@ -231,15 +231,15 @@ namespace RemuxForge.Core.Media
             this.LogVideoGeometryComparison(sourceGeometry, languageGeometry);
             this.ApplyGeometryDrivenCrop(sourceGeometry, languageGeometry);
 
-            if (this._cropSourceTo43 || this._cropLangTo43)
+            if (this._geometryCropSourceToFourThree || this._geometryCropLanguageToFourThree)
             {
                 this._blackBorderNormalizer.Reset();
-                this._blackBorderNormalizer.PrepareFile(sourceFile, 0, this._cropSourceTo43);
-                this._blackBorderNormalizer.PrepareFile(languageFile, 0, this._cropLangTo43);
+                this._blackBorderNormalizer.PrepareFile(sourceFile, 0, this._geometryCropSourceToFourThree);
+                this._blackBorderNormalizer.PrepareFile(languageFile, 0, this._geometryCropLanguageToFourThree);
             }
 
-            this._lastSourceGeometryInfo = this.BuildGeometryInfo(sourceGeometry, false, this._cropSourceTo43);
-            this._lastLanguageGeometryInfo = this.BuildGeometryInfo(languageGeometry, false, this._cropLangTo43);
+            this._lastSourceGeometryInfo = this.BuildGeometryInfo(sourceGeometry, this._geometryCropSourceToFourThree);
+            this._lastLanguageGeometryInfo = this.BuildGeometryInfo(languageGeometry, this._geometryCropLanguageToFourThree);
         }
 
         /// <summary>
@@ -249,8 +249,8 @@ namespace RemuxForge.Core.Media
         /// <param name="languageGeometry">Geometria lingua</param>
         protected void ApplyGeometryDrivenCrop(VideoGeometryProfile sourceGeometry, VideoGeometryProfile languageGeometry)
         {
-            bool source43 = this.IsDisplayAspect43(sourceGeometry);
-            bool language43 = this.IsDisplayAspect43(languageGeometry);
+            bool sourceFourThree = this.IsDisplayAspectFourThree(sourceGeometry);
+            bool languageFourThree = this.IsDisplayAspectFourThree(languageGeometry);
             bool sourceWide = this.IsDisplayAspectWide(sourceGeometry);
             bool languageWide = this.IsDisplayAspectWide(languageGeometry);
             bool sourceSquare = this.IsSquarePixelGeometry(sourceGeometry);
@@ -263,15 +263,15 @@ namespace RemuxForge.Core.Media
                 return;
             }
 
-            if (sourceWide && language43 && sourceSquare && sourceHasBorders)
+            if (sourceWide && languageFourThree && sourceSquare && sourceHasBorders)
             {
-                this._cropSourceTo43 = true;
+                this._geometryCropSourceToFourThree = true;
                 ConsoleHelper.Write(this._logSection, LogLevel.Notice, "  Geometry crop source 4:3 attivo: source wide/pillarbox vs lang 4:3");
             }
 
-            if (languageWide && source43 && languageSquare && languageHasBorders)
+            if (languageWide && sourceFourThree && languageSquare && languageHasBorders)
             {
-                this._cropLangTo43 = true;
+                this._geometryCropLanguageToFourThree = true;
                 ConsoleHelper.Write(this._logSection, LogLevel.Notice, "  Geometry crop lang 4:3 attivo: lang wide/pillarbox vs source 4:3");
             }
         }
@@ -281,7 +281,7 @@ namespace RemuxForge.Core.Media
         /// </summary>
         /// <param name="geometry">Profilo geometria</param>
         /// <returns>True se aspect circa 4:3</returns>
-        protected bool IsDisplayAspect43(VideoGeometryProfile geometry)
+        protected bool IsDisplayAspectFourThree(VideoGeometryProfile geometry)
         {
             bool result = false;
             if (geometry != null)
@@ -331,10 +331,9 @@ namespace RemuxForge.Core.Media
         /// Crea DTO diagnostico dalla geometria interna
         /// </summary>
         /// <param name="geometry">Profilo geometria interno</param>
-        /// <param name="manualCropTo43">True se crop 4:3 richiesto manualmente</param>
-        /// <param name="geometryCropTo43">True se crop 4:3 attivato dalla geometria</param>
+        /// <param name="geometryCropToFourThree">True se crop 4:3 attivato dalla geometria</param>
         /// <returns>DTO diagnostico</returns>
-        protected FrameSyncGeometryInfo BuildGeometryInfo(VideoGeometryProfile geometry, bool manualCropTo43, bool geometryCropTo43)
+        protected FrameSyncGeometryInfo BuildGeometryInfo(VideoGeometryProfile geometry, bool geometryCropToFourThree)
         {
             FrameSyncGeometryInfo result = null;
             if (geometry != null)
@@ -355,15 +354,10 @@ namespace RemuxForge.Core.Media
                 result.CropRight = geometry.CropRight;
                 result.CropTop = geometry.CropTop;
                 result.CropBottom = geometry.CropBottom;
-                result.ManualCropTo43 = manualCropTo43;
-                result.GeometryCropTo43 = geometryCropTo43;
-                if (manualCropTo43)
+                result.GeometryCropToFourThree = geometryCropToFourThree;
+                if (geometryCropToFourThree)
                 {
-                    result.CropMode = "manual_43";
-                }
-                else if (geometryCropTo43)
-                {
-                    result.CropMode = "geometry_43";
+                    result.CropMode = "geometry_four_three";
                 }
                 else if (geometry.HasBlackBorderCrop)
                 {

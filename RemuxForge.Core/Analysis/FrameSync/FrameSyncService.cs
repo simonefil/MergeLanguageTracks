@@ -294,8 +294,8 @@ namespace RemuxForge.Core.Analysis.FrameSync
             double sourceTargetFps;
             double fpsRatio;
             string failureReason = "";
-            bool originalSourceCropTo43 = this._cropSourceTo43;
-            bool originalLangCropTo43 = this._cropLangTo43;
+            bool originalSourceGeometryCropToFourThree = this._geometryCropSourceToFourThree;
+            bool originalLanguageGeometryCropToFourThree = this._geometryCropLanguageToFourThree;
             VideoTimingResolver timingResolver = new VideoTimingResolver();
             VideoTimingInfo sourceTiming;
             VideoTimingInfo langTiming;
@@ -558,8 +558,8 @@ namespace RemuxForge.Core.Analysis.FrameSync
                 this._lastResult.InitialToFinalDeltaMs = initialFinalDeltaMs;
             }
             this.ClearExtractSegmentCache();
-            this._cropSourceTo43 = originalSourceCropTo43;
-            this._cropLangTo43 = originalLangCropTo43;
+            this._geometryCropSourceToFourThree = originalSourceGeometryCropToFourThree;
+            this._geometryCropLanguageToFourThree = originalLanguageGeometryCropToFourThree;
 
             return resultOffset;
         }
@@ -694,14 +694,14 @@ namespace RemuxForge.Core.Analysis.FrameSync
         /// <summary>
         /// Costruisce un segmento cache riusabile se l'estrazione iniziale e' valida
         /// </summary>
-        private FrameExtractProfile BuildFrameExtractProfile(string filePath, int startMs, double durationSec, double targetFps, bool cropTo43)
+        private FrameExtractProfile BuildFrameExtractProfile(string filePath, int startMs, double durationSec, double targetFps, bool geometryCropToFourThree)
         {
             FrameExtractProfile profile = new FrameExtractProfile();
             profile.FilePath = filePath;
             profile.StartMs = startMs;
             profile.DurationSec = durationSec;
             profile.TargetFps = targetFps;
-            profile.CropTo43 = cropTo43;
+            profile.GeometryCropToFourThree = geometryCropToFourThree;
             return profile;
         }
 
@@ -710,7 +710,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
         /// </summary>
         private void ExtractSegment(FrameExtractProfile profile, out List<byte[]> frames, out double[] timestampsMs)
         {
-            this.ExtractSegment(profile.FilePath, profile.StartMs, profile.DurationSec, profile.TargetFps, profile.CropTo43, out frames, out timestampsMs);
+            this.ExtractSegment(profile.FilePath, profile.StartMs, profile.DurationSec, profile.TargetFps, profile.GeometryCropToFourThree, out frames, out timestampsMs);
         }
 
         /// <summary>
@@ -830,11 +830,11 @@ namespace RemuxForge.Core.Analysis.FrameSync
 
             // Estrae segmenti in parallelo (fps forzato per garantire output CFR, passthrough se VFR)
             double fpsCopy = sourceTargetFps;
-            bool cropSrcCopy = this._cropSourceTo43;
-            bool cropLngCopy = this._cropLangTo43;
+            bool sourceGeometryCropCopy = this._geometryCropSourceToFourThree;
+            bool languageGeometryCropCopy = this._geometryCropLanguageToFourThree;
             double langTargetFpsCopy = langTargetFps;
-            FrameExtractProfile sourceProfile = this.BuildFrameExtractProfile(sourceFileCopy, this._fsConfig.SourceStartSec * 1000, this._fsConfig.SourceDurationSec, fpsCopy, cropSrcCopy);
-            FrameExtractProfile languageProfile = this.BuildFrameExtractProfile(langFileCopy, 0, this._fsConfig.LangDurationSec, langTargetFpsCopy, cropLngCopy);
+            FrameExtractProfile sourceProfile = this.BuildFrameExtractProfile(sourceFileCopy, this._fsConfig.SourceStartSec * 1000, this._fsConfig.SourceDurationSec, fpsCopy, sourceGeometryCropCopy);
+            FrameExtractProfile languageProfile = this.BuildFrameExtractProfile(langFileCopy, 0, this._fsConfig.LangDurationSec, langTargetFpsCopy, languageGeometryCropCopy);
             Thread sourceThread = new Thread(() =>
             {
                 List<byte[]> f;
@@ -1843,8 +1843,8 @@ namespace RemuxForge.Core.Analysis.FrameSync
             double[] lngTs = null;
             Thread sourceThread;
             Thread langThread;
-            FrameExtractProfile sourceProfile = this.BuildFrameExtractProfile(sourceFile, this._fsConfig.SourceStartSec * 1000, VISUAL_SCAN_SOURCE_DURATION_SEC, VISUAL_SCAN_FPS, this._cropSourceTo43);
-            FrameExtractProfile languageProfile = this.BuildFrameExtractProfile(languageFile, 0, VISUAL_SCAN_LANG_DURATION_SEC, VISUAL_SCAN_FPS, this._cropLangTo43);
+            FrameExtractProfile sourceProfile = this.BuildFrameExtractProfile(sourceFile, this._fsConfig.SourceStartSec * 1000, VISUAL_SCAN_SOURCE_DURATION_SEC, VISUAL_SCAN_FPS, this._geometryCropSourceToFourThree);
+            FrameExtractProfile languageProfile = this.BuildFrameExtractProfile(languageFile, 0, VISUAL_SCAN_LANG_DURATION_SEC, VISUAL_SCAN_FPS, this._geometryCropLanguageToFourThree);
 
             sourceThread = new Thread(() =>
             {
@@ -2379,10 +2379,10 @@ namespace RemuxForge.Core.Analysis.FrameSync
             // Estrae i due segmenti in parallelo (fps forzato per garantire output CFR)
             double fpsCopy = sourceTargetFps;
             double langFpsCopy = langTargetFps;
-            bool cropSrcCopy = this._cropSourceTo43;
-            bool cropLngCopy = this._cropLangTo43;
-            FrameExtractProfile sourceProfile = this.BuildFrameExtractProfile(sourceFileCopy, sourceStartMsCopy, sourceDurationSec, fpsCopy, cropSrcCopy);
-            FrameExtractProfile languageProfile = this.BuildFrameExtractProfile(langFileCopy, langStartMsCopy, langDurationSec, langFpsCopy, cropLngCopy);
+            bool sourceGeometryCropCopy = this._geometryCropSourceToFourThree;
+            bool languageGeometryCropCopy = this._geometryCropLanguageToFourThree;
+            FrameExtractProfile sourceProfile = this.BuildFrameExtractProfile(sourceFileCopy, sourceStartMsCopy, sourceDurationSec, fpsCopy, sourceGeometryCropCopy);
+            FrameExtractProfile languageProfile = this.BuildFrameExtractProfile(langFileCopy, langStartMsCopy, langDurationSec, langFpsCopy, languageGeometryCropCopy);
             Thread sourceThread = new Thread(() =>
             {
                 List<byte[]> f;

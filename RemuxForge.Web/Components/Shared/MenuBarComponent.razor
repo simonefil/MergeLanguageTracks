@@ -3,10 +3,18 @@
     {
         int idx = i;
         MenuDef menu = _menus[i];
+        int mnemonicIndex = FindMnemonicIndex(menu.Label, menu.Mnemonic);
         <div class="menu-bar-item @(_activeIndex == idx ? "active" : "")"
              @onclick="() => ToggleMenu(idx)"
              @onmouseenter="() => HoverMenu(idx)">
-            @menu.Label
+            @if (mnemonicIndex >= 0)
+            {
+                @menu.Label.Substring(0, mnemonicIndex)<span class="menu-mnemonic">@menu.Label.Substring(mnemonicIndex, 1)</span>@menu.Label.Substring(mnemonicIndex + 1)
+            }
+            else
+            {
+                @menu.Label
+            }
         </div>
     }
 </div>
@@ -54,6 +62,11 @@
         /// Voci del menu
         /// </summary>
         public List<MenuItemDef> Items;
+
+        /// <summary>
+        /// Mnemonico tastiera per apertura con Option/Alt
+        /// </summary>
+        public string Mnemonic;
     }
 
     /// <summary>
@@ -196,25 +209,25 @@
         {
             this._menus = new List<MenuDef>
             {
-                new MenuDef { Label = "File", Items = new List<MenuItemDef>
+                new MenuDef { Label = "File", Mnemonic = "F", Items = new List<MenuItemDef>
                 {
                     new MenuItemDef { Label = "Configurazione Split", Shortcut = "F2", Callback = () => OnShowConfig.InvokeAsync() },
                 }},
-                new MenuDef { Label = "Azioni", Items = new List<MenuItemDef>
+                new MenuDef { Label = "Azioni", Mnemonic = "A", Items = new List<MenuItemDef>
                 {
                     new MenuItemDef { Label = "Scan input", Shortcut = "F5", Callback = () => OnScan.InvokeAsync() },
                     new MenuItemDef { Label = "Split tutti", Shortcut = "F10", Callback = () => OnMergeAll.InvokeAsync() },
                     new MenuItemDef { Label = "Stop", Shortcut = "F12", Callback = () => OnStop.InvokeAsync() },
                 }},
-                new MenuDef { Label = "Impostazioni", Items = new List<MenuItemDef>
+                new MenuDef { Label = "Impostazioni", Mnemonic = "I", Items = new List<MenuItemDef>
                 {
                     new MenuItemDef { Label = "Percorsi tool", Shortcut = "", Callback = () => OnShowToolPaths.InvokeAsync() },
                 }},
-                new MenuDef { Label = "Vista", Items = new List<MenuItemDef>
+                new MenuDef { Label = "Vista", Mnemonic = "V", Items = new List<MenuItemDef>
                 {
                     new MenuItemDef { Label = "Pipeline...", Shortcut = "", Callback = () => OnShowPipeline.InvokeAsync() },
                 }},
-                new MenuDef { Label = "Tema", Items = new List<MenuItemDef>
+                new MenuDef { Label = "Tema", Mnemonic = "T", Items = new List<MenuItemDef>
                 {
                     new MenuItemDef { Label = "Nord", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("nord") },
                     new MenuItemDef { Label = "DOS Blue", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("dos-blue") },
@@ -225,7 +238,7 @@
                     new MenuItemDef { Label = "Cybergum", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("cybergum") },
                     new MenuItemDef { Label = "Everforest", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("everforest") },
                 }},
-                new MenuDef { Label = "Aiuto", Items = new List<MenuItemDef>
+                new MenuDef { Label = "Aiuto", Mnemonic = "U", Items = new List<MenuItemDef>
                 {
                     new MenuItemDef { Label = "Info", Shortcut = "", Callback = () => OnShowInfo.InvokeAsync() },
                 }},
@@ -235,11 +248,11 @@
         {
             this._menus = new List<MenuDef>
         {
-            new MenuDef { Label = "File", Items = new List<MenuItemDef>
+            new MenuDef { Label = "File", Mnemonic = "F", Items = new List<MenuItemDef>
             {
                 new MenuItemDef { Label = "Configurazione", Shortcut = "F2", Callback = () => OnShowConfig.InvokeAsync() },
             }},
-            new MenuDef { Label = "Azioni", Items = new List<MenuItemDef>
+            new MenuDef { Label = "Azioni", Mnemonic = "A", Items = new List<MenuItemDef>
             {
                 new MenuItemDef { Label = "Scan file", Shortcut = "F5", Callback = () => OnScan.InvokeAsync() },
                 new MenuItemDef { Label = "Analizza selezionato", Shortcut = "F6", Callback = () => OnAnalyzeSelected.InvokeAsync() },
@@ -251,18 +264,18 @@
                 new MenuItemDef { Label = "Processa tutti", Shortcut = "F10", Callback = () => OnMergeAll.InvokeAsync() },
                 new MenuItemDef { Label = "Stop", Shortcut = "F12", Callback = () => OnStop.InvokeAsync() },
             }},
-            new MenuDef { Label = "Impostazioni", Items = new List<MenuItemDef>
+            new MenuDef { Label = "Impostazioni", Mnemonic = "I", Items = new List<MenuItemDef>
             {
                 new MenuItemDef { Label = "Percorsi tool", Shortcut = "", Callback = () => OnShowToolPaths.InvokeAsync() },
                 new MenuItemDef { Label = "Conversione audio", Shortcut = "", Callback = () => OnShowAudioSettings.InvokeAsync() },
                 new MenuItemDef { Label = "Impostazioni avanzate", Shortcut = "", Callback = () => OnShowAdvancedSettings.InvokeAsync() },
                 new MenuItemDef { Label = "Profili encoding", Shortcut = "", Callback = () => OnShowEncodingProfiles.InvokeAsync() },
             }},
-            new MenuDef { Label = "Vista", Items = new List<MenuItemDef>
+            new MenuDef { Label = "Vista", Mnemonic = "V", Items = new List<MenuItemDef>
             {
                 new MenuItemDef { Label = "Pipeline...", Shortcut = "", Callback = () => OnShowPipeline.InvokeAsync() },
             }},
-            new MenuDef { Label = "Tema", Items = new List<MenuItemDef>
+            new MenuDef { Label = "Tema", Mnemonic = "T", Items = new List<MenuItemDef>
             {
                 new MenuItemDef { Label = "Nord", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("nord") },
                 new MenuItemDef { Label = "DOS Blue", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("dos-blue") },
@@ -273,7 +286,7 @@
                 new MenuItemDef { Label = "Cybergum", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("cybergum") },
                 new MenuItemDef { Label = "Everforest", Shortcut = "", Callback = () => OnThemeChanged.InvokeAsync("everforest") },
             }},
-            new MenuDef { Label = "Aiuto", Items = new List<MenuItemDef>
+            new MenuDef { Label = "Aiuto", Mnemonic = "U", Items = new List<MenuItemDef>
             {
                 new MenuItemDef { Label = "Info", Shortcut = "", Callback = () => OnShowInfo.InvokeAsync() },
             }},
@@ -572,7 +585,7 @@
     }
 
     /// <summary>
-    /// Trova menu tramite iniziale label
+    /// Trova menu tramite mnemonico
     /// </summary>
     private bool TryFindMenuMnemonic(string key, out int index)
     {
@@ -584,13 +597,31 @@
         {
             for (int i = 0; i < this._menus.Count; i++)
             {
-                if (this._menus[i].Label.ToUpperInvariant().StartsWith(normalizedKey, StringComparison.Ordinal))
+                if (string.Equals(this._menus[i].Mnemonic, normalizedKey, StringComparison.OrdinalIgnoreCase))
                 {
                     index = i;
                     result = true;
                     break;
                 }
             }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Trova posizione del mnemonico nella label
+    /// </summary>
+    /// <param name="label">Label menu</param>
+    /// <param name="mnemonic">Mnemonico</param>
+    /// <returns>Indice carattere, -1 se non trovato</returns>
+    private int FindMnemonicIndex(string label, string mnemonic)
+    {
+        int result = -1;
+
+        if (!string.IsNullOrEmpty(label) && !string.IsNullOrEmpty(mnemonic))
+        {
+            result = label.IndexOf(mnemonic, StringComparison.OrdinalIgnoreCase);
         }
 
         return result;

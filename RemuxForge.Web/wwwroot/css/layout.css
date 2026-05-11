@@ -1,4 +1,17 @@
 /* Main layout - menu bar, panels area, log panel, progress panel, status bar */
+html,
+body,
+body * {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+input,
+textarea {
+    user-select: text;
+    -webkit-user-select: text;
+}
+
 .rf-layout {
     display: grid;
     grid-template-rows: 1lh 3fr 2fr 2lh 1lh;
@@ -109,6 +122,13 @@
     font-size: inherit;
     white-space: pre-wrap;
     word-break: break-all;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.log-panel .rf-panel-body * {
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 /* Progress panel */
@@ -212,6 +232,11 @@
     color: var(--background0);
 }
 
+.menu-mnemonic {
+    text-decoration: underline;
+    text-underline-offset: 0.12em;
+}
+
 /* Menu overlay - invisible layer to capture clicks outside dropdown */
 .menu-overlay {
     position: fixed;
@@ -291,6 +316,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: inherit;
+    user-select: none;
 }
 
 .episode-table th {
@@ -316,6 +342,10 @@
 
 .episode-table tr {
     cursor: pointer;
+}
+
+.episode-table tr:focus {
+    outline: none;
 }
 
 .episode-table tr:hover {
@@ -775,7 +805,8 @@ textarea.form-input {
     white-space: nowrap;
 }
 
-.ui-toggle:hover {
+.ui-toggle:hover,
+.ui-toggle:focus {
     background-color: var(--background2);
 }
 
@@ -794,9 +825,11 @@ textarea.form-input {
     white-space: nowrap;
 }
 
-.btn-browse:hover {
+.btn-browse:hover,
+.btn-browse:focus {
     background-color: var(--foreground0);
     color: var(--background0);
+    outline: none;
 }
 
 /* ============================================================

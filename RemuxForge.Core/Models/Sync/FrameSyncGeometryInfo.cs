@@ -98,14 +98,9 @@ namespace RemuxForge.Core.Models
         public int CropBottom { get; set; }
 
         /// <summary>
-        /// Flag storico crop manuale 4:3
-        /// </summary>
-        public bool ManualCropTo43 { get; set; }
-
-        /// <summary>
         /// True se la geometria suggerisce normalizzazione 4:3
         /// </summary>
-        public bool GeometryCropTo43 { get; set; }
+        public bool GeometryCropToFourThree { get; set; }
 
         /// <summary>
         /// Descrizione modalita' crop applicata
