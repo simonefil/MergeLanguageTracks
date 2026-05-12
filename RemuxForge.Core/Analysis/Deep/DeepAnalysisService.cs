@@ -35,6 +35,8 @@ namespace RemuxForge.Core.Analysis.Deep
         private const double INITIAL_VISUAL_GUARD_TIMELINE_IMPROVEMENT = 0.75;
         private const double INITIAL_VISUAL_GUARD_BORDER_MARGIN = 0.12;
         private const int VISUAL_BASELINE_CONFLICT_THRESHOLD_MS = 250;
+        private const int TIMELINE_SPIKE_PRUNE_MERGE_TOLERANCE_MS = 250;
+        private const int TIMELINE_SPIKE_PRUNE_MIN_DELTA_MS = 500;
 
         #endregion
 
@@ -303,10 +305,16 @@ namespace RemuxForge.Core.Analysis.Deep
             {
                 operations = this.RefineTransitions(sourceFile, langFile, regions, inverseRatio, out transitions);
             }
+            if (!visualBaselineOnly && !this.ValidateTimelineTransitions(transitions, false) && this.TryPruneUnverifiedTimelineSpikes(sourceDurationMs, transitions, ref regions, diagnostics))
+            {
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Timeline ripulita: ricalcolo transizioni dopo pruning plateau non confermati");
+                operations = this.RefineTransitions(sourceFile, langFile, regions, inverseRatio, out transitions);
+            }
+
             diagnostics.Timing.TransitionRefineMs = stopwatch.ElapsedMilliseconds - phaseStartMs;
             diagnostics.Transitions = transitions;
 
-            if (!this.ValidateTimelineTransitions(transitions))
+            if (!this.ValidateTimelineTransitions(transitions, true))
             {
                 if (!this.TryFallbackTimelineToConstantInitial(sourceDurationMs, transitions, operations, ref regions, diagnostics))
                 {
@@ -346,6 +354,94 @@ namespace RemuxForge.Core.Analysis.Deep
 
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Success, "  EditMap: delay=" + result.InitialDelayMs + "ms, " + operations.Count + " operazioni, analisi " + this._analysisTimeMs + "ms");
             ConsoleHelper.Progress(LogSection.Deep, 88, "Deep: edit map");
+
+            return result;
+        }
+
+        /// <summary>
+        /// Rimuove plateau audio-common isolati quando il video boccia la transizione che li introduce o li chiude
+        /// </summary>
+        private bool TryPruneUnverifiedTimelineSpikes(int sourceDurationMs, List<DeepAnalysisTransitionDiagnostic> transitions, ref List<OffsetRegion> regions, DeepAnalysisDiagnostics diagnostics)
+        {
+            bool result = false;
+
+            if (!this._currentAnalysisUsesTimelineMap || !this._currentAnalysisHasCommonAudio)
+            {
+                return result;
+            }
+
+            if (regions == null || regions.Count < 3 || transitions == null || transitions.Count == 0)
+            {
+                return result;
+            }
+
+            for (int i = 1; i < regions.Count - 1; i++)
+            {
+                OffsetRegion leftRegion = regions[i - 1];
+                OffsetRegion spikeRegion = regions[i];
+                OffsetRegion rightRegion = regions[i + 1];
+                OffsetRegion mergedRegion;
+                bool leftTransitionUnverified = false;
+                bool rightTransitionUnverified = false;
+                double leftRightDeltaMs = Math.Abs(leftRegion.OffsetMs - rightRegion.OffsetMs);
+                double leftSpikeDeltaMs = Math.Abs(leftRegion.OffsetMs - spikeRegion.OffsetMs);
+                double rightSpikeDeltaMs = Math.Abs(rightRegion.OffsetMs - spikeRegion.OffsetMs);
+
+                for (int t = 0; t < transitions.Count; t++)
+                {
+                    if (transitions[t].Index == i && string.Equals(transitions[t].Status, "SkippedUnverified", StringComparison.Ordinal))
+                    {
+                        leftTransitionUnverified = true;
+                    }
+                    else if (transitions[t].Index == i + 1 && string.Equals(transitions[t].Status, "SkippedUnverified", StringComparison.Ordinal))
+                    {
+                        rightTransitionUnverified = true;
+                    }
+                }
+
+                if (!leftTransitionUnverified && !rightTransitionUnverified)
+                {
+                    continue;
+                }
+
+                if (leftRightDeltaMs > TIMELINE_SPIKE_PRUNE_MERGE_TOLERANCE_MS)
+                {
+                    continue;
+                }
+
+                if (leftSpikeDeltaMs < TIMELINE_SPIKE_PRUNE_MIN_DELTA_MS || rightSpikeDeltaMs < TIMELINE_SPIKE_PRUNE_MIN_DELTA_MS)
+                {
+                    continue;
+                }
+
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Timeline pruning: plateau src " + spikeRegion.StartSrcSec.ToString("F1", CultureInfo.InvariantCulture) + "-" + spikeRegion.EndSrcSec.ToString("F1", CultureInfo.InvariantCulture) + "s offset=" + spikeRegion.OffsetMs.ToString("F0", CultureInfo.InvariantCulture) + "ms rimosso; regioni adiacenti compatibili (" + leftRegion.OffsetMs.ToString("F0", CultureInfo.InvariantCulture) + "/" + rightRegion.OffsetMs.ToString("F0", CultureInfo.InvariantCulture) + "ms)");
+                mergedRegion = new OffsetRegion();
+                mergedRegion.StartSrcSec = leftRegion.StartSrcSec;
+                mergedRegion.EndSrcSec = rightRegion.EndSrcSec;
+                if (mergedRegion.EndSrcSec > sourceDurationMs / 1000.0)
+                {
+                    mergedRegion.EndSrcSec = sourceDurationMs / 1000.0;
+                }
+                mergedRegion.SupportStartSrcSec = leftRegion.SupportStartSrcSec;
+                mergedRegion.SupportEndSrcSec = rightRegion.SupportEndSrcSec;
+                mergedRegion.OffsetMs = leftRegion.MatchCount >= rightRegion.MatchCount ? leftRegion.OffsetMs : rightRegion.OffsetMs;
+                mergedRegion.MatchCount = leftRegion.MatchCount + rightRegion.MatchCount;
+
+                regions[i - 1] = mergedRegion;
+                regions.RemoveAt(i + 1);
+                regions.RemoveAt(i);
+                result = true;
+                i--;
+            }
+
+            if (result && diagnostics != null)
+            {
+                diagnostics.Regions = this.BuildRegionDiagnostics(regions);
+                if (diagnostics.InitialAlignment != null)
+                {
+                    diagnostics.InitialAlignment.DecisionReason += "; pruning plateau audio-common non confermati dal video";
+                }
+            }
 
             return result;
         }
@@ -968,7 +1064,7 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <summary>
         /// Valida che le transizioni non scartate abbiano prodotto operazioni applicabili
         /// </summary>
-        private bool ValidateTimelineTransitions(List<DeepAnalysisTransitionDiagnostic> transitions)
+        private bool ValidateTimelineTransitions(List<DeepAnalysisTransitionDiagnostic> transitions, bool writeLog)
         {
             bool result = true;
 
@@ -986,14 +1082,20 @@ namespace RemuxForge.Core.Analysis.Deep
 
                 if (string.Equals(transitions[i].Status, "SkippedUnverified", StringComparison.Ordinal))
                 {
-                    ConsoleHelper.Write(LogSection.Deep, LogLevel.Error, "  Timeline rifiutata: transizione " + transitions[i].Index.ToString(CultureInfo.InvariantCulture) + " scartata dalla verifica locale (" + transitions[i].RejectReason + ")");
+                    if (writeLog)
+                    {
+                        ConsoleHelper.Write(LogSection.Deep, LogLevel.Error, "  Timeline rifiutata: transizione " + transitions[i].Index.ToString(CultureInfo.InvariantCulture) + " scartata dalla verifica locale (" + transitions[i].RejectReason + ")");
+                    }
                     result = false;
                     break;
                 }
 
                 if (!string.Equals(transitions[i].Status, "Accepted", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedAudio", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedTimeline", StringComparison.Ordinal))
                 {
-                    ConsoleHelper.Write(LogSection.Deep, LogLevel.Error, "  Timeline rifiutata: transizione " + transitions[i].Index.ToString(CultureInfo.InvariantCulture) + " non risolta (" + transitions[i].RejectReason + ")");
+                    if (writeLog)
+                    {
+                        ConsoleHelper.Write(LogSection.Deep, LogLevel.Error, "  Timeline rifiutata: transizione " + transitions[i].Index.ToString(CultureInfo.InvariantCulture) + " non risolta (" + transitions[i].RejectReason + ")");
+                    }
                     result = false;
                     break;
                 }

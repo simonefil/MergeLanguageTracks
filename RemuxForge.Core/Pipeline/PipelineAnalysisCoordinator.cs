@@ -393,6 +393,11 @@ namespace RemuxForge.Core.Pipeline
                     {
                         langDefaultDuration = this._timingResolver.GetTrustedDefaultDurationNs(langInfo, record.LangFilePath);
                     }
+                    if (sourceDurationMs == 0 && sourceTiming != null && sourceTiming.DurationMs > 0.0)
+                    {
+                        // DeepAnalysis lavora sulla timeline video/common-track; la durata container puo' essere gonfiata da tracce non importate
+                        sourceDurationMs = (int)Math.Round(sourceTiming.DurationMs);
+                    }
                     if (sourceDurationMs == 0 && sourceInfo != null && sourceInfo.ContainerDurationNs > 0)
                     {
                         sourceDurationMs = (int)(sourceInfo.ContainerDurationNs / 1000000);

@@ -18,7 +18,7 @@ Available through two interfaces: CLI (command line) and WebUI (web interface). 
 - Two interfaces: scriptable CLI and WebUI for browser and headless servers
 - Docker deployment with optional GPU support
 - Dark/light graphical themes for WebUI
-- Split mode for chapter patterns, explicit ranges, split-at, trim, single chapters and folder batch processing
+- Split mode for chapter patterns, explicit ranges, split-at, trim, single chapters and folder sources
 - Persistent configuration in `appsettings.json` with auto-merge of new fields
 
 ## Requirements
@@ -41,21 +41,21 @@ Available through two interfaces: CLI (command line) and WebUI (web interface). 
 
 ### Desktop: CLI
 
-Download the archive for your platform from the [release page](https://github.com/draknodd/RemuxForge/releases), extract and run.
+Download the archive for your platform from the [release page](https://github.com/simonefil/RemuxForge/releases), extract and run.
 
-- **Windows**: open a terminal and launch `RemuxForge.exe` with parameters
-- **Linux/macOS**: `chmod +x RemuxForge && ./RemuxForge` with parameters
+- **Windows**: open a terminal and launch `RemuxForge.Cli.exe` with parameters
+- **Linux/macOS**: `chmod +x RemuxForge.Cli && ./RemuxForge.Cli` with parameters
 
 Launching without parameters shows the CLI help. With parameters it runs in CLI mode.
 
 ### Desktop: WebUI
 
-Download the WebUI archive from the [release page](https://github.com/draknodd/RemuxForge/releases), extract and run.
+Download the WebUI archive from the [release page](https://github.com/simonefil/RemuxForge/releases), extract and run.
 
 - **Windows**: double click on `RemuxForge.Web.exe`
 - **Linux/macOS**: `chmod +x RemuxForge.Web && ./RemuxForge.Web`
 
-Open `http://localhost:5000` in your browser. The port is configurable with the `REMUXFORGE_PORT` environment variable.
+Open `http://localhost:5000` in your browser. The port is configurable with the `REMUXFORGE_PORT` environment variable or, if the variable is not set, with `--port <number>`.
 
 ### Docker
 
@@ -202,7 +202,7 @@ The configuration dialog groups all processing options:
 - **Folders**: Source, Language, Destination, with browse button for each. Checkbox for overwrite source and recursive search
 - **Language and Tracks**: Target language, Audio codec, Keep source audio/codec/sub, Subtitles only, Audio only, Rename tracks
 - **Synchronization**: Speed correction (`off`/`auto`/`manual` with fixed stretch), Frame-sync, Deep analysis, Audio delay (ms), Sub delay (ms). Frame-sync and Deep analysis are exclusive.
-- **Advanced**: Match pattern (regex), File extensions, Convert audio (flac/opus), Encoding profile
+- **Matching and post-processing**: Match pattern (regex), file extensions, audio conversion (flac/opus), encoding profile
 
 #### Remux Settings Menu
 
@@ -242,7 +242,7 @@ The WebUI shows two progress bars: global batch progress and current episode pro
 The Remux CLI is designed for scriptable merge/sync batches. Always use `--mode remux`.
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -fs
 ```
 
 #### Required Remux Parameters
@@ -271,12 +271,17 @@ RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output
 | Short | Long | Description |
 |-------|------|-------------|
 | -fs | --framesync | Synchronization via visual frame comparison (scene-cut) |
+| | --framesync-diagnostics | Writes frame-sync JSON diagnostics to `.remux-forge/framesync-diagnostics` |
 | -da | --deep-analysis | Full analysis for files with different edits (mutually exclusive with -fs) |
+| | --deep-analysis-diagnostics | Writes deep analysis JSON diagnostics to `.remux-forge/deepanalysis-diagnostics` |
 | | --speed-correction | Speed correction mode: off, auto, manual. Default: off |
 | | --stretch-factor | Fixed factor for manual speed correction, for example 25025/24000 |
 | | --no-speed-correction | Compatibility option: disables speed correction |
 | -ad | --audio-delay | Manual delay in ms for audio (added to frame-sync/speed if active) |
 | -sd | --subtitle-delay | Manual delay in ms for subtitles |
+| | --audio-source-fill-threshold-ms | Threshold in ms for filling imported audio with source audio segments |
+| | --audio-source-fill-language | Source audio language to use for fill segments |
+| | --audio-source-fill-modes | Fill modes: `start`, `end`, `insert-silence` |
 
 Speed correction is disabled by default. In `auto` it is used only when CFR metadata is reliable; with VFR files `manual` and an explicit factor are required.
 
@@ -496,13 +501,13 @@ RemuxForge can use ffmpeg with `-hwaccel auto` to accelerate **video decoding** 
 **1. Add Italian dubbing to an English release**
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -fs
 ```
 
 **2. Overwrite source files**
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -o -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -o -fs
 ```
 
 **3. Replace a lossy track with a lossless one**
@@ -510,7 +515,7 @@ RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -o -fs
 The file already has Italian AC3 lossy. You want to replace it with DTS-HD MA from another release.
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie" -l "D:\Serie.ITA.HDMA" -t ita -ac "DTS-HD MA" -ksa eng,jpn -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie" -l "D:\Serie.ITA.HDMA" -t ita -ac "DTS-HD MA" -ksa eng,jpn -d "D:\Output" -fs
 ```
 
 With **-ksa eng,jpn** you keep only English and Japanese from the source. With **-ac "DTS-HD MA"** you only take the lossless track from the Italian release.
@@ -520,9 +525,9 @@ With **-ksa eng,jpn** you keep only English and Japanese from the source. With *
 Each step takes the previous output as source.
 
 ```bash
-RemuxForge --mode remux -s "D:\Film.US" -l "D:\Film.ITA" -t ita -d "D:\Temp1" -fs
-RemuxForge --mode remux -s "D:\Temp1" -l "D:\Film.FRA" -t fra -d "D:\Temp2" -fs
-RemuxForge --mode remux -s "D:\Temp2" -l "D:\Film.GER" -t ger -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Film.US" -l "D:\Film.ITA" -t ita -d "D:\Temp1" -fs
+RemuxForge.Cli --mode remux -s "D:\Temp1" -l "D:\Film.FRA" -t fra -d "D:\Temp2" -fs
+RemuxForge.Cli --mode remux -s "D:\Temp2" -l "D:\Film.GER" -t ger -d "D:\Output" -fs
 ```
 
 **5. Anime with non-standard naming**
@@ -530,13 +535,13 @@ RemuxForge --mode remux -s "D:\Temp2" -l "D:\Film.GER" -t ger -d "D:\Output" -fs
 Many fansubs use "- 05" instead of S01E05. With **-m** you specify a custom regex. With **-so** you take only subtitles.
 
 ```bash
-RemuxForge --mode remux -s "D:\Anime.BD" -l "D:\Anime.Fansub" -t ita -m "- (\d+)" -so -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Anime.BD" -l "D:\Anime.Fansub" -t ita -m "- (\d+)" -so -d "D:\Output" -fs
 ```
 
 **6. Daily show with dates in the filename**
 
 ```bash
-RemuxForge --mode remux -s "D:\Show.US" -l "D:\Show.ITA" -t ita -m "(\d{4})\.(\d{2})\.(\d{2})" -d "D:\Output"
+RemuxForge.Cli --mode remux -s "D:\Show.US" -l "D:\Show.ITA" -t ita -m "(\d{4})\.(\d{2})\.(\d{2})" -d "D:\Output"
 ```
 
 **7. Filter subtitles from the source**
@@ -544,7 +549,7 @@ RemuxForge --mode remux -s "D:\Show.US" -l "D:\Show.ITA" -t ita -m "(\d{4})\.(\d
 The source has 10 subtitle tracks in useless languages. With **-kss** you keep only the ones you want.
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -so -kss eng -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -so -kss eng -d "D:\Output" -fs
 ```
 
 **8. Anime: keep only Japanese audio and import eng+ita**
@@ -552,7 +557,7 @@ RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -so -kss eng 
 The trick **-kss und** discards all subtitles from the source because no track has language "und".
 
 ```bash
-RemuxForge --mode remux -s "D:\Anime.BD.JPN" -l "D:\Anime.ITA" -t eng,ita -ksa jpn -kss und -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Anime.BD.JPN" -l "D:\Anime.ITA" -t eng,ita -ksa jpn -kss und -d "D:\Output" -fs
 ```
 
 **9. Dry run on a complex configuration**
@@ -560,13 +565,13 @@ RemuxForge --mode remux -s "D:\Anime.BD.JPN" -l "D:\Anime.ITA" -t eng,ita -ksa j
 With **-n** verify matching and tracks without executing.
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3" -ksa eng -kss eng -d "D:\Output" -fs -n
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3" -ksa eng -kss eng -d "D:\Output" -fs -n
 ```
 
 **10. Keep only DTS tracks from the source**
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ksac DTS -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ksac DTS -d "D:\Output" -fs
 ```
 
 **11. Keep only English lossless audio from the source**
@@ -574,13 +579,13 @@ RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ksac DTS -d 
 By combining **-ksa** and **-ksac**, you keep only tracks matching both criteria.
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ksa eng -ksac "DTS-HDMA,TrueHD" -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ksa eng -ksac "DTS-HDMA,TrueHD" -d "D:\Output" -fs
 ```
 
 **12. Import multiple codecs from the language file**
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3,DTS" -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3,DTS" -d "D:\Output" -fs
 ```
 
 **13. Single source: apply delay and filter tracks**
@@ -588,13 +593,13 @@ RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ac "E-AC-3,D
 Without **-l**, the application uses the source folder as language too. Allows remuxing with filters and delays without a separate release.
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
+RemuxForge.Cli --mode remux -s "D:\Serie" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
 ```
 
 **14. Convert lossless tracks to FLAC during merge**
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -d "D:\Output" -fs
 ```
 
 **15. Convert lossless tracks to Opus keeping only English from source**
@@ -602,25 +607,25 @@ RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -d "
 TrueHD Atmos and DTS:X tracks are kept intact.
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf opus -ksa eng -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf opus -ksa eng -d "D:\Output" -fs
 ```
 
 **16. Merge + video encoding with x265 profile**
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ep "x265_CRF24" -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ep "x265_CRF24" -d "D:\Output" -fs
 ```
 
 **17. Merge + audio conversion + video encoding**
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -ep "svtav1_CRF30" -ksa eng -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -ep "svtav1_CRF30" -ksa eng -d "D:\Output" -fs
 ```
 
 **18. Deep analysis for files with different scenes**
 
 ```bash
-RemuxForge --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -da
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -da
 ```
 
 ### Remux Report
@@ -645,14 +650,15 @@ LANGUAGE FILES:
   01_05       ita                 ita                 2.1 GB
 
 RESULT FILES:
-  Episode     Audio          Subtitles      Size      Delay       FrmSync   Deep      Speed     Merge
+  Episode     Audio          Subtitles      Size      Delay       FrmSync   FSConf   Deep      Speed     Merge
   ----------------------------------------------------------------------------------------------------
-  01_05       eng,jpn,ita    eng,ita        4.3 GB    +150ms      -         3 ops     1250ms    12500ms
+  01_05       eng,jpn,ita    eng,ita        4.3 GB    +150ms      -         -        3 ops     1250ms    12500ms
 ```
 
 **Result Files columns:**
 - **Delay**: offset applied to imported tracks
 - **FrmSync**: frame-sync processing time (if active, otherwise "-")
+- **FSConf**: frame-sync confidence percentage (if available, otherwise "-")
 - **Deep**: number of cut-and-splice operations generated by deep analysis (if active, otherwise "-")
 - **Speed**: speed correction processing time (if active, otherwise "-")
 - **Merge**: mkvmerge execution time
@@ -788,14 +794,14 @@ Remux keys for analysis, skip and selected merge are not part of the Split workf
 
 #### Split Configuration
 
-Split configuration exposes only essential options: source file/folder, output folder, chapter pattern, explicit ranges, split-at, trim start/end, chapters-each, output template, snap, force, dry-run and folder batch.
+Split configuration exposes only essential options: source file or folder, output folder, chapter pattern, explicit ranges, split-at, trim start/end, chapters-each, output template, snap, force and dry-run. When the source is a folder, the scan applies the same options to all matched files.
 
 ### Split CLI
 
 The Split CLI always uses `--mode split`. Remux parameters such as `--target-language`, `--framesync`, `--deep-analysis`, codec filters and audio conversion do not apply to this mode.
 
 ```bash
-RemuxForge --mode split --source "INPUT.mkv" [cut mode] [options]
+RemuxForge.Cli --mode split --source "INPUT.mkv" [cut mode] [options]
 ```
 
 You must choose exactly **one** cut mode from the list below.
@@ -825,13 +831,13 @@ You must choose exactly **one** cut mode from the list below.
 Groups file chapters into segments according to the pattern. The sum of the numbers must match the number of chapters.
 
 ```bash
-RemuxForge --mode split --source "bleach_disc1.mkv" --pattern "5,5,5,6"
+RemuxForge.Cli --mode split --source "bleach_disc1.mkv" --pattern "5,5,5,6"
 ```
 
 On a folder, the same pattern is applied to every MKV found:
 
 ```bash
-RemuxForge --mode split --source "D:\\Discs" --pattern "5,5,5,6" --output-dir "D:\\Output"
+RemuxForge.Cli --mode split --source "D:\\Discs" --pattern "5,5,5,6" --output-dir "D:\\Output"
 ```
 
 #### `--ranges "T1-T2,T3-T4,..."`
@@ -841,8 +847,8 @@ Defines explicit intervals. `T` can be `HH:MM:SS.mmm`, `MM:SS.mmm`, decimal seco
 Examples:
 
 ```bash
-RemuxForge --mode split --source "input.mkv" --ranges "00:00:00-00:21:40,00:21:40-00:43:20,00:43:20-END"
-RemuxForge --mode split --source "input.mkv" --ranges "f0-f29970,f29970-END"
+RemuxForge.Cli --mode split --source "input.mkv" --ranges "00:00:00-00:21:40,00:21:40-00:43:20,00:43:20-END"
+RemuxForge.Cli --mode split --source "input.mkv" --ranges "f0-f29970,f29970-END"
 ```
 
 If a single range is passed, trim mode is used: the output is written next to the input with the `_trimmed` suffix, unless `--output-dir` or a custom template is provided.
@@ -852,13 +858,13 @@ If a single range is passed, trim mode is used: the output is written next to th
 Shortcut to split into `N+1` segments at the given timecodes. Duplicate points or points outside file duration produce an error.
 
 ```bash
-RemuxForge --mode split --source "concert.mkv" --split-at "00:21:40,00:43:20"
+RemuxForge.Cli --mode split --source "concert.mkv" --split-at "00:21:40,00:43:20"
 ```
 
 Equivalent to:
 
 ```bash
-RemuxForge --mode split --source "concert.mkv" --ranges "0-00:21:40,00:21:40-00:43:20,00:43:20-END"
+RemuxForge.Cli --mode split --source "concert.mkv" --ranges "0-00:21:40,00:21:40-00:43:20,00:43:20-END"
 ```
 
 #### `--trim-start T` and `--trim-end T`
@@ -866,9 +872,9 @@ RemuxForge --mode split --source "concert.mkv" --ranges "0-00:21:40,00:21:40-00:
 Trim shortcuts. They can be combined.
 
 ```bash
-RemuxForge --mode split --source "input.mkv" --trim-start 00:01:30
-RemuxForge --mode split --source "input.mkv" --trim-end 00:45:00
-RemuxForge --mode split --source "input.mkv" --trim-start 00:01:30 --trim-end 00:45:00
+RemuxForge.Cli --mode split --source "input.mkv" --trim-start 00:01:30
+RemuxForge.Cli --mode split --source "input.mkv" --trim-end 00:45:00
+RemuxForge.Cli --mode split --source "input.mkv" --trim-start 00:01:30 --trim-end 00:45:00
 ```
 
 #### `--chapters-each`
@@ -876,7 +882,7 @@ RemuxForge --mode split --source "input.mkv" --trim-start 00:01:30 --trim-end 00
 Creates one segment for each chapter in the source file. Requires chapters to be present.
 
 ```bash
-RemuxForge --mode split --source "film.mkv" --chapters-each
+RemuxForge.Cli --mode split --source "film.mkv" --chapters-each
 ```
 
 ### Split Output File Naming
@@ -922,37 +928,37 @@ Examples:
 Split a multi-episode MKV by chapter pattern:
 
 ```bash
-RemuxForge --mode split --source "disc1.mkv" --pattern "5,5,5,6"
+RemuxForge.Cli --mode split --source "disc1.mkv" --pattern "5,5,5,6"
 ```
 
 Trim the first 90 seconds:
 
 ```bash
-RemuxForge --mode split --source "input.mkv" --trim-start 00:01:30
+RemuxForge.Cli --mode split --source "input.mkv" --trim-start 00:01:30
 ```
 
 Manual split into three equal parts for a 60-minute video:
 
 ```bash
-RemuxForge --mode split --source "concert.mkv" --split-at "20:00,40:00"
+RemuxForge.Cli --mode split --source "concert.mkv" --split-at "20:00,40:00"
 ```
 
 Extract every chapter:
 
 ```bash
-RemuxForge --mode split --source "film.mkv" --chapters-each --output-template "Film.ch{n:02d}.mkv"
+RemuxForge.Cli --mode split --source "film.mkv" --chapters-each --output-template "Film.ch{n:02d}.mkv"
 ```
 
 Fast cut aligned to the nearest keyframe, without re-encoding:
 
 ```bash
-RemuxForge --mode split --source "source.mkv" --ranges "00:02:00-00:05:00" --snap nearest
+RemuxForge.Cli --mode split --source "source.mkv" --ranges "00:02:00-00:05:00" --snap nearest
 ```
 
 Batch a folder using the same pattern for every disc/file:
 
 ```bash
-RemuxForge --mode split --source "D:\\Discs" --pattern "5,5,5,6" --output-template "Serie.{source_name}.part{n:02d}.mkv" --output-dir "D:\\Episodes"
+RemuxForge.Cli --mode split --source "D:\\Discs" --pattern "5,5,5,6" --output-template "Serie.{source_name}.part{n:02d}.mkv" --output-dir "D:\\Episodes"
 ```
 
 ### How Split Works
@@ -1160,11 +1166,11 @@ dotnet publish RemuxForge.Cli -c Release -r osx-x64 --self-contained true
 dotnet publish RemuxForge.Cli -c Release -r osx-arm64 --self-contained true
 
 # WebUI
-dotnet publish RemuxForge.Web -c Release -r win-x64 --self-contained true
-dotnet publish RemuxForge.Web -c Release -r linux-x64 --self-contained true
-dotnet publish RemuxForge.Web -c Release -r linux-arm64 --self-contained true
-dotnet publish RemuxForge.Web -c Release -r osx-x64 --self-contained true
-dotnet publish RemuxForge.Web -c Release -r osx-arm64 --self-contained true
+dotnet publish RemuxForge.Web -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:EnableCompressionInSingleFile=true
+dotnet publish RemuxForge.Web -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:EnableCompressionInSingleFile=true
+dotnet publish RemuxForge.Web -c Release -r linux-arm64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:EnableCompressionInSingleFile=true
+dotnet publish RemuxForge.Web -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:EnableCompressionInSingleFile=true
+dotnet publish RemuxForge.Web -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -p:EnableCompressionInSingleFile=true
 ```
 
 **Docker:**
