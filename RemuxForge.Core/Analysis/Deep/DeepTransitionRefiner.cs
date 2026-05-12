@@ -390,12 +390,21 @@ namespace RemuxForge.Core.Analysis.Deep
                 {
                     if (timelineMode)
                     {
-                        transition.Status = "SkippedUnverified";
-                        transition.RejectReason = "Verifica locale timeline-first fallita, operazione scartata";
-                        transition.OperationType = "";
-                        operations.RemoveAt(operations.Count - 1);
-                        ConsoleHelper.Write(LogSection.Deep, LogLevel.Warning, "  Transizione " + (r + 1) + ": verifica locale fallita, operazione timeline scartata");
-                        continue;
+                        if (transition.LocalVerification != null && transition.LocalVerification.CanDeferToGlobalVerification)
+                        {
+                            transition.Status = "AcceptedTentative";
+                            transition.RejectReason = "Verifica locale non conclusiva, demandata alla verifica globale";
+                            ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Transizione " + (r + 1) + ": verifica locale non conclusiva, operazione timeline mantenuta per verifica globale");
+                        }
+                        else
+                        {
+                            transition.Status = "SkippedUnverified";
+                            transition.RejectReason = "Verifica locale timeline-first fallita, operazione scartata";
+                            transition.OperationType = "";
+                            operations.RemoveAt(operations.Count - 1);
+                            ConsoleHelper.Write(LogSection.Deep, LogLevel.Warning, "  Transizione " + (r + 1) + ": verifica locale fallita, operazione timeline scartata");
+                            continue;
+                        }
                     }
                     else
                     {

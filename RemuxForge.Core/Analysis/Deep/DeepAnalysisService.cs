@@ -37,6 +37,14 @@ namespace RemuxForge.Core.Analysis.Deep
         private const int VISUAL_BASELINE_CONFLICT_THRESHOLD_MS = 250;
         private const int TIMELINE_SPIKE_PRUNE_MERGE_TOLERANCE_MS = 250;
         private const int TIMELINE_SPIKE_PRUNE_MIN_DELTA_MS = 500;
+        private const double LOCAL_MSE_RATIO_EPSILON = 1.0;
+        private const double LOCAL_AUDIO_VERIFY_WINDOW_SEC = 6.0;
+        private const int LOCAL_AUDIO_VERIFY_WINDOW_MS = 50;
+        private const int LOCAL_AUDIO_VERIFY_MIN_WINDOWS = 40;
+        private const double LOCAL_AUDIO_VERIFY_MIN_SCORE = 0.62;
+        private const double LOCAL_AUDIO_VERIFY_MIN_MARGIN = 0.06;
+        private const double LOCAL_AUDIO_VERIFY_BEFORE_TOLERANCE = 0.04;
+        private const double LOCAL_FORWARD_STRONG_RATIO = 1.50;
 
         #endregion
 
@@ -1090,7 +1098,7 @@ namespace RemuxForge.Core.Analysis.Deep
                     break;
                 }
 
-                if (!string.Equals(transitions[i].Status, "Accepted", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedAudio", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedTimeline", StringComparison.Ordinal))
+                if (!string.Equals(transitions[i].Status, "Accepted", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedAudio", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedTimeline", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedTentative", StringComparison.Ordinal))
                 {
                     if (writeLog)
                     {
@@ -1646,7 +1654,10 @@ namespace RemuxForge.Core.Analysis.Deep
             double forwardSrcSec = crossoverSrcSec + Math.Max(4.0, transitionDurationSec + 2.0);
             double oldTotal;
             double newTotal;
-            double forwardImprovementRatio = 0.0;
+            bool beforeStable;
+            bool afterOrForwardImproved;
+            bool overallImproved;
+            bool visualVerified;
             if (beforeSrcSec < 0.0) { beforeSrcSec = 0.0; }
             if (insertSilenceTransition)
             {
@@ -1676,24 +1687,26 @@ namespace RemuxForge.Core.Analysis.Deep
                 newTotal = this.SumValidMse(result.BeforeNewMse, result.AfterNewMse, result.ForwardNewMse);
             }
 
-            if (newTotal > 0.0)
-            {
-                result.ImprovementRatio = oldTotal / newTotal;
-            }
-            if (result.ForwardNewMse > 0.0)
-            {
-                forwardImprovementRatio = result.ForwardOldMse / result.ForwardNewMse;
-            }
+            result.ImprovementRatio = this.ComputeSafeImprovementRatio(oldTotal, newTotal);
+            result.ForwardImprovementRatio = this.ComputeSafeImprovementRatio(result.ForwardOldMse, result.ForwardNewMse);
+            this.VerifyAudioTransitionLocal(sourceFile, langFile, crossoverSrcSec, oldOffsetSec, newOffsetSec, inverseRatio, result);
 
             if (this._currentAnalysisUsesTimelineMap)
             {
                 if (insertSilenceTransition)
                 {
-                    result.Verified = (result.BeforeOldMse <= result.BeforeNewMse || result.ImprovementRatio >= 2.0) && (result.AfterNewMse <= result.AfterOldMse * 1.10 || forwardImprovementRatio >= 1.50) && (result.ImprovementRatio >= 1.05 || forwardImprovementRatio >= 1.50);
+                    beforeStable = result.BeforeOldMse <= result.BeforeNewMse || result.ImprovementRatio >= 2.0;
+                    afterOrForwardImproved = result.AfterNewMse <= result.AfterOldMse * 1.10 || result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO;
+                    overallImproved = result.ImprovementRatio >= 1.05 || result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO;
+                    visualVerified = beforeStable && afterOrForwardImproved && overallImproved;
+                    result.CanDeferToGlobalVerification = result.AudioVerified || (beforeStable && result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO && result.ImprovementRatio >= 1.05);
+                    result.Verified = visualVerified || result.AudioVerified;
                 }
                 else
                 {
-                    result.Verified = result.AfterNewMse <= result.AfterOldMse * 1.02 && result.ForwardNewMse < result.ForwardOldMse && result.ImprovementRatio >= 1.05;
+                    visualVerified = result.AfterNewMse <= result.AfterOldMse * 1.02 && result.ForwardNewMse < result.ForwardOldMse && result.ImprovementRatio >= 1.05;
+                    result.CanDeferToGlobalVerification = result.AudioVerified || (result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO && result.ImprovementRatio >= 1.05);
+                    result.Verified = visualVerified || result.AudioVerified;
                 }
             }
             else
@@ -1702,6 +1715,125 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Verifica la transizione usando la traccia audio comune quando disponibile
+        /// </summary>
+        private void VerifyAudioTransitionLocal(string sourceFile, string langFile, double crossoverSrcSec, double oldOffsetSec, double newOffsetSec, double inverseRatio, DeepAnalysisLocalVerificationDiagnostic result)
+        {
+            double transitionDurationSec = Math.Abs(newOffsetSec - oldOffsetSec);
+            double audioForwardSrcSec = crossoverSrcSec + transitionDurationSec + 12.0;
+            bool beforeAvailable;
+            bool afterAvailable;
+            bool forwardAvailable;
+            bool beforeStable;
+            bool afterImproved;
+            bool forwardImproved;
+
+            if (!this._currentAnalysisUsesTimelineMap || !this._currentAnalysisHasCommonAudio)
+            {
+                return;
+            }
+
+            if (audioForwardSrcSec < result.ForwardSrcSec)
+            {
+                audioForwardSrcSec = result.ForwardSrcSec;
+            }
+
+            beforeAvailable = this.TryScoreAudioOffsetPair(sourceFile, langFile, result.BeforeSrcSec, oldOffsetSec, newOffsetSec, inverseRatio, out double beforeOldScore, out double beforeNewScore);
+            afterAvailable = this.TryScoreAudioOffsetPair(sourceFile, langFile, result.AfterSrcSec, oldOffsetSec, newOffsetSec, inverseRatio, out double afterOldScore, out double afterNewScore);
+            forwardAvailable = this.TryScoreAudioOffsetPair(sourceFile, langFile, audioForwardSrcSec, oldOffsetSec, newOffsetSec, inverseRatio, out double forwardOldScore, out double forwardNewScore);
+
+            result.AudioBeforeOldScore = beforeOldScore;
+            result.AudioBeforeNewScore = beforeNewScore;
+            result.AudioAfterOldScore = afterOldScore;
+            result.AudioAfterNewScore = afterNewScore;
+            result.AudioForwardOldScore = forwardOldScore;
+            result.AudioForwardNewScore = forwardNewScore;
+
+            if (!afterAvailable && !forwardAvailable)
+            {
+                return;
+            }
+
+            beforeStable = !beforeAvailable || beforeOldScore + LOCAL_AUDIO_VERIFY_BEFORE_TOLERANCE >= beforeNewScore;
+            afterImproved = afterAvailable && afterNewScore >= LOCAL_AUDIO_VERIFY_MIN_SCORE && afterNewScore > afterOldScore + LOCAL_AUDIO_VERIFY_MIN_MARGIN;
+            forwardImproved = forwardAvailable && forwardNewScore >= LOCAL_AUDIO_VERIFY_MIN_SCORE && forwardNewScore > forwardOldScore + LOCAL_AUDIO_VERIFY_MIN_MARGIN;
+            result.AudioVerified = beforeStable && (afterImproved || forwardImproved);
+        }
+
+        /// <summary>
+        /// Confronta un punto audio source contro vecchio e nuovo offset
+        /// </summary>
+        private bool TryScoreAudioOffsetPair(string sourceFile, string langFile, double srcSec, double oldOffsetSec, double newOffsetSec, double inverseRatio, out double oldScore, out double newScore)
+        {
+            double sourceStartSec = srcSec - (LOCAL_AUDIO_VERIFY_WINDOW_SEC / 2.0);
+            double oldLanguageStartSec;
+            double newLanguageStartSec;
+            double[] sourceEnvelope;
+            double[] oldEnvelope;
+            double[] newEnvelope;
+            int compareCount;
+            oldScore = 0.0;
+            newScore = 0.0;
+
+            if (sourceStartSec < 0.0)
+            {
+                sourceStartSec = 0.0;
+            }
+
+            oldLanguageStartSec = sourceStartSec - oldOffsetSec;
+            newLanguageStartSec = sourceStartSec - newOffsetSec;
+            if (Math.Abs(inverseRatio - 1.0) > 0.0001)
+            {
+                oldLanguageStartSec = oldLanguageStartSec * inverseRatio;
+                newLanguageStartSec = newLanguageStartSec * inverseRatio;
+            }
+
+            if (oldLanguageStartSec < 0.0 || newLanguageStartSec < 0.0)
+            {
+                return false;
+            }
+
+            sourceEnvelope = this.ExtractAudioEnvelope(sourceFile, sourceStartSec, LOCAL_AUDIO_VERIFY_WINDOW_SEC, LOCAL_AUDIO_VERIFY_WINDOW_MS);
+            oldEnvelope = this.ExtractAudioEnvelope(langFile, oldLanguageStartSec, LOCAL_AUDIO_VERIFY_WINDOW_SEC, LOCAL_AUDIO_VERIFY_WINDOW_MS);
+            newEnvelope = this.ExtractAudioEnvelope(langFile, newLanguageStartSec, LOCAL_AUDIO_VERIFY_WINDOW_SEC, LOCAL_AUDIO_VERIFY_WINDOW_MS);
+
+            if (sourceEnvelope == null || oldEnvelope == null || newEnvelope == null)
+            {
+                return false;
+            }
+
+            compareCount = Math.Min(sourceEnvelope.Length, Math.Min(oldEnvelope.Length, newEnvelope.Length));
+            if (compareCount < LOCAL_AUDIO_VERIFY_MIN_WINDOWS)
+            {
+                return false;
+            }
+
+            oldScore = this.ScoreAudioEnvelopeWindow(sourceEnvelope, oldEnvelope, 0, compareCount);
+            newScore = this.ScoreAudioEnvelopeWindow(sourceEnvelope, newEnvelope, 0, compareCount);
+            return true;
+        }
+
+        /// <summary>
+        /// Calcola un ratio MSE evitando divisioni instabili su match perfetti
+        /// </summary>
+        private double ComputeSafeImprovementRatio(double oldValue, double newValue)
+        {
+            double denominator;
+            if (oldValue <= 0.0 || oldValue >= double.MaxValue || newValue >= double.MaxValue)
+            {
+                return 0.0;
+            }
+
+            denominator = newValue;
+            if (denominator < LOCAL_MSE_RATIO_EPSILON)
+            {
+                denominator = LOCAL_MSE_RATIO_EPSILON;
+            }
+
+            return oldValue / denominator;
         }
 
         /// <summary>

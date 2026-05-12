@@ -454,9 +454,45 @@ namespace RemuxForge.Core.Models
         /// </summary>
         public double ForwardNewMse { get; set; }
         /// <summary>
+        /// Rapporto miglioramento sul punto forward
+        /// </summary>
+        public double ForwardImprovementRatio { get; set; }
+        /// <summary>
         /// Rapporto miglioramento locale
         /// </summary>
         public double ImprovementRatio { get; set; }
+        /// <summary>
+        /// True se la conferma audio locale ha validato la transizione
+        /// </summary>
+        public bool AudioVerified { get; set; }
+        /// <summary>
+        /// Score audio prima della transizione con vecchio offset
+        /// </summary>
+        public double AudioBeforeOldScore { get; set; }
+        /// <summary>
+        /// Score audio prima della transizione con nuovo offset
+        /// </summary>
+        public double AudioBeforeNewScore { get; set; }
+        /// <summary>
+        /// Score audio dopo la transizione con vecchio offset
+        /// </summary>
+        public double AudioAfterOldScore { get; set; }
+        /// <summary>
+        /// Score audio dopo la transizione con nuovo offset
+        /// </summary>
+        public double AudioAfterNewScore { get; set; }
+        /// <summary>
+        /// Score audio forward con vecchio offset
+        /// </summary>
+        public double AudioForwardOldScore { get; set; }
+        /// <summary>
+        /// Score audio forward con nuovo offset
+        /// </summary>
+        public double AudioForwardNewScore { get; set; }
+        /// <summary>
+        /// True se la transizione puo' essere demandata alla verifica globale
+        /// </summary>
+        public bool CanDeferToGlobalVerification { get; set; }
     }
 
     /// <summary>
