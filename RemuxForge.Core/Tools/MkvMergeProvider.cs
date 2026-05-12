@@ -1,4 +1,5 @@
 using RemuxForge.Core.Configuration;
+using RemuxForge.Core.Infrastructure;
 using System.IO;
 using System.Runtime.InteropServices;
 
@@ -44,7 +45,7 @@ namespace RemuxForge.Core.Tools
             string mkvName = "mkvmerge" + GetExecutableExtension();
             string found;
             // Controlla percorso salvato in AppSettings
-            if (AppSettingsService.Instance.Settings.Tools.MkvMergePath.Length > 0 && File.Exists(AppSettingsService.Instance.Settings.Tools.MkvMergePath))
+            if (IsExecutablePath(AppSettingsService.Instance.Settings.Tools.MkvMergePath))
             {
                 this._resolvedPath = AppSettingsService.Instance.Settings.Tools.MkvMergePath;
                 resolved = true;
@@ -54,7 +55,7 @@ namespace RemuxForge.Core.Tools
             if (!resolved)
             {
                 found = SearchInPaths(mkvName, this.GetWellKnownPaths());
-                if (found.Length > 0)
+                if (IsExecutablePath(found))
                 {
                     this._resolvedPath = found;
                     resolved = true;
@@ -65,7 +66,7 @@ namespace RemuxForge.Core.Tools
             if (!resolved)
             {
                 found = FindInSystemPath(mkvName);
-                if (found.Length > 0)
+                if (IsExecutablePath(found))
                 {
                     this._resolvedPath = found;
                     resolved = true;
@@ -80,6 +81,33 @@ namespace RemuxForge.Core.Tools
             }
 
             return resolved;
+        }
+
+        /// <summary>
+        /// Verifica che il path punti a un mkvmerge CLI eseguibile
+        /// </summary>
+        /// <param name="path">Percorso da verificare</param>
+        /// <returns>True se mkvmerge risponde a --version</returns>
+        public static bool IsExecutablePath(string path)
+        {
+            bool result = false;
+
+            if (path == null || path.Length == 0 || !File.Exists(path))
+            {
+                return result;
+            }
+
+            try
+            {
+                ProcessResult processResult = ProcessRunner.Run(path, new string[] { "--version" });
+                result = processResult.Stdout.Length > 0;
+            }
+            catch
+            {
+                result = false;
+            }
+
+            return result;
         }
 
         #endregion

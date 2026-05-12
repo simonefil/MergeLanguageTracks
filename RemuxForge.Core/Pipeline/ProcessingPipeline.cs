@@ -243,8 +243,8 @@ namespace RemuxForge.Core.Pipeline
                 this._filterSourceAudio = (this._opts.KeepSourceAudioLangs.Count > 0 || this._opts.KeepSourceAudioCodec.Count > 0);
                 this._filterSourceSubs = (this._opts.KeepSourceSubtitleLangs.Count > 0);
 
-                // Risolvi mkvmerge se manca, e' relativo o il path salvato non e' piu' valido
-                if (this._opts.MkvMergePath.Length == 0 || this._opts.MkvMergePath == "mkvmerge" || !File.Exists(this._opts.MkvMergePath))
+                // Risolvi mkvmerge se manca, e' relativo o il path salvato non e' un CLI valido
+                if (this._opts.MkvMergePath.Length == 0 || this._opts.MkvMergePath == "mkvmerge" || !this._toolPathResolver.IsMkvMergeExecutablePath(this._opts.MkvMergePath))
                 {
                     string resolvedMkvPath = this._toolPathResolver.ResolveMkvMergePath(true);
                     if (resolvedMkvPath.Length > 0)

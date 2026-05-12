@@ -9,24 +9,24 @@ Available through two interfaces: CLI (command line) and WebUI (web interface). 
 
 ## Key features
 
-- Remux mode for automatic merge of entire seasons with episode matching by filename
-- Automatic synchronization: PAL/NTSC speed correction, frame-sync for constant offset, deep analysis for different edits
+- Remux mode for importing audio and subtitles from other releases, including full seasons
+- Synchronization: speed correction for global speed differences, frame-sync for constant delay, Deep Analysis for constant delay plus cuts/insertions
 - Filter by language, audio codec, subtitles, both for import and for keeping from source
-- Lossless audio conversion to FLAC or Opus during merge
+- Audio conversion for selected lossless tracks, with FLAC or Opus output
 - Post-merge video encoding with customizable profiles (x264, x265, SVT-AV1)
 - Optional GPU acceleration for video decoding during analysis phases
 - Two interfaces: scriptable CLI and WebUI for browser and headless servers
 - Docker deployment with optional GPU support
-- Dark/light graphical themes for WebUI
 - Split mode for chapter patterns, explicit ranges, split-at, trim, single chapters and folder sources
-- Persistent configuration in `appsettings.json` with auto-merge of new fields
 
 ## Requirements
 
-- [MKVToolNix](https://mkvtoolnix.download/): mkvmerge must be in PATH or manually configured. mkvextract is required for bitmap subtitles such as PGS/VobSub in Deep Analysis and for Split; mkvpropedit is used by Split to apply chapters in the fast path.
-- [ffmpeg](https://ffmpeg.org/): required for sync, audio conversion, video encoding and Split. `ffprobe` is required by Split to map frames and video parameters. If missing, ffmpeg can be automatically downloaded from Settings > Tool paths (the "Download" button)
-- [mediainfo](https://mediainfo.sourceforge.net/): for detailed track reporting (optional)
-- UTF-8 locale on Linux (required for filenames with non-ASCII characters)
+- [MKVToolNix](https://mkvtoolnix.download/) (`mkvmerge`, `mkvextract`, `mkvpropedit`)
+- [ffmpeg](https://ffmpeg.org/) (`ffmpeg`, `ffprobe`)
+- [mediainfo CLI](https://mediainfo.sourceforge.net/) (`mediainfo`)
+- UTF-8 locale on Linux
+
+Tool paths can be auto-detected or configured from the WebUI in **Settings > Tool paths**.
 
 **Platforms:**
 
@@ -93,7 +93,7 @@ services:
 
 ### Docker with GPU acceleration
 
-Video decoding during analysis phases (speed correction, frame-sync, deep analysis) can be accelerated via GPU if the advanced `Hardware Acceleration` option is enabled. When enabled, ffmpeg uses `-hwaccel auto` and automatically selects the available backend in the container.
+Video decoding during analysis phases (speed correction, frame-sync, Deep Analysis) can be accelerated via GPU if the advanced `Hardware Acceleration` option is enabled. When enabled, ffmpeg uses `-hwaccel auto` and automatically selects the available backend in the container.
 
 **NVIDIA (NVDEC):**
 
@@ -144,21 +144,21 @@ docker run -d \
 
 ## Remux Mode
 
-Remux mode merges audio tracks and subtitles from different MKV releases. It is the workflow for episode matching, language/codec filters, synchronization, audio conversion, track renaming, video encoding and final reports.
+Remux mode imports audio tracks and subtitles from one MKV release into another. It handles episode matching, language/codec filters, synchronization, audio conversion, track renaming, video encoding and final reports.
 
-RemuxForge uses three separate paths:
+Synchronization has three separate paths:
 
-- **Speed correction** fixes global speed differences. Modes are `off`, `auto` and `manual`. `auto` is blocked when MediaInfo/ffprobe reports VFR; in those cases use `manual` with an explicit stretch factor, for example `25025/24000`.
-- **Frame-sync** searches for a constant offset between source and language. It is designed to stay fast and does not fix local cuts or insertions.
-- **Deep analysis** is the heavy path for sources with different edits, cuts, insertions or local drift. It uses a verified timeline map and applies cut-and-splice operations to imported tracks. Frame-sync and deep analysis are mutually exclusive.
+- **Speed correction**: fixes global speed differences, for example PAL/NTSC. Default `off`; `auto` only runs on reliable CFR sources, while VFR requires `manual` with an explicit stretch factor.
+- **Frame-sync**: calculates a single constant delay. Use it when both videos have the same edit and only differ by initial offset.
+- **Deep Analysis**: calculates initial delay and cut/insert operations. Use it when scenes are missing, added or edited differently.
 
-If a release has both a speed mismatch and local edits, set the global stretch manually and let Deep analysis fix the edits. Speed correction is expected to fail-safe on local-edit cases instead of forcing an ambiguous sync.
+Frame-sync and Deep Analysis are mutually exclusive. If a release has both a speed mismatch and local edits, set the global stretch manually and use Deep Analysis for the edit map.
 
-### Remux WebUI
+### WebUI
 
-In Remux, the WebUI is episode-batch oriented: folder configuration, scan and matching, analysis, merge, MediaInfo reports, tool settings, audio conversion, encoding profiles, advanced settings, pipeline view and themes. The configuration dialog shows a contextual help pane for the selected field.
+The WebUI is batch-oriented: folder configuration, scan/matching, analysis, merge and result inspection. The episode detail panel shows status, delay, planned operations, resulting tracks and timings for the main phases.
 
-#### Remux Shortcut Keys
+#### Shortcut Keys
 
 | Key | Action |
 |-----|--------|
@@ -173,7 +173,7 @@ In Remux, the WebUI is episode-batch oriented: folder configuration, scan and ma
 | Enter | Episode context menu |
 | Ctrl+Q | Exit |
 
-#### Remux Context Menu
+#### Context Menu
 
 Right-clicking on an episode (or pressing Enter) opens a context menu with the following options:
 
@@ -184,7 +184,7 @@ Right-clicking on an episode (or pressing Enter) opens a context menu with the f
 
 MediaInfo options are visible only if the mediainfo tool is configured and the corresponding file exists. The report shows all track information (codec, channels, bitrate, resolution, language, etc.) and can be copied to clipboard.
 
-#### Remux Menu
+#### Menu
 
 - **File**: Configuration (F2), Exit (Ctrl+Q)
 - **Actions**: Scan files (F5), Analyze selected (F6), Analyze all (F7), Skip/Unskip (F8), Process selected (F9), Process all (F10)
@@ -193,7 +193,7 @@ MediaInfo options are visible only if the mediainfo tool is configured and the c
 - **Theme**: change graphical theme (8 themes)
 - **Help**: Info
 
-#### Remux Configuration (F2)
+#### Configuration (F2)
 
 The configuration dialog groups all processing options:
 
@@ -201,51 +201,31 @@ The configuration dialog groups all processing options:
 
 - **Folders**: Source, Language, Destination, with browse button for each. Checkbox for overwrite source and recursive search
 - **Language and Tracks**: Target language, Audio codec, Keep source audio/codec/sub, Subtitles only, Audio only, Rename tracks
-- **Synchronization**: Speed correction (`off`/`auto`/`manual` with fixed stretch), Frame-sync, Deep analysis, Audio delay (ms), Sub delay (ms). Frame-sync and Deep analysis are exclusive.
+- **Synchronization**: Speed correction (`off`/`auto`/`manual` with fixed stretch), Frame-sync, Deep Analysis, audio/sub delay and Audio source fill. Frame-sync and Deep Analysis are exclusive.
 - **Matching and post-processing**: Match pattern (regex), file extensions, audio conversion (flac/opus), encoding profile
 
-#### Remux Settings Menu
+#### Settings Menu
 
 - **Tool paths**: Paths to mkvmerge, mkvextract, mkvpropedit, ffmpeg, ffprobe, mediainfo and temporary files folder. Tools are auto-detected at startup. ffmpeg can be downloaded directly from the interface
 - **Audio conversion**: FLAC compression level and Opus bitrate per channel layout (mono, stereo, 5.1, 7.1)
 - **Encoding profiles**: Manage video encoding profiles (add, edit, delete). Profiles are saved in appsettings.json
-- **Advanced**: essential operational tuning for analysis, frame-sync, deep analysis, timeouts and hardware acceleration. Expert sections expose only the main thresholds; internal algorithm parameters remain in the configuration file.
+- **Advanced**: essential operational tuning for analysis, frame-sync, Deep Analysis, timeouts and hardware acceleration. Expert sections expose only the main thresholds; internal algorithm parameters remain in the configuration file.
 
-The WebUI shows two progress bars: global batch progress and current episode progress. The episode bar exposes the main substeps for speed correction, frame-sync, deep analysis, conversion, edit application and merge. State is shared across browser tabs connected to the same instance.
+The WebUI shows two progress bars: global batch progress and current episode progress. The episode bar exposes the main substeps for speed correction, frame-sync, Deep Analysis, conversion, edit application and merge. State is shared across browser tabs connected to the same instance.
 
 ![Encoding profiles management](images/encoding.png)
 
-#### Remux WebUI Themes
-
-8 themes available from the Theme menu:
-
-| Nord (default) | DOS Blue |
-|:-:|:-:|
-| ![Nord](images/nord.png) | ![DOS Blue](images/dos.png) |
-
-| Matrix | Cyberpunk |
-|:-:|:-:|
-| ![Matrix](images/matrix.png) | ![Cyberpunk](images/cyberpunk.png) |
-
-| Solarized Dark | Solarized Light |
-|:-:|:-:|
-| ![Solarized Dark](images/solarized-dark.png) | ![Solarized Light](images/solarized-light.png) |
-
-| Cybergum | Everforest |
-|:-:|:-:|
-| ![Cybergum](images/cybergum.png) | ![Everforest](images/everforest.png) |
-
 ![WebUI configuration](images/config-webui.png)
 
-### Remux CLI
+### CLI
 
-The Remux CLI is designed for scriptable merge/sync batches. Always use `--mode remux`.
+The CLI is designed for scriptable merge/sync batches. Always use `--mode remux`.
 
 ```bash
 RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -fs
 ```
 
-#### Required Remux Parameters
+#### Required Parameters
 
 | Short | Long | Description |
 |-------|------|-------------|
@@ -253,27 +233,27 @@ RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Ou
 | -s | --source | Folder with source MKV files |
 | -t | --target-language | Language code of tracks to import (e.g.: ita). Separate with comma for multiple languages: ita,eng |
 
-#### Remux Source
+#### Source
 
 | Short | Long | Description |
 |-------|------|-------------|
 | -l | --language | Folder with MKV files to take tracks from. If omitted, uses the source folder |
 
-#### Remux Output (mutually exclusive, one required)
+#### Output (mutually exclusive, one required)
 
 | Short | Long | Description |
 |-------|------|-------------|
 | -d | --destination | Folder where resulting files will be saved |
 | -o | --overwrite | Overwrite source files |
 
-#### Remux Sync
+#### Sync
 
 | Short | Long | Description |
 |-------|------|-------------|
 | -fs | --framesync | Synchronization via visual frame comparison (scene-cut) |
 | | --framesync-diagnostics | Writes frame-sync JSON diagnostics to `.remux-forge/framesync-diagnostics` |
 | -da | --deep-analysis | Full analysis for files with different edits (mutually exclusive with -fs) |
-| | --deep-analysis-diagnostics | Writes deep analysis JSON diagnostics to `.remux-forge/deepanalysis-diagnostics` |
+| | --deep-analysis-diagnostics | Writes Deep Analysis JSON diagnostics to `.remux-forge/deepanalysis-diagnostics` |
 | | --speed-correction | Speed correction mode: off, auto, manual. Default: off |
 | | --stretch-factor | Fixed factor for manual speed correction, for example 25025/24000 |
 | | --no-speed-correction | Compatibility option: disables speed correction |
@@ -285,7 +265,7 @@ RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Ou
 
 Speed correction is disabled by default. In `auto` it is used only when CFR metadata is reliable; with VFR files `manual` and an explicit factor are required.
 
-#### Remux Filters
+#### Filters
 
 | Short | Long | Description |
 |-------|------|-------------|
@@ -297,7 +277,7 @@ Speed correction is disabled by default. In `auto` it is used only when CFR meta
 | -kss | --keep-source-subs | Subtitle languages to KEEP in the source |
 | -rt | --rename-tracks | Rename all audio tracks in the resulting file (see Track renaming section) |
 
-#### Remux Matching
+#### Matching
 
 | Short | Long | Description | Default |
 |-------|------|-------------|---------|
@@ -306,14 +286,14 @@ Speed correction is disabled by default. In `auto` it is used only when CFR meta
 | -nr | --no-recursive | Disable recursive search | |
 | -ext | --extensions | File extensions to search for. Separate with comma: mkv,mp4,avi | mkv |
 
-#### Remux Conversion and Encoding
+#### Conversion and Encoding
 
 | Short | Long | Description |
 |-------|------|-------------|
 | -cf | --convert-format | Convert lossless tracks: flac or opus. TrueHD Atmos and DTS:X excluded |
 | -ep | --encoding-profile | Video encoding profile post-merge (defined in appsettings.json) |
 
-#### Other Remux Options
+#### Other Options
 
 | Short | Long | Description |
 |-------|------|-------------|
@@ -321,40 +301,39 @@ Speed correction is disabled by default. In `auto` it is used only when CFR meta
 | -h | --help | Show built-in help |
 | -mkv | --mkvmerge-path | Custom path to mkvmerge (default: searches PATH) |
 
-### Remux Synchronization
+### Synchronization
 
-Releases of the same content can differ in playback speed, initial cut or internal editing. RemuxForge offers three synchronization systems, all based on visual analysis of video frames via ffmpeg. GPU decoding is optional and disabled by default.
+Releases of the same content can differ in playback speed, initial offset or internal editing. RemuxForge separates these cases instead of applying one correction to every problem.
 
 **Which method to use:**
 
 | Situation | Method | Option | Notes |
 |-----------|--------|--------|-------|
 | Same release, only different language | None (direct merge) | | Tracks are already aligned |
-| PAL vs NTSC (25 vs 23.976 fps) | Speed Correction | `--speed-correction auto` on CFR, `manual --stretch-factor ...` on VFR | Default off; auto is blocked on VFR |
-| Constant offset (different intro, initial black) | Frame-Sync | -fs | Calculates a fixed delay valid for the entire file |
-| Scenes cut or added in the middle of the video | Deep Analysis | -da | Generates cut-and-splice operations on the tracks |
+| PAL vs NTSC or another global speed difference | Speed Correction | `--speed-correction auto` on reliable CFR, `manual --stretch-factor ...` on VFR | Default off |
+| Constant offset | Frame-Sync | `-fs` | Calculates a fixed delay valid for the entire file |
+| Scenes cut, added or edited differently | Deep Analysis | `-da` | Generates a cut/insert map for imported tracks |
 
 Frame-Sync and Deep Analysis are mutually exclusive. Speed correction is independent and can be `off`, `auto` or `manual`; on VFR, `auto` fails safely.
 
 ### Speed Correction (off/auto/manual)
 
-Compensates for the difference between PAL (25 fps) and NTSC (23.976 fps) releases, common with European TV series and movies. In these situations the audio of one version is slightly faster than the other, and a direct merge would produce a growing desync over time.
+Compensates for a global speed difference between source and lang, for example a track taken from PAL and moved to an NTSC/BD release. It does not fix missing or added scenes.
 
 The default mode is `off`. In `auto`, detection compares FPS via MediaInfo/mkvmerge and proceeds only when both files have reliable CFR metadata. In `manual`, the factor is supplied explicitly with `--stretch-factor`, for example `25025/24000`, and is the correct mode for VFR sources or ambiguous metadata.
 
 When correction is active, the flow proceeds with:
 
-1. Extracts initial video frames from both files and converts them to low-resolution grayscale images
-2. Identifies scene cuts (shot changes) in both files, which are identical in both versions regardless of language
-3. Matches cuts between source and language to calculate the initial delay, compensating for drift caused by the speed difference
-4. Verifies the result at 9 points distributed along the video (10%, 20%, ... 90%). For each point it extracts a short segment, finds local scene cuts and confirms the calculated delay is correct. At least 5 valid points out of 9 are required
-5. Applies the correction factor via mkvmerge (time-stretching) to the imported audio and subtitle tracks, without re-encoding
+1. Resolves video timing with MediaInfo as the primary source
+2. Blocks `auto` if either file is VFR or metadata is inconsistent
+3. Calculates or applies the stretch factor
+4. Applies the stretch via mkvmerge to imported tracks, without re-encoding
 
-If either file has variable frame rate (VFR), `auto` is blocked because the container's `default_duration` is unreliable. In these cases use `manual` with a user-defined factor.
+If either file has variable frame rate (VFR), use `manual`: the average value or container `default_duration` is not enough to decide a reliable stretch automatically.
 
 ### Frame-Sync
 
-Calculates a fixed offset to realign tracks when source and language have the same FPS but a different initial cut (longer intro, seconds of black, different credits at the beginning).
+Calculates a fixed offset to realign tracks when source and lang have the same edit but a different initial delay.
 
 Enabled with **-fs** from CLI or from the checkbox in WebUI configuration.
 
@@ -362,9 +341,11 @@ Enabled with **-fs** from CLI or from the checkbox in WebUI configuration.
 2. Identifies scene cuts in both files
 3. For each pair of cuts, calculates what the delay would be if they corresponded to the same moment. The delay that receives the most coherent "votes" is selected as the candidate
 4. Verifies the candidate by comparing the visual signature around the cuts: if the frames before and after are similar between the two files, the match is confirmed
-5. Confirms at 9 points along the video, like speed correction. At least 5 valid points out of 9 are required
+5. Confirms at 9 points along the video. At least 5 valid points out of 9 are required
 
-Frame-Sync does not work if the differences are mid-episode (scenes cut or added in the middle). In that case, use Deep Analysis.
+When enabled in configuration, the global audio fingerprint can confirm or reject weak candidates. It does not replace video verification and does not turn Frame-Sync into a cut correction system.
+
+Frame-Sync does not apply cuts or inserts. If drift changes during the episode, the result is rejected and Deep Analysis is required.
 
 ### Deep Analysis
 
@@ -386,13 +367,25 @@ Imported audio tracks are processed through segment extraction, silence generati
 
 Deep Analysis is fail-safe: if a requested track cannot be rewritten or validated, the episode fails instead of importing an unedited track. Audio codecs without a usable ffmpeg encoder for cut-and-splice are not imported through a silent fallback.
 
+### Audio source fill
+
+When imported audio does not cover a portion that exists in the source, RemuxForge can fill that part using an audio track already present in the source, even in another language. The feature is enabled by setting a threshold in milliseconds, a source language and one or more modes:
+
+| Mode | When it applies | Result |
+|------|-----------------|--------|
+| `start` | The positive initial audio delay exceeds the threshold | Prepends the initial segment from the source to the imported track |
+| `end` | The imported track ends before the source by more than the threshold | Appends the final segment from the source |
+| `insert-silence` | Deep Analysis generates an `INSERT_SILENCE` above the threshold | Uses the corresponding source segment instead of inserting silence |
+
+From CLI it is configured with `--audio-source-fill-threshold-ms`, `--audio-source-fill-language` and `--audio-source-fill-modes`. In WebUI the same fields are in the configuration dialog. If filling is requested but the selected source track is not available, the episode fails instead of producing an incomplete track.
+
 ### Manual delay
 
 The parameters **-ad** (audio delay) and **-sd** (subtitle delay) specify an offset in milliseconds that is **added** to the frame-sync or speed correction result. In the WebUI it is possible to set different delays per episode.
 
-### Remux Audio Conversion
+### Audio Conversion
 
-Converts lossless audio tracks to FLAC or Opus during merge. Enabled with **-cf flac** or **-cf opus** from CLI, or from the "Convert audio" field in WebUI configuration.
+Converts selected lossless audio tracks during merge. Enabled with **-cf flac** or **-cf opus** from CLI, or from the "Convert audio" field in WebUI configuration. FLAC keeps a lossless output; Opus produces a lossy output.
 
 **Convertible codecs:** DTS-HD Master Audio, DTS-HD High Resolution, TrueHD, PCM, ALAC, MLP, FLAC.
 
@@ -414,7 +407,7 @@ Requested conversion is fail-safe: if a track that must be converted fails, the 
 
 Values are configurable in `appsettings.json` or from the **Settings > Audio conversion** menu in WebUI.
 
-### Remux Track Renaming
+### Track Renaming
 
 When audio conversion is active (**-cf**), converted tracks are automatically renamed with a descriptive title that includes codec, channel layout, bit depth, sample rate and bitrate. This always happens, no additional options needed.
 
@@ -430,7 +423,7 @@ With the **-rt** flag (or the "Rename all audio tracks" checkbox in WebUI), rena
 
 Channel layout is formatted as 1.0 (mono), 2.0 (stereo), 5.1, 7.1. Missing information is omitted.
 
-### Remux Video Encoding
+### Video Encoding
 
 After the merge it is possible to re-encode the video with a custom encoding profile. Encoding happens in-place on the resulting file via ffmpeg: the video is re-encoded, audio and subtitles are copied without modification.
 
@@ -482,9 +475,9 @@ Encoding uses software encoders. GPU acceleration applies only to decoding durin
 - **FilmGrainDenoise**: denoise before applying film grain, svtav1 only
 - **ExtraParams**: additional ffmpeg parameters in free format, appended to the end of the command
 
-### Remux GPU Acceleration
+### GPU Acceleration
 
-RemuxForge can use ffmpeg with `-hwaccel auto` to accelerate **video decoding** during analysis phases (speed correction, frame-sync, deep analysis). The option is disabled by default and can be enabled in the WebUI under `Advanced Settings > Ffmpeg > Hardware Acceleration`.
+RemuxForge can use ffmpeg with `-hwaccel auto` to accelerate **video decoding** during analysis phases (speed correction, frame-sync, Deep Analysis). The option is disabled by default and can be enabled in the WebUI under `Advanced Settings > Ffmpeg > Hardware Acceleration`.
 
 | Backend | Platform | GPU |
 |---------|----------|-----|
@@ -496,7 +489,7 @@ RemuxForge can use ffmpeg with `-hwaccel auto` to accelerate **video decoding** 
 
 **Docker:** to enable GPU acceleration in the container, see the [Docker with GPU acceleration](#docker-with-gpu-acceleration) section.
 
-### Remux Use Cases
+### Use Cases
 
 **1. Add Italian dubbing to an English release**
 
@@ -622,13 +615,13 @@ RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ep "x265
 RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -ep "svtav1_CRF30" -ksa eng -d "D:\Output" -fs
 ```
 
-**18. Deep analysis for files with different scenes**
+**18. Deep Analysis for files with different scenes**
 
 ```bash
 RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Output" -da
 ```
 
-### Remux Report
+### Report
 
 At the end of processing a summary report is displayed. In WebUI the detail is visible in the side panel for each episode.
 
@@ -659,13 +652,13 @@ RESULT FILES:
 - **Delay**: offset applied to imported tracks
 - **FrmSync**: frame-sync processing time (if active, otherwise "-")
 - **FSConf**: frame-sync confidence percentage (if available, otherwise "-")
-- **Deep**: number of cut-and-splice operations generated by deep analysis (if active, otherwise "-")
+- **Deep**: number of cut-and-splice operations generated by Deep Analysis (if active, otherwise "-")
 - **Speed**: speed correction processing time (if active, otherwise "-")
 - **Merge**: mkvmerge execution time
 
 In dry run mode, Size and Merge show "N/A" because the merge is not executed.
 
-### Remux Audio Codecs
+### Audio Codecs
 
 When you specify **-ac** or **-ksac** to filter codecs, the matching is **EXACT**, not partial. Both support multiple comma-separated values.
 
@@ -712,7 +705,7 @@ Codec names are case-insensitive. If a codec is not recognized with direct looku
 | Opus | OPUS | Opus (WebM) |
 | Vorbis | VORBIS | Ogg Vorbis |
 
-### Remux Language Codes
+### Language Codes
 
 Language codes are ISO 639-2 (3 letters). The most common ones:
 
@@ -737,7 +730,7 @@ Lingua 'italian' non riconosciuta.
 Forse intendevi: ita?
 ```
 
-### Remux Regex Patterns for Episode Matching
+### Regex Patterns for Episode Matching
 
 The application uses captured groups from the regex to match files. Each group in parentheses is concatenated with "_" to create the unique episode ID.
 
@@ -755,7 +748,7 @@ The pattern **S(\d+)E(\d+)** captures two groups (season and episode). For "S01E
 
 ## Split Mode
 
-Split mode integrates the `mkv_split` workflow into RemuxForge. It is designed to cut HEVC and AVC MKV files frame-perfectly while preserving the original bitstream byte-for-byte whenever possible. If the cut point is not on a keyframe, only the initial GOP of the segment is re-encoded; the rest of the video is copied intact. Audio and subtitles are remuxed without re-encoding.
+Split mode cuts HEVC and AVC MKV files frame-perfectly while preserving the original bitstream byte-for-byte whenever possible. If the cut point is not on a keyframe, only the initial GOP of the segment is re-encoded; the rest of the video is copied intact. Audio and subtitles are remuxed without re-encoding.
 
 The CLI always uses `--mode split`. The `--source` parameter can point either to a single MKV file or to a folder:
 

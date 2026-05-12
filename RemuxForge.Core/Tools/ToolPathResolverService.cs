@@ -56,6 +56,16 @@ namespace RemuxForge.Core.Tools
         }
 
         /// <summary>
+        /// Indica se un path mkvmerge punta a un eseguibile CLI valido
+        /// </summary>
+        /// <param name="path">Percorso da verificare</param>
+        /// <returns>True se il path e' utilizzabile come mkvmerge</returns>
+        public bool IsMkvMergeExecutablePath(string path)
+        {
+            return MkvMergeProvider.IsExecutablePath(path);
+        }
+
+        /// <summary>
         /// Risolve il path di ffmpeg
         /// </summary>
         /// <param name="autoSave">True per salvare il risultato in AppSettings quando valido</param>

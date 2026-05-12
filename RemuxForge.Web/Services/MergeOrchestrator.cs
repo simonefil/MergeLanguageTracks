@@ -144,6 +144,10 @@ namespace RemuxForge.Web.Services
         public bool ApplyOptions(Options opts, out string errorMessage)
         {
             bool result = false;
+            bool scanInputsChanged;
+            bool processingOptionsChanged;
+            int resetCount = 0;
+            Options previousOptions;
             errorMessage = "";
 
             if (opts == null)
@@ -160,6 +164,9 @@ namespace RemuxForge.Web.Services
 
             lock (this._lock)
             {
+                previousOptions = this._options;
+                scanInputsChanged = this.ScanInputsChanged(previousOptions, opts);
+                processingOptionsChanged = scanInputsChanged || this.ProcessingOptionsChanged(previousOptions, opts);
                 this._options = opts;
             }
 
@@ -178,7 +185,34 @@ namespace RemuxForge.Web.Services
 
             if (result)
             {
-                this.AppendLog("Configurazione applicata alla pipeline");
+                if (scanInputsChanged)
+                {
+                    lock (this._lock)
+                    {
+                        this._records.Clear();
+                        this._selectedIndex = -1;
+                    }
+                    this.AppendLog("Configurazione applicata alla pipeline: scan precedente invalidato, premere F5");
+                }
+                else if (processingOptionsChanged)
+                {
+                    lock (this._lock)
+                    {
+                        resetCount = this.ResetAnalyzedRecordsAfterConfigChange();
+                    }
+                    if (resetCount > 0)
+                    {
+                        this.AppendLog("Configurazione applicata alla pipeline: " + resetCount + " analisi precedenti scartate");
+                    }
+                    else
+                    {
+                        this.AppendLog("Configurazione applicata alla pipeline");
+                    }
+                }
+                else
+                {
+                    this.AppendLog("Configurazione applicata alla pipeline");
+                }
                 this.OnRecordsChanged?.Invoke();
             }
 
@@ -729,6 +763,172 @@ namespace RemuxForge.Web.Services
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Verifica se la nuova configurazione richiede un nuovo scan
+        /// </summary>
+        private bool ScanInputsChanged(Options previousOptions, Options newOptions)
+        {
+            bool result = false;
+
+            if (previousOptions == null || newOptions == null)
+            {
+                return true;
+            }
+
+            if (!string.Equals(previousOptions.SourceFolder, newOptions.SourceFolder, StringComparison.Ordinal) ||
+                !string.Equals(previousOptions.LanguageFolder, newOptions.LanguageFolder, StringComparison.Ordinal) ||
+                !string.Equals(previousOptions.MatchPattern, newOptions.MatchPattern, StringComparison.Ordinal) ||
+                previousOptions.Recursive != newOptions.Recursive ||
+                !this.StringListsEqual(previousOptions.FileExtensions, newOptions.FileExtensions))
+            {
+                result = true;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Verifica se la nuova configurazione invalida analisi e preview esistenti
+        /// </summary>
+        private bool ProcessingOptionsChanged(Options previousOptions, Options newOptions)
+        {
+            bool result = false;
+
+            if (previousOptions == null || newOptions == null)
+            {
+                return true;
+            }
+
+            if (!this.StringListsEqual(previousOptions.TargetLanguage, newOptions.TargetLanguage) ||
+                !this.StringListsEqual(previousOptions.AudioCodec, newOptions.AudioCodec) ||
+                !this.StringListsEqual(previousOptions.KeepSourceAudioLangs, newOptions.KeepSourceAudioLangs) ||
+                !this.StringListsEqual(previousOptions.KeepSourceAudioCodec, newOptions.KeepSourceAudioCodec) ||
+                !this.StringListsEqual(previousOptions.KeepSourceSubtitleLangs, newOptions.KeepSourceSubtitleLangs) ||
+                previousOptions.SubOnly != newOptions.SubOnly ||
+                previousOptions.AudioOnly != newOptions.AudioOnly ||
+                previousOptions.FrameSync != newOptions.FrameSync ||
+                previousOptions.DeepAnalysis != newOptions.DeepAnalysis ||
+                previousOptions.AudioDelay != newOptions.AudioDelay ||
+                previousOptions.SubtitleDelay != newOptions.SubtitleDelay ||
+                previousOptions.AudioSourceFillThresholdMs != newOptions.AudioSourceFillThresholdMs ||
+                previousOptions.AudioSourceFillStart != newOptions.AudioSourceFillStart ||
+                previousOptions.AudioSourceFillEnd != newOptions.AudioSourceFillEnd ||
+                previousOptions.AudioSourceFillInsertSilence != newOptions.AudioSourceFillInsertSilence ||
+                previousOptions.Overwrite != newOptions.Overwrite ||
+                previousOptions.RenameAllTracks != newOptions.RenameAllTracks ||
+                !string.Equals(previousOptions.AudioSourceFillLanguage, newOptions.AudioSourceFillLanguage, StringComparison.Ordinal) ||
+                !string.Equals(previousOptions.SpeedCorrectionMode, newOptions.SpeedCorrectionMode, StringComparison.Ordinal) ||
+                !string.Equals(previousOptions.ManualStretchFactor, newOptions.ManualStretchFactor, StringComparison.Ordinal) ||
+                !string.Equals(previousOptions.DestinationFolder, newOptions.DestinationFolder, StringComparison.Ordinal) ||
+                !string.Equals(previousOptions.ConvertFormat, newOptions.ConvertFormat, StringComparison.Ordinal) ||
+                !string.Equals(previousOptions.EncodingProfileName, newOptions.EncodingProfileName, StringComparison.Ordinal) ||
+                !string.Equals(previousOptions.MkvMergePath, newOptions.MkvMergePath, StringComparison.Ordinal))
+            {
+                result = true;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Confronta due liste stringa preservando ordine e valori
+        /// </summary>
+        private bool StringListsEqual(List<string> left, List<string> right)
+        {
+            bool result = false;
+
+            if (left == null || right == null)
+            {
+                return left == right;
+            }
+
+            if (left.Count == right.Count)
+            {
+                result = true;
+                for (int i = 0; i < left.Count; i++)
+                {
+                    if (!string.Equals(left[i], right[i], StringComparison.Ordinal))
+                    {
+                        result = false;
+                        break;
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Scarta analisi e preview calcolate con una configurazione precedente
+        /// </summary>
+        private int ResetAnalyzedRecordsAfterConfigChange()
+        {
+            int result = 0;
+
+            for (int i = 0; i < this._records.Count; i++)
+            {
+                if (this._records[i].Status == FileStatus.Done || this._records[i].Status == FileStatus.Skipped)
+                {
+                    continue;
+                }
+
+                this.ResetRecordAnalysisState(this._records[i]);
+                result++;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Ripulisce i dati derivati da analisi/merge lasciando intatti file e delay manuali
+        /// </summary>
+        private void ResetRecordAnalysisState(FileProcessingRecord record)
+        {
+            record.ResultFileName = "";
+            record.ResultSize = 0;
+            record.ResultAudioLangs.Clear();
+            record.ResultSubLangs.Clear();
+            record.AudioDelayApplied = 0;
+            record.SubDelayApplied = 0;
+            record.FrameSyncTimeMs = 0;
+            record.FrameSyncResult = null;
+            record.MergeTimeMs = 0;
+            record.SpeedCorrectionTimeMs = 0;
+            record.StretchFactor = "";
+            record.SpeedCorrectionApplied = false;
+            record.Success = false;
+            record.SkipReason = "";
+            record.AnalysisLog.Clear();
+            record.ErrorMessage = "";
+            record.SyncOffsetMs = 0;
+            record.MergeCommand = "";
+            record.EncodingProfileName = "";
+            record.EncodingTimeMs = 0;
+            record.EncodedSize = 0;
+            record.EncodingCommand = "";
+            record.ResultFilePath = "";
+            record.SourceAudioTracks.Clear();
+            record.SourceSubTracks.Clear();
+            record.KeptSourceAudioIds.Clear();
+            record.KeptSourceSubIds.Clear();
+            record.ImportedAudioTracks.Clear();
+            record.ImportedSubTracks.Clear();
+            record.DisplayConvertFormat = "";
+            record.DeepAnalysisMap = null;
+            record.DeepAnalysisTimeMs = 0;
+            record.DeepAnalysisApplied = false;
+
+            if (this._options.TargetLanguage.Count == 0 || record.LangFilePath.Length > 0)
+            {
+                record.Status = FileStatus.Pending;
+            }
+            else
+            {
+                record.Status = FileStatus.Skipped;
+                record.SkipReason = "No match";
+            }
         }
 
         /// <summary>
