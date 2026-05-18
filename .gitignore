@@ -365,3 +365,4 @@ MigrationBackup/
 # Local RemuxForge analysis/test artifacts
 /tools/
 /.remux-forge/
+/docs
