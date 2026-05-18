@@ -93,7 +93,7 @@ namespace RemuxForge.Core.Pipeline
                 record.KeptSourceSubIds = sourceSubIds;
                 record.ImportedAudioTracks = audioTracks;
                 record.ImportedSubTracks = subtitleTracks;
-                record.DisplayConvertFormat = options.ConvertFormat;
+                record.DisplayAudioFormat = options.AudioFormat;
 
                 if (hasWork)
                 {
@@ -113,8 +113,8 @@ namespace RemuxForge.Core.Pipeline
                     mergeReq.FilterSourceAudio = filterSourceAudio;
                     mergeReq.FilterSourceSubs = filterSourceSubs;
                     mergeReq.StretchFactor = stretchFactor;
-                    mergeReq.ConvertFormat = options.ConvertFormat;
-                    mergeReq.RenameAllTracks = options.RenameAllTracks;
+                    mergeReq.AudioFormat = options.AudioFormat;
+                    mergeReq.AudioRenameScope = options.AudioRenameScope;
                     mergeReq.SourceTitle = (sourceInfo != null) ? sourceInfo.ContainerTitle : "";
                     mergeReq.ConvertedSourceTracks = new Dictionary<int, string>();
                     mergeReq.ConvertedLangTracks = new Dictionary<int, string>();

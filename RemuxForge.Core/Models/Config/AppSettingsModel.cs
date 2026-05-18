@@ -165,6 +165,78 @@ namespace RemuxForge.Core.Models
     }
 
     /// <summary>
+    /// Configurazione bitrate AAC per canale
+    /// </summary>
+    public class AacBitrateConfig
+    {
+        #region Costruttore
+
+        /// <summary>
+        /// Costruttore con valori di default
+        /// </summary>
+        public AacBitrateConfig()
+        {
+            this.Mono = 128;
+            this.Stereo = 256;
+            this.Surround51 = 768;
+            this.Surround71 = 1024;
+        }
+
+        #endregion
+
+        #region Proprieta
+
+        /// <summary>
+        /// Bitrate mono in kbps
+        /// </summary>
+        public int Mono { get; set; }
+
+        /// <summary>
+        /// Bitrate stereo in kbps
+        /// </summary>
+        public int Stereo { get; set; }
+
+        /// <summary>
+        /// Bitrate surround 5.1 in kbps
+        /// </summary>
+        public int Surround51 { get; set; }
+
+        /// <summary>
+        /// Bitrate surround 7.1 in kbps
+        /// </summary>
+        public int Surround71 { get; set; }
+
+        #endregion
+    }
+
+    /// <summary>
+    /// Configurazione codec AAC
+    /// </summary>
+    public class AacConfig
+    {
+        #region Costruttore
+
+        /// <summary>
+        /// Costruttore con valori di default
+        /// </summary>
+        public AacConfig()
+        {
+            this.Bitrate = new AacBitrateConfig();
+        }
+
+        #endregion
+
+        #region Proprieta
+
+        /// <summary>
+        /// Bitrate per canale
+        /// </summary>
+        public AacBitrateConfig Bitrate { get; set; }
+
+        #endregion
+    }
+
+    /// <summary>
     /// Configurazione interfaccia utente
     /// </summary>
     public class UiConfig
@@ -225,6 +297,16 @@ namespace RemuxForge.Core.Models
         public const int OPUS_BITRATE_MAX = 768;
 
         /// <summary>
+        /// Bitrate AAC minimo in kbps
+        /// </summary>
+        public const int AAC_BITRATE_MIN = 32;
+
+        /// <summary>
+        /// Bitrate AAC massimo in kbps
+        /// </summary>
+        public const int AAC_BITRATE_MAX = 1536;
+
+        /// <summary>
         /// Temi validi
         /// </summary>
         public static readonly string[] VALID_THEMES = { "dark", "nord", "dos-blue", "matrix", "cyberpunk", "solarized-dark", "solarized-light", "cybergum", "everforest" };
@@ -241,6 +323,7 @@ namespace RemuxForge.Core.Models
             this.Tools = new ToolsConfig();
             this.Flac = new FlacConfig();
             this.Opus = new OpusConfig();
+            this.Aac = new AacConfig();
             this.Ui = new UiConfig();
             this.EncodingProfiles = new List<EncodingProfile>();
             this.Advanced = new AdvancedConfig();
@@ -264,6 +347,11 @@ namespace RemuxForge.Core.Models
         /// Configurazione codec Opus
         /// </summary>
         public OpusConfig Opus { get; set; }
+
+        /// <summary>
+        /// Configurazione codec AAC
+        /// </summary>
+        public AacConfig Aac { get; set; }
 
         /// <summary>
         /// Configurazione interfaccia utente

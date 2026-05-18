@@ -21,7 +21,7 @@ namespace RemuxForge.Core.Models
         Speed,
 
         /// <summary>
-        /// Deep analysis (DeepAnalysisService, TrackSplitService)
+        /// Deep analysis (DeepAnalysisService, SubtitleTimelineEditService)
         /// </summary>
         Deep,
 
@@ -31,7 +31,7 @@ namespace RemuxForge.Core.Models
         FrameSync,
 
         /// <summary>
-        /// Conversione audio (AudioConversionService)
+        /// Processing audio (AudioProcessingService)
         /// </summary>
         Conv,
 

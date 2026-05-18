@@ -100,7 +100,7 @@ namespace RemuxForge.Web.Services
             if (record.ImportedAudioTracks.Count > 0 || record.ImportedSubTracks.Count > 0)
             {
                 sb.Append("\nTRACCE DA IMPORTARE\n");
-                sb.Append("  Audio: ").Append(Utils.FormatImportedTrackList(record.ImportedAudioTracks, record.DisplayConvertFormat)).Append('\n');
+                sb.Append("  Audio: ").Append(Utils.FormatImportedTrackList(record.ImportedAudioTracks, record.DisplayAudioFormat)).Append('\n');
                 sb.Append("  Sub:   ").Append(Utils.FormatTrackList(record.ImportedSubTracks)).Append('\n');
             }
 
@@ -109,7 +109,7 @@ namespace RemuxForge.Web.Services
             if (record.ImportedAudioTracks.Count > 0 || record.ImportedSubTracks.Count > 0 || filterAudio || filterSub)
             {
                 sb.Append("\nRISULTATO FINALE\n");
-                sb.Append("  Audio: ").Append(Utils.FormatResultTrackList(record.SourceAudioTracks, record.KeptSourceAudioIds, record.ImportedAudioTracks, record.DisplayConvertFormat, filterAudio)).Append('\n');
+                sb.Append("  Audio: ").Append(Utils.FormatResultTrackList(record.SourceAudioTracks, record.KeptSourceAudioIds, record.ImportedAudioTracks, record.DisplayAudioFormat, filterAudio)).Append('\n');
                 sb.Append("  Sub:   ").Append(Utils.FormatResultTrackList(record.SourceSubTracks, record.KeptSourceSubIds, record.ImportedSubTracks, "", filterSub)).Append('\n');
             }
         }
@@ -174,7 +174,7 @@ namespace RemuxForge.Web.Services
                 sb.Append(this.FormatTimestamp(op.LangTimestampMs)).Append(", ");
                 sb.Append("src ");
                 sb.Append(this.FormatTimestamp(op.SourceTimestampMs)).Append(", ");
-                sb.Append("durata ").Append(this.FormatDuration(op.DurationMs)).Append('\n');
+                sb.Append("durata ").Append((op.DurationMs / 1000.0).ToString("F3", CultureInfo.InvariantCulture)).Append("s\n");
             }
         }
 
@@ -199,7 +199,7 @@ namespace RemuxForge.Web.Services
 
             sb.Append("  Frame-sync:          ").Append(frameSyncResult.Success ? "OK" : "fallito").Append('\n');
             sb.Append("  Offset frame-sync:   ").Append(this.FormatOptionalDelay(frameSyncResult.OffsetMs)).Append('\n');
-            sb.Append("  Confidence:          ").Append(this.FormatPercent(frameSyncResult.Confidence)).Append('\n');
+            sb.Append("  Confidence:          ").Append(frameSyncResult.Confidence.ToString("P0", CultureInfo.InvariantCulture)).Append('\n');
             if (total > 0)
             {
                 sb.Append("  Checkpoint:          ").Append(accepted).Append('/').Append(total).Append(" validi\n");
@@ -287,14 +287,6 @@ namespace RemuxForge.Web.Services
         }
 
         /// <summary>
-        /// Formatta valore percentuale
-        /// </summary>
-        private string FormatPercent(double value)
-        {
-            return value.ToString("P0", CultureInfo.InvariantCulture);
-        }
-
-        /// <summary>
         /// Formatta un delay opzionale
         /// </summary>
         private string FormatOptionalDelay(int value)
@@ -345,14 +337,6 @@ namespace RemuxForge.Web.Services
             }
 
             return minutes.ToString("00", CultureInfo.InvariantCulture) + ":" + seconds.ToString("00", CultureInfo.InvariantCulture) + "." + millis.ToString("000", CultureInfo.InvariantCulture);
-        }
-
-        /// <summary>
-        /// Formatta durata in secondi
-        /// </summary>
-        private string FormatDuration(int durationMs)
-        {
-            return (durationMs / 1000.0).ToString("F3", CultureInfo.InvariantCulture) + "s";
         }
 
         #endregion

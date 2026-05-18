@@ -332,6 +332,7 @@ namespace RemuxForge.Core.Models
             this.RejectReason = "";
             this.OperationType = "";
             this.RefineMethod = "";
+            this.Candidates = new List<DeepAnalysisTransitionCandidateDiagnostic>();
         }
 
         /// <summary>
@@ -406,6 +407,53 @@ namespace RemuxForge.Core.Models
         /// Verifica locale associata alla transizione
         /// </summary>
         public DeepAnalysisLocalVerificationDiagnostic LocalVerification { get; set; }
+        /// <summary>
+        /// Candidati valutati durante il refine locale
+        /// </summary>
+        public List<DeepAnalysisTransitionCandidateDiagnostic> Candidates { get; set; }
+    }
+
+    /// <summary>
+    /// Candidato locale valutato durante il refine di una transizione
+    /// </summary>
+    public class DeepAnalysisTransitionCandidateDiagnostic
+    {
+        /// <summary>
+        /// Timestamp source del candidato
+        /// </summary>
+        public double SourceSec { get; set; }
+        /// <summary>
+        /// Score differenziale usato per ordinare o filtrare il candidato
+        /// </summary>
+        public double Score { get; set; }
+        /// <summary>
+        /// Motion MSE source sul frame candidato
+        /// </summary>
+        public double MotionMse { get; set; }
+        /// <summary>
+        /// MSE vecchio offset sul frame candidato
+        /// </summary>
+        public double OldMse { get; set; }
+        /// <summary>
+        /// MSE nuovo offset sul frame candidato
+        /// </summary>
+        public double NewMse { get; set; }
+        /// <summary>
+        /// True se la verifica locale ha accettato direttamente il candidato
+        /// </summary>
+        public bool Verified { get; set; }
+        /// <summary>
+        /// True se il candidato puo' essere demandato alla verifica globale
+        /// </summary>
+        public bool CanDeferToGlobalVerification { get; set; }
+        /// <summary>
+        /// True se l'audio ammesso ha negato il candidato
+        /// </summary>
+        public bool AudioRejected { get; set; }
+        /// <summary>
+        /// Motivo sintetico del risultato candidato
+        /// </summary>
+        public string Decision { get; set; }
     }
 
     /// <summary>
@@ -454,6 +502,30 @@ namespace RemuxForge.Core.Models
         /// </summary>
         public double ForwardNewMse { get; set; }
         /// <summary>
+        /// SSIM prima della transizione con vecchio offset
+        /// </summary>
+        public double BeforeOldSsim { get; set; }
+        /// <summary>
+        /// SSIM prima della transizione con nuovo offset
+        /// </summary>
+        public double BeforeNewSsim { get; set; }
+        /// <summary>
+        /// SSIM dopo la transizione con vecchio offset
+        /// </summary>
+        public double AfterOldSsim { get; set; }
+        /// <summary>
+        /// SSIM dopo la transizione con nuovo offset
+        /// </summary>
+        public double AfterNewSsim { get; set; }
+        /// <summary>
+        /// SSIM forward con vecchio offset
+        /// </summary>
+        public double ForwardOldSsim { get; set; }
+        /// <summary>
+        /// SSIM forward con nuovo offset
+        /// </summary>
+        public double ForwardNewSsim { get; set; }
+        /// <summary>
         /// Rapporto miglioramento sul punto forward
         /// </summary>
         public double ForwardImprovementRatio { get; set; }
@@ -465,6 +537,10 @@ namespace RemuxForge.Core.Models
         /// True se la conferma audio locale ha validato la transizione
         /// </summary>
         public bool AudioVerified { get; set; }
+        /// <summary>
+        /// True se l'audio finale ammesso nega la transizione video con margine forte
+        /// </summary>
+        public bool AudioRejected { get; set; }
         /// <summary>
         /// Score audio prima della transizione con vecchio offset
         /// </summary>
@@ -586,10 +662,6 @@ namespace RemuxForge.Core.Models
         /// Numero transizioni raffinate
         /// </summary>
         public int TransitionRefineCount { get; set; }
-        /// <summary>
-        /// Numero refine transizioni audio
-        /// </summary>
-        public int TransitionAudioRefineCount { get; set; }
         /// <summary>
         /// Numero refine transizioni visuali
         /// </summary>

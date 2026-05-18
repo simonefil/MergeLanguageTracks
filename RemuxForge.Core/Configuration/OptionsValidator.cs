@@ -48,7 +48,7 @@ namespace RemuxForge.Core.Configuration
 
             needsMerge = options.TargetLanguage.Count > 0;
             needsFilter = options.KeepSourceAudioLangs.Count > 0 || options.KeepSourceAudioCodec.Count > 0 || options.KeepSourceSubtitleLangs.Count > 0;
-            needsRemux = needsMerge || needsFilter || options.ConvertFormat.Length > 0;
+            needsRemux = needsMerge || needsFilter || options.AudioFormat.Length > 0 || options.AudioRenameScope != "disabled";
             needsEncode = options.EncodingProfileName.Length > 0;
 
             if (options.FrameSync && options.DeepAnalysis)
@@ -67,6 +67,7 @@ namespace RemuxForge.Core.Configuration
             }
 
             ValidateSpeedCorrection(options, result);
+            ValidateAudioProcessing(options, needsMerge, result);
             ValidateAudioSourceFill(options, needsMerge, result);
             ValidateRegex(options.MatchPattern, result);
             ValidateExtensions(options, result);
@@ -76,7 +77,7 @@ namespace RemuxForge.Core.Configuration
 
             if (requireSourceFolder && !needsRemux && !needsEncode)
             {
-                result.AddError("Nessuna operazione configurata. Specificare almeno una tra: lingua target, filtri tracce, conversione audio, profilo encoding");
+                result.AddError("Nessuna operazione configurata. Specificare almeno una tra: lingua target, filtri tracce, processing audio, profilo encoding");
             }
 
             if (requireSourceFolder && !options.Overwrite && options.DestinationFolder.Length == 0 && !(needsEncode && !needsRemux))
@@ -138,6 +139,11 @@ namespace RemuxForge.Core.Configuration
                 result.AddError("audio-source-fill richiede una lingua target da importare");
             }
 
+            if (active && (options.AudioFormat.Length == 0 || options.AudioProcessingScope == "disabled"))
+            {
+                result.AddError("audio-source-fill richiede formato audio e scope audio attivo");
+            }
+
             if (active && options.AudioSourceFillThresholdMs <= 0)
             {
                 result.AddError("audio-source-fill-threshold-ms deve essere maggiore di zero quando audio-source-fill e' attivo");
@@ -162,6 +168,73 @@ namespace RemuxForge.Core.Configuration
             {
                 ValidateLanguage("audio-source-fill-language", options.AudioSourceFillLanguage, result);
             }
+        }
+
+        /// <summary>
+        /// Valida opzioni del processing audio
+        /// </summary>
+        private static void ValidateAudioProcessing(Options options, bool needsMerge, OptionsValidationResult result)
+        {
+            if (!IsValidAudioFormat(options.AudioFormat))
+            {
+                result.AddError("Formato audio non valido: " + options.AudioFormat + ". Valori validi: flac, lpcm, aac, opus");
+            }
+
+            if (!IsValidScope(options.AudioProcessingScope))
+            {
+                result.AddError("Scope audio non valido: " + options.AudioProcessingScope + ". Valori validi: disabled, lang, all");
+            }
+
+            if (!IsValidScope(options.AudioRenameScope))
+            {
+                result.AddError("Scope rinomina audio non valido: " + options.AudioRenameScope + ". Valori validi: disabled, lang, all");
+            }
+
+            if (options.AudioFormat.Length == 0 && options.AudioProcessingScope != "disabled")
+            {
+                result.AddError("audio-scope richiede audio-format");
+            }
+
+            if (options.AudioProcessingScope != "disabled" && options.AudioFormat.Length == 0)
+            {
+                result.AddError("audio-format e' obbligatorio quando audio-scope non e' disabled");
+            }
+
+            if ((options.AudioPeakNormalize || options.AudioDownsample24To16) && (options.AudioFormat.Length == 0 || options.AudioProcessingScope == "disabled"))
+            {
+                result.AddError("normalizzazione e 24->16 richiedono formato audio e scope audio attivo");
+            }
+
+            if (options.AudioDownsample24To16 && options.AudioFormat != "flac" && options.AudioFormat != "lpcm")
+            {
+                result.AddError("24->16 e' ammesso solo per flac e lpcm");
+            }
+
+            if (options.AudioPeakTargetDb > 0.0)
+            {
+                result.AddError("audio-peak-target-db deve essere minore o uguale a 0");
+            }
+
+            if (options.AudioPeakTargetDb < -60.0)
+            {
+                result.AddError("audio-peak-target-db non puo' essere minore di -60");
+            }
+        }
+
+        /// <summary>
+        /// Verifica se un formato audio e' valido
+        /// </summary>
+        private static bool IsValidAudioFormat(string value)
+        {
+            return value == "" || value == "flac" || value == "lpcm" || value == "aac" || value == "opus";
+        }
+
+        /// <summary>
+        /// Verifica se uno scope audio e' valido
+        /// </summary>
+        private static bool IsValidScope(string value)
+        {
+            return value == "disabled" || value == "lang" || value == "all";
         }
 
         /// <summary>

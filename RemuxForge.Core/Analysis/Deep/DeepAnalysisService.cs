@@ -1,4 +1,4 @@
-using RemuxForge.Core.Analysis.FrameSync;
+using RemuxForge.Core.Analysis.Speed;
 using RemuxForge.Core.Configuration;
 using RemuxForge.Core.Infrastructure;
 using RemuxForge.Core.Media;
@@ -26,25 +26,25 @@ namespace RemuxForge.Core.Analysis.Deep
         private const double INITIAL_VISUAL_GUARD_MAX_REGION_SEC = 60.0;
         private const double INITIAL_VISUAL_GUARD_TIMELINE_LEAD_IN_SEC = 20.0;
         private const int INITIAL_VISUAL_GUARD_TIMELINE_START_PADDING_MS = 500;
-        private const int INITIAL_VISUAL_GUARD_FRAMESYNC_CONSENSUS_MS = 500;
-        private const int INITIAL_VISUAL_GUARD_FRAMESYNC_REJECT_MS = 1000;
         private const double INITIAL_VISUAL_GUARD_STRONG_MSE = 3500.0;
         private const double INITIAL_VISUAL_GUARD_STRONG_MARGIN = 0.08;
         private const double INITIAL_VISUAL_GUARD_LOCAL_MARGIN = 0.04;
         private const double INITIAL_VISUAL_GUARD_RELATIVE_IMPROVEMENT = 0.60;
         private const double INITIAL_VISUAL_GUARD_TIMELINE_IMPROVEMENT = 0.75;
         private const double INITIAL_VISUAL_GUARD_BORDER_MARGIN = 0.12;
-        private const int VISUAL_BASELINE_CONFLICT_THRESHOLD_MS = 250;
-        private const int TIMELINE_SPIKE_PRUNE_MERGE_TOLERANCE_MS = 250;
-        private const int TIMELINE_SPIKE_PRUNE_MIN_DELTA_MS = 500;
         private const double LOCAL_MSE_RATIO_EPSILON = 1.0;
         private const double LOCAL_AUDIO_VERIFY_WINDOW_SEC = 6.0;
         private const int LOCAL_AUDIO_VERIFY_WINDOW_MS = 50;
         private const int LOCAL_AUDIO_VERIFY_MIN_WINDOWS = 40;
         private const double LOCAL_AUDIO_VERIFY_MIN_SCORE = 0.62;
         private const double LOCAL_AUDIO_VERIFY_MIN_MARGIN = 0.06;
+        private const double LOCAL_AUDIO_REJECT_MIN_SCORE = 0.70;
+        private const double LOCAL_AUDIO_REJECT_MIN_MARGIN = 0.12;
         private const double LOCAL_AUDIO_VERIFY_BEFORE_TOLERANCE = 0.04;
         private const double LOCAL_FORWARD_STRONG_RATIO = 1.50;
+        private const double LOCAL_TIMELINE_CUT_FORWARD_SEC = 30.0;
+        private const double LOCAL_SSIM_CLEAR_MARGIN = 0.015;
+        private const double LOCAL_SSIM_TIE_MARGIN = 0.005;
 
         #endregion
 
@@ -71,24 +71,9 @@ namespace RemuxForge.Core.Analysis.Deep
         private readonly object _performanceDiagnosticsLock;
 
         /// <summary>
-        /// Resolver stretch globale
-        /// </summary>
-        private readonly DeepStretchResolver _stretchResolver;
-
-        /// <summary>
         /// Refiner transizioni DeepAnalysis
         /// </summary>
         private readonly DeepTransitionRefiner _transitionRefiner;
-
-        /// <summary>
-        /// Verificatore globale DeepAnalysis
-        /// </summary>
-        private readonly DeepGlobalVerifier _globalVerifier;
-
-        /// <summary>
-        /// Mapper diagnostica regioni DeepAnalysis
-        /// </summary>
-        private readonly DeepAnalysisRegionMapper _regionMapper;
 
         /// <summary>
         /// Servizio envelope audio locale
@@ -101,9 +86,9 @@ namespace RemuxForge.Core.Analysis.Deep
         private readonly DeepVisualFrameAnalyzer _visualFrameAnalyzer;
 
         /// <summary>
-        /// Mapper timeline-first basato su anchor audio distribuiti
+        /// Verificatore globale DeepAnalysis
         /// </summary>
-        private DeepTimelineAnchorMapper _timelineAnchorMapper;
+        private readonly DeepGlobalVerifier _globalVerifier;
 
         /// <summary>
         /// Risolutore centralizzato per mkvmerge e tool esterni
@@ -116,9 +101,9 @@ namespace RemuxForge.Core.Analysis.Deep
         private bool _currentAnalysisUsesTimelineMap;
 
         /// <summary>
-        /// True se la timeline corrente usa una traccia audio comune source/lang
+        /// Policy tracce audio consentite per la validazione locale
         /// </summary>
-        private bool _currentAnalysisHasCommonAudio;
+        private DeepAnalysisTrackPolicy _currentTrackPolicy;
 
         /// <summary>
         /// File source dell'analisi corrente
@@ -129,16 +114,6 @@ namespace RemuxForge.Core.Analysis.Deep
         /// File lang dell'analisi corrente
         /// </summary>
         private string _currentAnalysisLanguageFile;
-
-        /// <summary>
-        /// Indice stream audio source da usare nei refine audio locali
-        /// </summary>
-        private int _currentSourceAudioStreamIndex;
-
-        /// <summary>
-        /// Indice stream audio language da usare nei refine audio locali
-        /// </summary>
-        private int _currentLanguageAudioStreamIndex;
 
         /// <summary>
         /// Ultima mappa diagnostica prodotta, anche in caso di fallimento
@@ -160,19 +135,14 @@ namespace RemuxForge.Core.Analysis.Deep
             this._performanceDiagnostics = new DeepAnalysisPerformanceDiagnostic();
             this._performanceDiagnosticsLock = new object();
             this._toolPathResolver = toolPathResolver ?? new ToolPathResolverService(AppSettingsService.Instance.ConfigFolder);
-            this._stretchResolver = new DeepStretchResolver();
-            this._transitionRefiner = new DeepTransitionRefiner(this.GetTransitionRefineRadiusSec, this.AudioDifferentialCrossover, this.DifferentialScanCrossover, this.DenseScanCrossover, this.RepeatedFrameCrossover, this.LinearScanConfirm, this.VerifyTransitionLocal);
-            this._globalVerifier = new DeepGlobalVerifier(this._daConfig, this._vsConfig, this.TryComputeGlobalPointMse);
-            this._regionMapper = new DeepAnalysisRegionMapper();
             this._audioEnvelopeService = new DeepAudioEnvelopeService(this._ffmpegPath, this.RecordAudioEnvelopeExtract);
             this._visualFrameAnalyzer = new DeepVisualFrameAnalyzer(this._daConfig, this.ExtractDeepSegment, this.ComputeSsim, this.ComputeMse);
-            this._timelineAnchorMapper = new DeepTimelineAnchorMapper(this.ResolveMkvMergePath(), this._audioEnvelopeService, this.BuildVisualTimelineAnchor);
+            this._transitionRefiner = new DeepTransitionRefiner(this.GetTransitionRefineRadiusSec, this.DifferentialScanCrossover, this._visualFrameAnalyzer, this.LinearScanConfirm, this.VerifyTransitionLocal);
+            this._globalVerifier = new DeepGlobalVerifier(this._daConfig, this._vsConfig, this._visualFrameAnalyzer);
             this._currentAnalysisUsesTimelineMap = false;
-            this._currentAnalysisHasCommonAudio = false;
+            this._currentTrackPolicy = new DeepAnalysisTrackPolicy();
             this._currentAnalysisSourceFile = "";
             this._currentAnalysisLanguageFile = "";
-            this._currentSourceAudioStreamIndex = 0;
-            this._currentLanguageAudioStreamIndex = 0;
             this._lastAnalysisMap = null;
         }
 
@@ -190,8 +160,9 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="sourceDurationMs">Durata container source in millisecondi</param>
         /// <param name="manualStretchFactor">Stretch factor manuale, vuoto se assente</param>
         /// <param name="allowAutoStretch">True per consentire stretch automatico da metadata gia' validati</param>
+        /// <param name="trackPolicy">Policy delle tracce audio ammesse come validazione</param>
         /// <returns>EditMap con operazioni di edit, null se analisi fallita</returns>
-        public EditMap Analyze(string sourceFile, string langFile, long sourceDefaultDurationNs, long langDefaultDurationNs, int sourceDurationMs, string manualStretchFactor, bool allowAutoStretch)
+        public EditMap Analyze(string sourceFile, string langFile, long sourceDefaultDurationNs, long langDefaultDurationNs, int sourceDurationMs, string manualStretchFactor, bool allowAutoStretch, DeepAnalysisTrackPolicy trackPolicy)
         {
             EditMap result = null;
             Stopwatch stopwatch = new Stopwatch();
@@ -213,9 +184,7 @@ namespace RemuxForge.Core.Analysis.Deep
             double visualStartEndSec;
             double visualStartMse;
             double visualStartSecondMse;
-            int visualBaselineOffsetMs;
-            FrameSyncResult visualBaselineResult;
-            bool visualBaselineOnly;
+            string mkvMergePath;
             stopwatch.Start();
             this._lastAnalysisMap = null;
             lock (this._performanceDiagnosticsLock)
@@ -223,11 +192,9 @@ namespace RemuxForge.Core.Analysis.Deep
                 this._performanceDiagnostics = diagnostics.Performance;
             }
             this._currentAnalysisUsesTimelineMap = false;
-            this._currentAnalysisHasCommonAudio = false;
+            this._currentTrackPolicy = trackPolicy ?? new DeepAnalysisTrackPolicy();
             this._currentAnalysisSourceFile = sourceFile;
             this._currentAnalysisLanguageFile = langFile;
-            this._currentSourceAudioStreamIndex = 0;
-            this._currentLanguageAudioStreamIndex = 0;
             diagnostics.ManualStretchRequested = manualStretchFactor != null ? manualStretchFactor : "";
             diagnostics.AllowAutoStretch = allowAutoStretch;
             this.PrepareGeometryDrivenCrop(sourceFile, langFile);
@@ -253,7 +220,14 @@ namespace RemuxForge.Core.Analysis.Deep
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Phase, "  Fase 2: Mappa timeline...");
             ConsoleHelper.Progress(LogSection.Deep, 25, "Deep: timeline");
             phaseStartMs = stopwatch.ElapsedMilliseconds;
-            timelineMap = this.BuildTimelineMap(sourceFile, langFile, sourceDurationMs);
+            mkvMergePath = this._toolPathResolver.ResolveMkvMergePath(false);
+            if (mkvMergePath.Length == 0)
+            {
+                mkvMergePath = AppSettingsService.Instance.Settings.Tools.MkvMergePath;
+            }
+
+            DeepTimelineAnchorMapper timelineAnchorMapper = new DeepTimelineAnchorMapper(mkvMergePath, this.BuildVisualTimelineAnchor);
+            timelineMap = timelineAnchorMapper.Build(sourceFile, langFile, sourceDurationMs);
             diagnostics.Timing.TimelineMapMs = stopwatch.ElapsedMilliseconds - phaseStartMs;
             if (timelineMap != null && timelineMap.Diagnostic != null)
             {
@@ -268,74 +242,65 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             this._currentAnalysisUsesTimelineMap = true;
-            this._currentAnalysisHasCommonAudio = string.Equals(timelineMap.Diagnostic.AnchorMode, "audio-common", StringComparison.Ordinal);
-            this._currentSourceAudioStreamIndex = timelineMap.Diagnostic.SourceAudioStreamIndex;
-            this._currentLanguageAudioStreamIndex = timelineMap.Diagnostic.LanguageAudioStreamIndex;
-            regions = timelineMap.Regions;
-            visualBaselineOffsetMs = this.ResolveVisualBaselineOffset(sourceFile, langFile, timelineMap, inverseRatio, out visualBaselineResult);
-            visualBaselineOnly = this.ShouldUseVisualBaselineOnly(timelineMap, visualBaselineOffsetMs, inverseRatio);
-            if (visualBaselineOnly)
+            if (this._currentTrackPolicy.AudioValidationAvailable)
             {
-                regions = this.BuildConstantOffsetRegions(visualBaselineOffsetMs, sourceDurationMs);
-                visualStartOffsetMs = int.MinValue;
-                visualStartEndSec = 0.0;
-                visualStartMse = 0.0;
-                visualStartSecondMse = 0.0;
-                ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Timeline audio-common scartata come edit operativo: baseline visuale FrameSync " + visualBaselineOffsetMs.ToString(CultureInfo.InvariantCulture) + "ms");
+                timelineMap.Diagnostic.TrackLanguage = this._currentTrackPolicy.TrackLanguage;
+                timelineMap.Diagnostic.SourceAudioStreamIndex = this._currentTrackPolicy.SourceAudioStreamIndex;
+                timelineMap.Diagnostic.LanguageAudioStreamIndex = this._currentTrackPolicy.LanguageAudioStreamIndex;
+                timelineMap.Diagnostic.SourceTrackName = this._currentTrackPolicy.SourceTrackName;
+                timelineMap.Diagnostic.LanguageTrackName = this._currentTrackPolicy.LanguageTrackName;
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Audio validator: " + this._currentTrackPolicy.TrackLanguage + " source stream " + this._currentTrackPolicy.SourceAudioStreamIndex.ToString(CultureInfo.InvariantCulture) + ", lang stream " + this._currentTrackPolicy.LanguageAudioStreamIndex.ToString(CultureInfo.InvariantCulture));
             }
             else
             {
-                this.ApplyInitialVisualGuard(sourceFile, langFile, sourceDurationMs, regions, visualBaselineResult, out visualStartOffsetMs, out visualStartEndSec, out visualStartMse, out visualStartSecondMse);
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Audio validator non disponibile: " + this._currentTrackPolicy.RejectReason);
             }
+
+            regions = timelineMap.Regions;
+            this.ApplyInitialVisualGuard(sourceFile, langFile, sourceDurationMs, regions, out visualStartOffsetMs, out visualStartEndSec, out visualStartMse, out visualStartSecondMse);
 
             acceptedAnchors = timelineMap.Diagnostic.AcceptedAnchorCount;
             initialAlignment = new DeepAnalysisInitialAlignmentDiagnostic();
-            initialAlignment.SceneCandidateAvailable = visualStartOffsetMs != int.MinValue || visualBaselineOnly;
-            initialAlignment.SceneOffsetMs = visualBaselineOnly ? visualBaselineOffsetMs : (visualStartOffsetMs != int.MinValue ? visualStartOffsetMs : 0);
-            initialAlignment.SceneVotes = visualBaselineOnly ? acceptedAnchors : (visualStartOffsetMs != int.MinValue ? (int)Math.Round(visualStartEndSec) : 0);
-            initialAlignment.SelectedSource = visualBaselineOnly ? "framesync-visual-baseline" : (visualStartOffsetMs != int.MinValue ? "timeline+visual-start-guard" : "timeline");
+            initialAlignment.SceneCandidateAvailable = visualStartOffsetMs != int.MinValue;
+            initialAlignment.SceneOffsetMs = visualStartOffsetMs != int.MinValue ? visualStartOffsetMs : 0;
+            initialAlignment.SceneVotes = visualStartOffsetMs != int.MinValue ? (int)Math.Round(visualStartEndSec) : 0;
+            initialAlignment.SelectedSource = visualStartOffsetMs != int.MinValue ? "timeline+visual-start-guard" : "timeline";
             initialAlignment.SelectedOffsetMs = (int)Math.Round(regions[0].OffsetMs);
-            initialAlignment.DecisionReason = visualBaselineOnly ? "timeline audio-common a plateau singolo in conflitto con baseline visuale globale" : (visualStartOffsetMs != int.MinValue ? "timeline-first vincolata dal match video iniziale (mse=" + visualStartMse.ToString("F1", CultureInfo.InvariantCulture) + ", second=" + visualStartSecondMse.ToString("F1", CultureInfo.InvariantCulture) + ")" : "timeline-first audio/video anchor map");
+            initialAlignment.DecisionReason = visualStartOffsetMs != int.MinValue ? "timeline-first vincolata dal match video iniziale (mse=" + visualStartMse.ToString("F1", CultureInfo.InvariantCulture) + ", second=" + visualStartSecondMse.ToString("F1", CultureInfo.InvariantCulture) + ")" : "timeline-first video anchor map";
             diagnostics.InitialAlignment = initialAlignment;
-            diagnostics.Regions = this.BuildRegionDiagnostics(regions);
+            diagnostics.Regions = new List<DeepAnalysisRegionDiagnostic>();
+            for (int i = 0; i < regions.Count; i++)
+            {
+                DeepAnalysisRegionDiagnostic regionDiagnostic = new DeepAnalysisRegionDiagnostic();
+                regionDiagnostic.Index = i + 1;
+                regionDiagnostic.StartSrcSec = regions[i].StartSrcSec;
+                regionDiagnostic.EndSrcSec = regions[i].EndSrcSec;
+                regionDiagnostic.OffsetMs = regions[i].OffsetMs;
+                regionDiagnostic.MatchCount = regions[i].MatchCount;
+                diagnostics.Regions.Add(regionDiagnostic);
+            }
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Timeline accettata: " + regions.Count.ToString(CultureInfo.InvariantCulture) + " regioni, " + acceptedAnchors.ToString(CultureInfo.InvariantCulture) + " anchor");
 
             // Fase 3: Raffinamento transizioni
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Phase, "  Fase 3: Raffinamento transizioni...");
             ConsoleHelper.Progress(LogSection.Deep, 70, "Deep: transizioni");
             phaseStartMs = stopwatch.ElapsedMilliseconds;
-            if (visualBaselineOnly)
-            {
-                operations = new List<EditOperation>();
-                transitions = new List<DeepAnalysisTransitionDiagnostic>();
-            }
-            else
-            {
-                operations = this.RefineTransitions(sourceFile, langFile, regions, inverseRatio, out transitions);
-            }
-            if (!visualBaselineOnly && !this.ValidateTimelineTransitions(transitions, false) && this.TryPruneUnverifiedTimelineSpikes(sourceDurationMs, transitions, ref regions, diagnostics))
-            {
-                ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Timeline ripulita: ricalcolo transizioni dopo pruning plateau non confermati");
-                operations = this.RefineTransitions(sourceFile, langFile, regions, inverseRatio, out transitions);
-            }
+            operations = this._transitionRefiner.Refine(sourceFile, langFile, regions, inverseRatio, diagnostics.Performance, this._currentAnalysisUsesTimelineMap, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree, out transitions);
 
             diagnostics.Timing.TransitionRefineMs = stopwatch.ElapsedMilliseconds - phaseStartMs;
             diagnostics.Transitions = transitions;
 
             if (!this.ValidateTimelineTransitions(transitions, true))
             {
-                if (!this.TryFallbackTimelineToConstantInitial(sourceDurationMs, transitions, operations, ref regions, diagnostics))
-                {
-                    this.StoreFailedAnalysis(stopwatch, diagnostics, stretchFactor, regions, operations, baselineMse);
-                    return result;
-                }
+                this.StoreFailedAnalysis(stopwatch, diagnostics, stretchFactor, regions, operations, baselineMse);
+                return result;
             }
 
             // Fase 4: Verifica globale
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Phase, "  Fase 4: Verifica globale...");
             ConsoleHelper.Progress(LogSection.Deep, 82, "Deep: verifica globale");
             phaseStartMs = stopwatch.ElapsedMilliseconds;
-            verified = this.VerifyGlobal(sourceFile, langFile, regions, operations, inverseRatio, sourceDurationMs, out baselineMse, out globalVerification);
+            verified = this._globalVerifier.Verify(sourceFile, langFile, regions, operations, inverseRatio, sourceDurationMs, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree, out baselineMse, out globalVerification);
             diagnostics.Timing.GlobalVerifyMs = stopwatch.ElapsedMilliseconds - phaseStartMs;
             diagnostics.GlobalVerification = globalVerification;
 
@@ -366,160 +331,6 @@ namespace RemuxForge.Core.Analysis.Deep
             return result;
         }
 
-        /// <summary>
-        /// Rimuove plateau audio-common isolati quando il video boccia la transizione che li introduce o li chiude
-        /// </summary>
-        private bool TryPruneUnverifiedTimelineSpikes(int sourceDurationMs, List<DeepAnalysisTransitionDiagnostic> transitions, ref List<OffsetRegion> regions, DeepAnalysisDiagnostics diagnostics)
-        {
-            bool result = false;
-
-            if (!this._currentAnalysisUsesTimelineMap || !this._currentAnalysisHasCommonAudio)
-            {
-                return result;
-            }
-
-            if (regions == null || regions.Count < 3 || transitions == null || transitions.Count == 0)
-            {
-                return result;
-            }
-
-            for (int i = 1; i < regions.Count - 1; i++)
-            {
-                OffsetRegion leftRegion = regions[i - 1];
-                OffsetRegion spikeRegion = regions[i];
-                OffsetRegion rightRegion = regions[i + 1];
-                OffsetRegion mergedRegion;
-                bool leftTransitionUnverified = false;
-                bool rightTransitionUnverified = false;
-                double leftRightDeltaMs = Math.Abs(leftRegion.OffsetMs - rightRegion.OffsetMs);
-                double leftSpikeDeltaMs = Math.Abs(leftRegion.OffsetMs - spikeRegion.OffsetMs);
-                double rightSpikeDeltaMs = Math.Abs(rightRegion.OffsetMs - spikeRegion.OffsetMs);
-
-                for (int t = 0; t < transitions.Count; t++)
-                {
-                    if (transitions[t].Index == i && string.Equals(transitions[t].Status, "SkippedUnverified", StringComparison.Ordinal))
-                    {
-                        leftTransitionUnverified = true;
-                    }
-                    else if (transitions[t].Index == i + 1 && string.Equals(transitions[t].Status, "SkippedUnverified", StringComparison.Ordinal))
-                    {
-                        rightTransitionUnverified = true;
-                    }
-                }
-
-                if (!leftTransitionUnverified && !rightTransitionUnverified)
-                {
-                    continue;
-                }
-
-                if (leftRightDeltaMs > TIMELINE_SPIKE_PRUNE_MERGE_TOLERANCE_MS)
-                {
-                    continue;
-                }
-
-                if (leftSpikeDeltaMs < TIMELINE_SPIKE_PRUNE_MIN_DELTA_MS || rightSpikeDeltaMs < TIMELINE_SPIKE_PRUNE_MIN_DELTA_MS)
-                {
-                    continue;
-                }
-
-                ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Timeline pruning: plateau src " + spikeRegion.StartSrcSec.ToString("F1", CultureInfo.InvariantCulture) + "-" + spikeRegion.EndSrcSec.ToString("F1", CultureInfo.InvariantCulture) + "s offset=" + spikeRegion.OffsetMs.ToString("F0", CultureInfo.InvariantCulture) + "ms rimosso; regioni adiacenti compatibili (" + leftRegion.OffsetMs.ToString("F0", CultureInfo.InvariantCulture) + "/" + rightRegion.OffsetMs.ToString("F0", CultureInfo.InvariantCulture) + "ms)");
-                mergedRegion = new OffsetRegion();
-                mergedRegion.StartSrcSec = leftRegion.StartSrcSec;
-                mergedRegion.EndSrcSec = rightRegion.EndSrcSec;
-                if (mergedRegion.EndSrcSec > sourceDurationMs / 1000.0)
-                {
-                    mergedRegion.EndSrcSec = sourceDurationMs / 1000.0;
-                }
-                mergedRegion.SupportStartSrcSec = leftRegion.SupportStartSrcSec;
-                mergedRegion.SupportEndSrcSec = rightRegion.SupportEndSrcSec;
-                mergedRegion.OffsetMs = leftRegion.MatchCount >= rightRegion.MatchCount ? leftRegion.OffsetMs : rightRegion.OffsetMs;
-                mergedRegion.MatchCount = leftRegion.MatchCount + rightRegion.MatchCount;
-
-                regions[i - 1] = mergedRegion;
-                regions.RemoveAt(i + 1);
-                regions.RemoveAt(i);
-                result = true;
-                i--;
-            }
-
-            if (result && diagnostics != null)
-            {
-                diagnostics.Regions = this.BuildRegionDiagnostics(regions);
-                if (diagnostics.InitialAlignment != null)
-                {
-                    diagnostics.InitialAlignment.DecisionReason += "; pruning plateau audio-common non confermati dal video";
-                }
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Degrada una timeline audio-common a offset costante quando le transizioni non sono confermate dal video
-        /// </summary>
-        private bool TryFallbackTimelineToConstantInitial(int sourceDurationMs, List<DeepAnalysisTransitionDiagnostic> transitions, List<EditOperation> operations, ref List<OffsetRegion> regions, DeepAnalysisDiagnostics diagnostics)
-        {
-            bool result = false;
-            bool hasUnverifiedTransition = false;
-            int initialOffsetMs;
-
-            if (!this._currentAnalysisUsesTimelineMap || !this._currentAnalysisHasCommonAudio)
-            {
-                return result;
-            }
-
-            if (regions == null || regions.Count == 0 || transitions == null || operations == null)
-            {
-                return result;
-            }
-
-            if (operations.Count > 0)
-            {
-                return result;
-            }
-
-            for (int i = 0; i < transitions.Count; i++)
-            {
-                if (Math.Abs(transitions[i].DeltaMs) < 500)
-                {
-                    continue;
-                }
-
-                if (string.Equals(transitions[i].Status, "SkippedUnverified", StringComparison.Ordinal))
-                {
-                    hasUnverifiedTransition = true;
-                }
-                else
-                {
-                    return result;
-                }
-            }
-
-            if (!hasUnverifiedTransition)
-            {
-                return result;
-            }
-
-            initialOffsetMs = (int)Math.Round(regions[0].OffsetMs);
-            regions = this.BuildConstantOffsetRegions(initialOffsetMs, sourceDurationMs);
-            operations.Clear();
-
-            if (diagnostics != null)
-            {
-                diagnostics.Regions = this.BuildRegionDiagnostics(regions);
-                if (diagnostics.InitialAlignment != null)
-                {
-                    diagnostics.InitialAlignment.SelectedOffsetMs = initialOffsetMs;
-                    diagnostics.InitialAlignment.SelectedSource = "timeline-constant-fallback";
-                    diagnostics.InitialAlignment.DecisionReason = "timeline audio-common degradata a offset costante: transizioni non confermate dalla verifica video locale";
-                }
-            }
-
-            ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Timeline audio-common degradata a offset costante: delay=" + initialOffsetMs.ToString(CultureInfo.InvariantCulture) + "ms, transizioni non verificate scartate");
-            result = true;
-            return result;
-        }
-
         #endregion
 
         #region Proprieta
@@ -536,129 +347,74 @@ namespace RemuxForge.Core.Analysis.Deep
 
         #endregion
 
-        #region Metodi privati — Fase 1: Stretch
-
-        /// <summary>
-        /// Rileva stretch globale dai default_duration delle tracce video
-        /// </summary>
-        /// <param name="sourceDefaultDurationNs">Default duration source in ns</param>
-        /// <param name="langDefaultDurationNs">Default duration lang in ns</param>
-        /// <param name="manualStretchFactor">Stretch factor manuale richiesto, vuoto se non configurato</param>
-        /// <param name="allowAutoStretch">True se e' consentito rilevare stretch automatico</param>
-        /// <param name="stretchRatio">Rapporto stretch (output)</param>
-        /// <param name="inverseRatio">Rapporto inverso per compensazione drift (output)</param>
-        /// <param name="stretchFactor">Stringa stretch per mkvmerge (output)</param>
-        private bool DetectStretch(long sourceDefaultDurationNs, long langDefaultDurationNs, string manualStretchFactor, bool allowAutoStretch, out double stretchRatio, out double inverseRatio, out string stretchFactor)
-        {
-            return this._stretchResolver.Detect(sourceDefaultDurationNs, langDefaultDurationNs, manualStretchFactor, allowAutoStretch, out stretchRatio, out inverseRatio, out stretchFactor);
-        }
-
-        #endregion
-
         #region Metodi privati — Fase 2: Timeline
 
         /// <summary>
-        /// Costruisce una mappa timeline-first basata su anchor audio distribuiti
+        /// Rileva stretch globale da parametro manuale o default duration delle tracce video
         /// </summary>
-        private DeepTimelineMapResult BuildTimelineMap(string sourceFile, string langFile, int sourceDurationMs)
+        /// <param name="sourceDefaultDurationNs">Default duration source in nanosecondi</param>
+        /// <param name="langDefaultDurationNs">Default duration lang in nanosecondi</param>
+        /// <param name="manualStretchFactor">Stretch manuale richiesto</param>
+        /// <param name="allowAutoStretch">True se puo' usare metadata video</param>
+        /// <param name="stretchRatio">Ratio stretch source/lang</param>
+        /// <param name="inverseRatio">Ratio inverso da applicare al language</param>
+        /// <param name="stretchFactor">Fattore stretch normalizzato per mkvmerge</param>
+        /// <returns>True se lo stretch e' valido</returns>
+        private bool DetectStretch(long sourceDefaultDurationNs, long langDefaultDurationNs, string manualStretchFactor, bool allowAutoStretch, out double stretchRatio, out double inverseRatio, out string stretchFactor)
         {
-            this._timelineAnchorMapper = new DeepTimelineAnchorMapper(this.ResolveMkvMergePath(), this._audioEnvelopeService, this.BuildVisualTimelineAnchor);
-            return this._timelineAnchorMapper.Build(sourceFile, langFile, sourceDurationMs);
+            double sourceFps;
+            double langFps;
+            double ratioDiff;
+            string normalizedManualFactor;
+            stretchRatio = 1.0;
+            inverseRatio = 1.0;
+            stretchFactor = "";
+
+            if (manualStretchFactor != null && manualStretchFactor.Trim().Length > 0)
+            {
+                if (!SpeedCorrectionService.TryParseStretchFactor(manualStretchFactor, out stretchRatio, out normalizedManualFactor))
+                {
+                    ConsoleHelper.Write(LogSection.Deep, LogLevel.Error, "  Stretch manuale non valido: " + manualStretchFactor);
+                    return false;
+                }
+
+                inverseRatio = 1.0 / stretchRatio;
+                stretchFactor = normalizedManualFactor;
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Stretch manuale: " + stretchRatio.ToString("F6", CultureInfo.InvariantCulture) + " (" + stretchFactor + ")");
+            }
+            else if (!allowAutoStretch)
+            {
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Stretch: disabilitato");
+            }
+            else if (sourceDefaultDurationNs > 0 && langDefaultDurationNs > 0)
+            {
+                stretchRatio = (double)sourceDefaultDurationNs / langDefaultDurationNs;
+                ratioDiff = Math.Abs(stretchRatio - 1.0);
+
+                if (ratioDiff >= 0.001)
+                {
+                    inverseRatio = 1.0 / stretchRatio;
+                    stretchFactor = sourceDefaultDurationNs + "/" + langDefaultDurationNs;
+                    sourceFps = 1000000000.0 / sourceDefaultDurationNs;
+                    langFps = 1000000000.0 / langDefaultDurationNs;
+
+                    ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Stretch: " + stretchRatio.ToString("F6", CultureInfo.InvariantCulture) + " (" + sourceFps.ToString("F3", CultureInfo.InvariantCulture) + "fps -> " + langFps.ToString("F3", CultureInfo.InvariantCulture) + "fps)");
+                }
+                else
+                {
+                    ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Stretch: nessuno (stesso fps)");
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
-        /// Calcola una baseline visuale globale tramite FrameSync quando puo' servire da veto alla timeline audio-common
+        /// Impedisce alla timeline video di estendere all'inizio un plateau non confermato dal contenuto
         /// </summary>
-        private int ResolveVisualBaselineOffset(string sourceFile, string langFile, DeepTimelineMapResult timelineMap, double inverseRatio, out FrameSyncResult frameSyncResult)
-        {
-            int result = int.MinValue;
-            FrameSyncService frameSyncService;
-            frameSyncResult = null;
-
-            if (timelineMap == null || timelineMap.Regions == null || timelineMap.Regions.Count != 1 || timelineMap.Diagnostic == null)
-            {
-                return result;
-            }
-
-            if (!string.Equals(timelineMap.Diagnostic.AnchorMode, "audio-common", StringComparison.Ordinal))
-            {
-                return result;
-            }
-
-            if (Math.Abs(inverseRatio - 1.0) > 0.0001)
-            {
-                return result;
-            }
-
-            ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Baseline visuale: avvio FrameSync di controllo per timeline audio-common a plateau singolo");
-            frameSyncService = new FrameSyncService(this._ffmpegPath);
-            result = frameSyncService.RefineOffset(sourceFile, langFile);
-            frameSyncResult = frameSyncService.LastResult;
-            if (result == int.MinValue)
-            {
-                ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Baseline visuale: FrameSync non ha trovato un offset affidabile");
-            }
-            else
-            {
-                ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Baseline visuale: FrameSync=" + result.ToString(CultureInfo.InvariantCulture) + "ms");
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Decide se una timeline audio-common a plateau singolo deve essere sostituita dalla baseline visuale costante
-        /// </summary>
-        private bool ShouldUseVisualBaselineOnly(DeepTimelineMapResult timelineMap, int visualBaselineOffsetMs, double inverseRatio)
+        private void ApplyInitialVisualGuard(string sourceFile, string langFile, int sourceDurationMs, List<OffsetRegion> regions, out int visualStartOffsetMs, out double visualStartEndSec, out double visualStartMse, out double visualStartSecondMse)
         {
             int timelineOffsetMs;
-
-            if (visualBaselineOffsetMs == int.MinValue || timelineMap == null || timelineMap.Regions == null || timelineMap.Regions.Count != 1 || timelineMap.Diagnostic == null)
-            {
-                return false;
-            }
-
-            if (!string.Equals(timelineMap.Diagnostic.AnchorMode, "audio-common", StringComparison.Ordinal))
-            {
-                return false;
-            }
-
-            if (Math.Abs(inverseRatio - 1.0) > 0.0001)
-            {
-                return false;
-            }
-
-            timelineOffsetMs = (int)Math.Round(timelineMap.Regions[0].OffsetMs);
-            return Math.Abs(timelineOffsetMs - visualBaselineOffsetMs) > VISUAL_BASELINE_CONFLICT_THRESHOLD_MS;
-        }
-
-        /// <summary>
-        /// Crea una singola regione con offset costante per tutta la durata source
-        /// </summary>
-        private List<OffsetRegion> BuildConstantOffsetRegions(int offsetMs, int sourceDurationMs)
-        {
-            List<OffsetRegion> result = new List<OffsetRegion>();
-            OffsetRegion region = new OffsetRegion();
-            double sourceDurationSec = sourceDurationMs / 1000.0;
-
-            region.StartSrcSec = 0.0;
-            region.EndSrcSec = sourceDurationSec;
-            region.SupportStartSrcSec = 0.0;
-            region.SupportEndSrcSec = sourceDurationSec;
-            region.OffsetMs = offsetMs;
-            region.MatchCount = 1;
-            result.Add(region);
-
-            return result;
-        }
-
-        /// <summary>
-        /// Impedisce alla timeline audio di estendere all'inizio un plateau non confermato dal video
-        /// </summary>
-        private void ApplyInitialVisualGuard(string sourceFile, string langFile, int sourceDurationMs, List<OffsetRegion> regions, FrameSyncResult frameSyncResult, out int visualStartOffsetMs, out double visualStartEndSec, out double visualStartMse, out double visualStartSecondMse)
-        {
-            int timelineOffsetMs;
-            int frameSyncEvidenceOffsetMs;
             double visualStartLocalSecondMse;
             double timelineMse;
             bool visualStartBorderCandidate;
@@ -683,28 +439,6 @@ namespace RemuxForge.Core.Analysis.Deep
 
             if (Math.Abs(timelineOffsetMs - visualStartOffsetMs) <= 1000)
             {
-                visualStartOffsetMs = int.MinValue;
-                return;
-            }
-
-            frameSyncEvidenceOffsetMs = int.MinValue;
-            if (frameSyncResult != null)
-            {
-                if (frameSyncResult.Success && frameSyncResult.OffsetMs != int.MinValue)
-                {
-                    frameSyncEvidenceOffsetMs = frameSyncResult.OffsetMs;
-                }
-                else if (frameSyncResult.Initial != null && frameSyncResult.Initial.Success && frameSyncResult.Initial.BestCandidate != null)
-                {
-                    frameSyncEvidenceOffsetMs = frameSyncResult.Initial.BestCandidate.OffsetMs;
-                }
-            }
-
-            if (frameSyncEvidenceOffsetMs != int.MinValue &&
-                Math.Abs(frameSyncEvidenceOffsetMs - timelineOffsetMs) <= INITIAL_VISUAL_GUARD_FRAMESYNC_CONSENSUS_MS &&
-                Math.Abs(frameSyncEvidenceOffsetMs - visualStartOffsetMs) > INITIAL_VISUAL_GUARD_FRAMESYNC_REJECT_MS)
-            {
-                ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Start guard scartato: candidate=" + visualStartOffsetMs.ToString(CultureInfo.InvariantCulture) + "ms, timeline=" + timelineOffsetMs.ToString(CultureInfo.InvariantCulture) + "ms, FrameSync=" + frameSyncEvidenceOffsetMs.ToString(CultureInfo.InvariantCulture) + "ms");
                 visualStartOffsetMs = int.MinValue;
                 return;
             }
@@ -765,7 +499,8 @@ namespace RemuxForge.Core.Analysis.Deep
                 return result;
             }
 
-            this.CalculateWindowOffsetRange(sourceStartMs, sourceExtractDurationSec, languageExtractDurationSec, out minOffsetMs, out maxOffsetMs);
+            minOffsetMs = -sourceStartMs - (int)Math.Ceiling(sourceExtractDurationSec * 1000.0);
+            maxOffsetMs = (int)Math.Ceiling(languageExtractDurationSec * 1000.0) - sourceStartMs;
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Start guard: ricerca visuale iniziale source start " + (sourceStartMs / 1000.0).ToString("F3", CultureInfo.InvariantCulture) + "s, durata " + sourceExtractDurationSec.ToString("F0", CultureInfo.InvariantCulture) + "s/lang " + languageExtractDurationSec.ToString("F0", CultureInfo.InvariantCulture) + "s, range " + minOffsetMs + "ms.." + maxOffsetMs + "ms");
 
             this.ExtractDeepSegment(sourceFile, sourceStartMs, sourceExtractDurationSec, INITIAL_VISUAL_GUARD_FPS, this._geometryCropSourceToFourThree, out sourceFrames, out sourceTimestampsMs);
@@ -847,15 +582,6 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             return result;
-        }
-
-        /// <summary>
-        /// Calcola il range offset coperto dalla finestra estratta
-        /// </summary>
-        private void CalculateWindowOffsetRange(int sourceStartMs, double sourceDurationSec, double langDurationSec, out int minOffsetMs, out int maxOffsetMs)
-        {
-            minOffsetMs = -sourceStartMs - (int)Math.Ceiling(sourceDurationSec * 1000.0);
-            maxOffsetMs = (int)Math.Ceiling(langDurationSec * 1000.0) - sourceStartMs;
         }
 
         /// <summary>
@@ -1010,7 +736,6 @@ namespace RemuxForge.Core.Analysis.Deep
         /// </summary>
         private double ComputeTimestampMatchedMseAtStart(List<byte[]> srcFrames, double[] srcTimestampsMs, List<byte[]> langFrames, double[] langTimestampsMs, double languageStartMs, double targetFps)
         {
-            double result = 0.0;
             double total = 0.0;
             int count = 0;
             double toleranceMs = 1000.0 / Math.Max(targetFps, 1.0);
@@ -1041,33 +766,15 @@ namespace RemuxForge.Core.Analysis.Deep
 
             if (count >= Math.Max(3, srcFrames.Count / 2))
             {
-                result = total / count;
-            }
-            else
-            {
-                result = double.PositiveInfinity;
+                return total / count;
             }
 
-            return result;
+            return double.PositiveInfinity;
         }
 
         #endregion
 
         #region Metodi privati — Fase 3: Raffinamento transizioni
-
-        /// <summary>
-        /// Raffina i punti di transizione tramite scansione locale audio/video
-        /// </summary>
-        private List<EditOperation> RefineTransitions(string sourceFile, string langFile, List<OffsetRegion> regions, double inverseRatio, out List<DeepAnalysisTransitionDiagnostic> transitions)
-        {
-            DeepAnalysisPerformanceDiagnostic performanceDiagnostics;
-            lock (this._performanceDiagnosticsLock)
-            {
-                performanceDiagnostics = this._performanceDiagnostics;
-            }
-
-            return this._transitionRefiner.Refine(sourceFile, langFile, regions, inverseRatio, performanceDiagnostics, this._currentAnalysisUsesTimelineMap, this._currentAnalysisHasCommonAudio, out transitions);
-        }
 
         /// <summary>
         /// Valida che le transizioni non scartate abbiano prodotto operazioni applicabili
@@ -1098,7 +805,7 @@ namespace RemuxForge.Core.Analysis.Deep
                     break;
                 }
 
-                if (!string.Equals(transitions[i].Status, "Accepted", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedAudio", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedTimeline", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedTentative", StringComparison.Ordinal))
+                if (!string.Equals(transitions[i].Status, "Accepted", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedTimeline", StringComparison.Ordinal) && !string.Equals(transitions[i].Status, "AcceptedTentative", StringComparison.Ordinal))
                 {
                     if (writeLog)
                     {
@@ -1177,47 +884,6 @@ namespace RemuxForge.Core.Analysis.Deep
         }
 
         /// <summary>
-        /// Scansione densa del punto di transizione
-        /// Estrae frame a fps fisso per l'intera regione e cerca il primo cluster
-        /// di frame dove SSIM con old offset scende sotto soglia
-        /// Robusto: non assume monotonicita' SSIM, trova dip anche in scene lente
-        /// </summary>
-        /// <param name="sourceFile">Percorso file source</param>
-        /// <param name="langFile">Percorso file lang</param>
-        /// <param name="searchStartSrc">Inizio finestra source in secondi</param>
-        /// <param name="searchEndSrc">Fine finestra source in secondi</param>
-        /// <param name="oldOffsetSec">Offset vecchio in secondi</param>
-        /// <param name="inverseRatio">Rapporto inverso stretch</param>
-        /// <returns>Timestamp source approssimato della transizione</returns>
-        private double DenseScanCrossover(string sourceFile, string langFile, double searchStartSrc, double searchEndSrc, double oldOffsetSec, double inverseRatio)
-        {
-            return this._visualFrameAnalyzer.DenseScanCrossover(sourceFile, langFile, searchStartSrc, searchEndSrc, oldOffsetSec, inverseRatio, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree);
-        }
-
-        /// <summary>
-        /// Raffina il crossover usando la durata dei run di frame ripetuti
-        /// </summary>
-        private double RepeatedFrameCrossover(string sourceFile, string langFile, double searchStartSrc, double searchEndSrc, double oldOffsetSec, double newOffsetSec, double inverseRatio)
-        {
-            return this._visualFrameAnalyzer.RepeatedFrameCrossover(sourceFile, langFile, searchStartSrc, searchEndSrc, oldOffsetSec, newOffsetSec, inverseRatio, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree);
-        }
-
-        /// <summary>
-        /// Risolve mkvmerge in modo centralizzato
-        /// </summary>
-        /// <returns>Percorso mkvmerge valido, oppure stringa vuota</returns>
-        private string ResolveMkvMergePath()
-        {
-            string mkvMergePath = this._toolPathResolver.ResolveMkvMergePath(false);
-            if (mkvMergePath.Length == 0)
-            {
-                mkvMergePath = AppSettingsService.Instance.Settings.Tools.MkvMergePath;
-            }
-
-            return mkvMergePath;
-        }
-
-        /// <summary>
         /// Cerca il crossover confrontando direttamente vecchio e nuovo offset nella finestra locale
         /// </summary>
         /// <param name="sourceFile">Percorso file source</param>
@@ -1227,12 +893,12 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="oldOffsetSec">Offset precedente in secondi</param>
         /// <param name="newOffsetSec">Offset successivo in secondi</param>
         /// <param name="inverseRatio">Rapporto inverso stretch</param>
+        /// <param name="transition">Diagnostica transizione da popolare</param>
         /// <returns>Timestamp source del crossover, oppure -1 se non conclusivo</returns>
-        private double DifferentialScanCrossover(string sourceFile, string langFile, double searchStartSrc, double searchEndSrc, double oldOffsetSec, double newOffsetSec, double inverseRatio)
+        private double DifferentialScanCrossover(string sourceFile, string langFile, double searchStartSrc, double searchEndSrc, double oldOffsetSec, double newOffsetSec, double inverseRatio, DeepAnalysisTransitionDiagnostic transition)
         {
             double result = -1.0;
             double duration = searchEndSrc - searchStartSrc;
-            double scanFps = Math.Max(this._daConfig.DenseScanFps, 4.0);
             double langStartOld = searchStartSrc - oldOffsetSec;
             double langStartNew = searchStartSrc - newOffsetSec;
             List<byte[]> srcFrames;
@@ -1241,22 +907,39 @@ namespace RemuxForge.Core.Analysis.Deep
             double[] langOldTimestampsMs;
             List<byte[]> langNewFrames;
             double[] langNewTimestampsMs;
-            double toleranceMs = 1000.0 / scanFps * 2.0;
+            double toleranceMs = 100.0;
             int maxIdx;
-            int consecutiveNewBetter = 0;
-            int crossoverIdx = -1;
-            double srcRelMs;
             double targetOldMs;
             double targetNewMs;
             int oldIdx;
             int newIdx;
             double oldDistMs;
             double newDistMs;
-            double ssimOld;
-            double ssimNew;
-            double minNewSsim = Math.Max(this._daConfig.OffsetProbeMinSsim, 0.65);
-            double minMargin = 0.05;
-            int requiredFrames = Math.Max(2, Math.Min(this._daConfig.LinearScanConfirmFrames, 4));
+            bool[] valid;
+            bool[] changed;
+            double[] oldScores;
+            double[] newScores;
+            double[] motionScores;
+            double[] meanScores;
+            double[] oldMseScores;
+            double[] newMseScores;
+            List<KeyValuePair<int, double>> candidates = new List<KeyValuePair<int, double>>();
+            double beforeOldAdvantage;
+            double afterNewAdvantage;
+            double motionThreshold = 25.0;
+            double cutSwitchMseMargin = 100.0;
+            int minSideFrames = 5;
+            int halfWindowFrames = 60;
+            double minNewSsim = Math.Max(this._daConfig.OffsetProbeMinSsim, 0.60);
+            double minMargin = 0.015;
+            double duplicateSsim = 0.995;
+            double beforeWindowMs = 3000.0;
+            double afterWindowMs = 6000.0;
+            double darkFrameMean = 8.0;
+            int requiredAfterVotes = 2;
+            int offsetDirection = Math.Sign(newOffsetSec - oldOffsetSec);
+            bool collectCutDiagnostics = transition != null && duration > 60.0 && offsetDirection < 0 && Math.Abs(newOffsetSec - oldOffsetSec) <= 1.5;
+            int candidateDiagnosticsLimit = 80;
 
             if (duration < 1.0)
             {
@@ -1272,30 +955,42 @@ namespace RemuxForge.Core.Analysis.Deep
             if (langStartOld < 0.0) { langStartOld = 0.0; }
             if (langStartNew < 0.0) { langStartNew = 0.0; }
 
-            this.ExtractDeepSegment(sourceFile, (int)(searchStartSrc * 1000), duration, scanFps, this._geometryCropSourceToFourThree, out srcFrames, out sourceTimestampsMs);
-            this.ExtractDeepSegment(langFile, (int)(langStartOld * 1000), duration, scanFps, this._geometryCropLanguageToFourThree, out langOldFrames, out langOldTimestampsMs);
-            this.ExtractDeepSegment(langFile, (int)(langStartNew * 1000), duration, scanFps, this._geometryCropLanguageToFourThree, out langNewFrames, out langNewTimestampsMs);
+            // Estrae frame nativi per non perdere i PTS reali nei source VFR
+            this.ExtractDeepSegment(sourceFile, (int)(searchStartSrc * 1000), duration, 0.0, this._geometryCropSourceToFourThree, out srcFrames, out sourceTimestampsMs);
+            this.ExtractDeepSegment(langFile, (int)(langStartOld * 1000), duration, 0.0, this._geometryCropLanguageToFourThree, out langOldFrames, out langOldTimestampsMs);
+            this.ExtractDeepSegment(langFile, (int)(langStartNew * 1000), duration, 0.0, this._geometryCropLanguageToFourThree, out langNewFrames, out langNewTimestampsMs);
 
-            if (srcFrames.Count < requiredFrames || langOldFrames.Count < requiredFrames || langNewFrames.Count < requiredFrames)
+            if (srcFrames.Count < minSideFrames || langOldFrames.Count < minSideFrames || langNewFrames.Count < minSideFrames)
             {
                 ConsoleHelper.Write(LogSection.Deep, LogLevel.Warning, "    Scansione differenziale: frame insufficienti");
                 return result;
             }
 
             maxIdx = srcFrames.Count;
+            valid = new bool[maxIdx];
+            changed = new bool[maxIdx];
+            oldScores = new double[maxIdx];
+            newScores = new double[maxIdx];
+            motionScores = new double[maxIdx];
+            meanScores = new double[maxIdx];
+            oldMseScores = new double[maxIdx];
+            newMseScores = new double[maxIdx];
 
+            // Allinea ogni frame source al frame lang piu' vicino per ciascun offset candidato
             for (int i = 0; i < maxIdx; i++)
             {
-                srcRelMs = sourceTimestampsMs[i] - sourceTimestampsMs[0];
-                targetOldMs = langOldTimestampsMs[0] + srcRelMs;
-                targetNewMs = langNewTimestampsMs[0] + srcRelMs;
+                targetOldMs = sourceTimestampsMs[i] - (oldOffsetSec * 1000.0);
+                targetNewMs = sourceTimestampsMs[i] - (newOffsetSec * 1000.0);
+                if (Math.Abs(inverseRatio - 1.0) > 0.0001)
+                {
+                    targetOldMs = targetOldMs * inverseRatio;
+                    targetNewMs = targetNewMs * inverseRatio;
+                }
                 oldIdx = NearestTimestampIndex(langOldTimestampsMs, targetOldMs);
                 newIdx = NearestTimestampIndex(langNewTimestampsMs, targetNewMs);
 
                 if (oldIdx < 0 || oldIdx >= langOldFrames.Count || newIdx < 0 || newIdx >= langNewFrames.Count)
                 {
-                    consecutiveNewBetter = 0;
-                    crossoverIdx = -1;
                     continue;
                 }
 
@@ -1303,130 +998,653 @@ namespace RemuxForge.Core.Analysis.Deep
                 newDistMs = Math.Abs(langNewTimestampsMs[newIdx] - targetNewMs);
                 if (oldDistMs > toleranceMs || newDistMs > toleranceMs)
                 {
-                    consecutiveNewBetter = 0;
-                    crossoverIdx = -1;
                     continue;
                 }
 
-                ssimOld = this.ComputeSsim(srcFrames[i], langOldFrames[oldIdx]);
-                ssimNew = this.ComputeSsim(srcFrames[i], langNewFrames[newIdx]);
-
-                if (ssimNew >= minNewSsim && ssimNew > ssimOld + minMargin)
+                valid[i] = true;
+                oldScores[i] = this.ComputeSsim(srcFrames[i], langOldFrames[oldIdx]);
+                newScores[i] = this.ComputeSsim(srcFrames[i], langNewFrames[newIdx]);
+                oldMseScores[i] = this.ComputeMse(srcFrames[i], langOldFrames[oldIdx]);
+                newMseScores[i] = this.ComputeMse(srcFrames[i], langNewFrames[newIdx]);
+                motionScores[i] = i == 0 ? 0.0 : this.ComputeMse(srcFrames[i - 1], srcFrames[i]);
+                double pixelSum = 0.0;
+                for (int p = 0; p < srcFrames[i].Length; p++)
                 {
-                    if (consecutiveNewBetter == 0)
-                    {
-                        crossoverIdx = i;
-                    }
+                    pixelSum += srcFrames[i][p];
+                }
+                meanScores[i] = pixelSum / srcFrames[i].Length;
+                changed[i] = i == 0 || this.ComputeSsim(srcFrames[i - 1], srcFrames[i]) < duplicateSsim;
+            }
 
-                    consecutiveNewBetter++;
+            // Cerca punti dove il vecchio offset domina prima e il nuovo offset domina dopo
+            for (int i = minSideFrames; i < maxIdx - minSideFrames; i++)
+            {
+                if (!valid[i])
+                {
+                    continue;
+                }
 
-                    if (consecutiveNewBetter >= requiredFrames)
+                List<double> before = new List<double>();
+                List<double> after = new List<double>();
+                int beforeStart = Math.Max(0, i - halfWindowFrames);
+                int afterEnd = Math.Min(maxIdx, i + halfWindowFrames);
+
+                for (int j = beforeStart; j < i; j++)
+                {
+                    if (valid[j])
                     {
-                        result = sourceTimestampsMs[crossoverIdx] / 1000.0;
-                        ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione differenziale: crossover a src " + result.ToString("F2", CultureInfo.InvariantCulture) + "s (new>old per " + consecutiveNewBetter + " frame)");
-                        return result;
+                        before.Add(newMseScores[j] - oldMseScores[j]);
                     }
                 }
-                else
+
+                for (int j = i; j < afterEnd; j++)
                 {
-                    consecutiveNewBetter = 0;
-                    crossoverIdx = -1;
+                    if (valid[j])
+                    {
+                        after.Add(oldMseScores[j] - newMseScores[j]);
+                    }
+                }
+
+                if (before.Count < minSideFrames || after.Count < minSideFrames)
+                {
+                    continue;
+                }
+
+                before.Sort();
+                after.Sort();
+                beforeOldAdvantage = before[before.Count / 2];
+                afterNewAdvantage = after[after.Count / 2];
+                if (beforeOldAdvantage <= 0.0 || afterNewAdvantage <= 0.0)
+                {
+                    continue;
+                }
+
+                candidates.Add(new KeyValuePair<int, double>(i, beforeOldAdvantage + afterNewAdvantage));
+            }
+
+            if (offsetDirection > 0)
+            {
+                // INSERT: prima prova un boundary MSE robusto, utile quando SSIM satura su frame statici
+                List<KeyValuePair<int, double>> insertCandidates = new List<KeyValuePair<int, double>>(candidates);
+                double mseInsertResult = -1.0;
+                double mseInsertScore = 0.0;
+                double mseInsertOldMse = double.MaxValue;
+                double mseInsertNewMse = double.MaxValue;
+                bool mseInsertAccepted = false;
+                bool longInsertTransition = Math.Abs(newOffsetSec - oldOffsetSec) > 1.5;
+                double insertRunMseMargin = 100.0;
+                double insertRunTieMargin = 5.0;
+                double insertRunPreferredBoundaryMargin = 1500.0;
+                double longInsertTargetSec = transition != null && transition.BreakpointSrcSec > 0.0 ? transition.BreakpointSrcSec : (searchStartSrc + (duration / 2.0));
+                insertCandidates.Sort(delegate (KeyValuePair<int, double> left, KeyValuePair<int, double> right)
+                {
+                    return right.Value.CompareTo(left.Value);
+                });
+
+                for (int c = 0; c < insertCandidates.Count; c++)
+                {
+                    int candidateIdx = insertCandidates[c].Key;
+                    int boundaryIdx = candidateIdx;
+                    DeepAnalysisLocalVerificationDiagnostic candidateVerification = null;
+                    DeepAnalysisTransitionCandidateDiagnostic candidateDiagnostic = null;
+                    bool candidateRejected;
+                    for (int i = candidateIdx; i < maxIdx && i < candidateIdx + 120; i++)
+                    {
+                        if (valid[i] && motionScores[i] >= motionThreshold && oldMseScores[i] >= newMseScores[i])
+                        {
+                            boundaryIdx = i;
+                            break;
+                        }
+                    }
+                    if (boundaryIdx + 1 < maxIdx && valid[boundaryIdx + 1] && motionScores[boundaryIdx + 1] < motionThreshold && oldMseScores[boundaryIdx] - newMseScores[boundaryIdx] < 500.0)
+                    {
+                        // Se il boundary cade dentro una posa statica, prova a spostarlo al primo frame con movimento reale
+                        int staticBoundaryIdx = boundaryIdx;
+                        for (int i = boundaryIdx + 1; i < maxIdx && sourceTimestampsMs[i] - sourceTimestampsMs[boundaryIdx] <= 3000.0; i++)
+                        {
+                            if (valid[i] && motionScores[i] >= motionThreshold)
+                            {
+                                if (oldMseScores[i] - newMseScores[i] < oldMseScores[staticBoundaryIdx] - newMseScores[staticBoundaryIdx])
+                                {
+                                    boundaryIdx = i;
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+                    if (meanScores[boundaryIdx] <= darkFrameMean)
+                    {
+                        int rewindIdx = boundaryIdx;
+                        double rewindWindowMs = Math.Max(1000.0, Math.Abs(newOffsetSec - oldOffsetSec) * 1000.0 + 500.0);
+                        for (int i = boundaryIdx - 1; i >= 0 && sourceTimestampsMs[boundaryIdx] - sourceTimestampsMs[i] <= rewindWindowMs; i--)
+                        {
+                            if (!valid[i])
+                            {
+                                continue;
+                            }
+
+                            if (meanScores[i] > darkFrameMean)
+                            {
+                                break;
+                            }
+
+                            if (newMseScores[i] <= 1200.0 && newMseScores[i] <= oldMseScores[i] * 0.60 && oldMseScores[i] - newMseScores[i] >= 250.0)
+                            {
+                                rewindIdx = i;
+                                continue;
+                            }
+
+                            if (oldMseScores[i] <= newMseScores[i] * 0.98)
+                            {
+                                break;
+                            }
+                        }
+
+                        if (rewindIdx != boundaryIdx)
+                        {
+                            boundaryIdx = rewindIdx;
+                        }
+                    }
+
+                    if (newMseScores[boundaryIdx] <= 100.0)
+                    {
+                        int contentStartIdx = boundaryIdx;
+                        for (int i = boundaryIdx - 1; i >= 0 && sourceTimestampsMs[boundaryIdx] - sourceTimestampsMs[i] <= 1000.0; i--)
+                        {
+                            if (!valid[i])
+                            {
+                                continue;
+                            }
+
+                            if (newMseScores[i] <= 100.0 && newMseScores[i] <= oldMseScores[i] * 0.50)
+                            {
+                                contentStartIdx = i;
+                                continue;
+                            }
+
+                            if (oldMseScores[i] <= newMseScores[i] * 0.98)
+                            {
+                                break;
+                            }
+                        }
+
+                        if (contentStartIdx != boundaryIdx)
+                        {
+                            boundaryIdx = contentStartIdx;
+                        }
+                    }
+
+                    if (oldMseScores[boundaryIdx] - newMseScores[boundaryIdx] >= insertRunMseMargin)
+                    {
+                        int runStartIdx = boundaryIdx;
+                        double rewindWindowMs = Math.Max(1000.0, Math.Abs(newOffsetSec - oldOffsetSec) * 1000.0 + 500.0);
+                        for (int i = boundaryIdx - 1; i >= 0 && sourceTimestampsMs[boundaryIdx] - sourceTimestampsMs[i] <= rewindWindowMs; i--)
+                        {
+                            if (!valid[i])
+                            {
+                                continue;
+                            }
+
+                            double newAdvantage = oldMseScores[i] - newMseScores[i];
+                            if (newMseScores[i] - oldMseScores[i] >= insertRunMseMargin)
+                            {
+                                break;
+                            }
+
+                            if (newAdvantage >= insertRunMseMargin || (newMseScores[i] <= oldMseScores[i] * 0.98 && newAdvantage >= insertRunTieMargin))
+                            {
+                                runStartIdx = i;
+                                continue;
+                            }
+                        }
+
+                        if (runStartIdx != boundaryIdx)
+                        {
+                            boundaryIdx = runStartIdx;
+                        }
+                    }
+
+                    result = sourceTimestampsMs[boundaryIdx] / 1000.0;
+                    if (transition != null && transition.Candidates.Count < candidateDiagnosticsLimit && longInsertTransition)
+                    {
+                        transition.Candidates.Add(new DeepAnalysisTransitionCandidateDiagnostic
+                        {
+                            SourceSec = result,
+                            Score = insertCandidates[c].Value,
+                            MotionMse = motionScores[boundaryIdx],
+                            OldMse = oldMseScores[boundaryIdx],
+                            NewMse = newMseScores[boundaryIdx],
+                            Verified = false,
+                            CanDeferToGlobalVerification = true,
+                            AudioRejected = false,
+                            Decision = "insert-mse-unverified-large-delta"
+                        });
+                    }
+                    if (!longInsertTransition)
+                    {
+                        candidateVerification = this.VerifyTransitionLocal(sourceFile, langFile, result, oldOffsetSec, newOffsetSec, inverseRatio);
+                        if (transition != null && transition.Candidates.Count < candidateDiagnosticsLimit)
+                        {
+                            candidateDiagnostic = new DeepAnalysisTransitionCandidateDiagnostic
+                            {
+                                SourceSec = result,
+                                Score = insertCandidates[c].Value,
+                                MotionMse = motionScores[boundaryIdx],
+                                OldMse = oldMseScores[boundaryIdx],
+                                NewMse = newMseScores[boundaryIdx],
+                                Verified = candidateVerification != null && candidateVerification.Verified,
+                                CanDeferToGlobalVerification = candidateVerification != null && candidateVerification.CanDeferToGlobalVerification,
+                                AudioRejected = candidateVerification != null && candidateVerification.AudioRejected,
+                                Decision = candidateVerification == null || (!candidateVerification.Verified && !candidateVerification.CanDeferToGlobalVerification) ? "insert-mse-rejected-local" : "insert-mse-accepted-local"
+                            };
+                            transition.Candidates.Add(candidateDiagnostic);
+                        }
+                        candidateRejected = candidateVerification == null || (!candidateVerification.Verified && !candidateVerification.CanDeferToGlobalVerification);
+                        if (candidateRejected && oldMseScores[boundaryIdx] - newMseScores[boundaryIdx] >= 1000.0)
+                        {
+                            int oldBeforeIdx = -1;
+                            int newAfterVotes = 0;
+                            for (int i = boundaryIdx - 1; i >= 0 && sourceTimestampsMs[boundaryIdx] - sourceTimestampsMs[i] <= 500.0; i--)
+                            {
+                                if (!valid[i])
+                                {
+                                    continue;
+                                }
+
+                                if (newMseScores[i] - oldMseScores[i] >= insertRunMseMargin)
+                                {
+                                    oldBeforeIdx = i;
+                                    break;
+                                }
+                            }
+
+                            for (int i = boundaryIdx; i < maxIdx && sourceTimestampsMs[i] - sourceTimestampsMs[boundaryIdx] <= 1000.0; i++)
+                            {
+                                if (!valid[i])
+                                {
+                                    continue;
+                                }
+
+                                if (newMseScores[i] - oldMseScores[i] >= insertRunMseMargin)
+                                {
+                                    break;
+                                }
+
+                                if (oldMseScores[i] - newMseScores[i] >= insertRunMseMargin || (newMseScores[i] <= oldMseScores[i] * 0.98 && oldMseScores[i] - newMseScores[i] >= insertRunTieMargin))
+                                {
+                                    newAfterVotes++;
+                                }
+                            }
+
+                            if (oldBeforeIdx >= 0 && newAfterVotes >= 3)
+                            {
+                                candidateRejected = false;
+                                if (candidateDiagnostic != null)
+                                {
+                                    candidateDiagnostic.CanDeferToGlobalVerification = true;
+                                    candidateDiagnostic.Decision = "accepted-strong-differential";
+                                }
+                            }
+                        }
+
+                        if (candidateRejected)
+                        {
+                            continue;
+                        }
+                    }
+
+                    ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione differenziale: boundary video a src " + result.ToString("F3", CultureInfo.InvariantCulture) + "s (score=" + insertCandidates[c].Value.ToString("F1", CultureInfo.InvariantCulture) + ")");
+                    mseInsertResult = result;
+                    mseInsertScore = insertCandidates[c].Value;
+                    mseInsertOldMse = oldMseScores[boundaryIdx];
+                    mseInsertNewMse = newMseScores[boundaryIdx];
+                    mseInsertAccepted = true;
+                    break;
+                }
+
+                if (mseInsertResult >= 0.0 && longInsertTransition && Math.Abs(mseInsertResult - longInsertTargetSec) <= 2.0)
+                {
+                    double insertDurationSec = Math.Abs(newOffsetSec - oldOffsetSec);
+                    if (mseInsertNewMse <= 100.0)
+                    {
+                        double shiftedResult = mseInsertResult - insertDurationSec;
+                        if (mseInsertResult - longInsertTargetSec >= insertDurationSec * 0.75 &&
+                            Math.Abs(shiftedResult - longInsertTargetSec) <= 1.0 &&
+                            shiftedResult >= searchStartSrc)
+                        {
+                            ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione differenziale: boundary MSE post-gap riportato a src " + shiftedResult.ToString("F3", CultureInfo.InvariantCulture) + "s da contenuto " + mseInsertResult.ToString("F3", CultureInfo.InvariantCulture) + "s");
+                            return shiftedResult;
+                        }
+                    }
+
+                    // Nei gap INSERT lunghi il punto operativo e' l'inizio dello stacco nero/fade source-only:
+                    // un match SSIM piu' tardo sul contenuto non deve sostituire un boundary MSE vicino al breakpoint timeline.
+                    ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione differenziale: uso boundary MSE insert lungo a src " + mseInsertResult.ToString("F3", CultureInfo.InvariantCulture) + "s (score=" + mseInsertScore.ToString("F1", CultureInfo.InvariantCulture) + ")");
+                    return mseInsertResult;
+                }
+
+                // Secondo passaggio INSERT: usa solo frame cambiati e richiede voti SSIM coerenti dopo il boundary
+                for (int i = 0; i < maxIdx; i++)
+                {
+                    int afterNewVotes = 0;
+                    int afterOldVotes = 0;
+                    int beforeNewVotes = 0;
+                    int beforeOldVotes = 0;
+                    int beforeEvidence = 0;
+
+                    if (!valid[i] || newScores[i] < minNewSsim || newScores[i] <= oldScores[i] || newMseScores[i] > oldMseScores[i] * 1.02)
+                    {
+                        continue;
+                    }
+
+                    if (i > 0 && !changed[i] && meanScores[i] > darkFrameMean)
+                    {
+                        continue;
+                    }
+
+                    for (int j = i; j < maxIdx && sourceTimestampsMs[j] - sourceTimestampsMs[i] <= afterWindowMs; j++)
+                    {
+                        if (!valid[j] || (j > i && !changed[j] && meanScores[j] > darkFrameMean))
+                        {
+                            continue;
+                        }
+
+                        if (newScores[j] >= minNewSsim && newScores[j] > oldScores[j] + minMargin && newMseScores[j] <= oldMseScores[j] * 1.02)
+                        {
+                            afterNewVotes++;
+                        }
+                        else if (oldScores[j] >= minNewSsim && oldScores[j] > newScores[j] + minMargin && oldMseScores[j] <= newMseScores[j] * 1.02)
+                        {
+                            afterOldVotes++;
+                        }
+                    }
+
+                    if (afterNewVotes < requiredAfterVotes || afterNewVotes <= afterOldVotes)
+                    {
+                        continue;
+                    }
+
+                    for (int j = i - 1; j >= 0 && sourceTimestampsMs[i] - sourceTimestampsMs[j] <= beforeWindowMs; j--)
+                    {
+                        if (!valid[j] || (!changed[j] && meanScores[j] > darkFrameMean))
+                        {
+                            continue;
+                        }
+
+                        if (newScores[j] >= minNewSsim && newScores[j] > oldScores[j] + minMargin && newMseScores[j] <= oldMseScores[j] * 1.02)
+                        {
+                            if (meanScores[j] <= darkFrameMean)
+                            {
+                                continue;
+                            }
+
+                            beforeEvidence++;
+                            beforeNewVotes++;
+                        }
+                        else if (oldScores[j] >= minNewSsim && oldScores[j] > newScores[j] + minMargin && oldMseScores[j] <= newMseScores[j] * 1.02)
+                        {
+                            beforeEvidence++;
+                            beforeOldVotes++;
+                        }
+                    }
+
+                    if (beforeEvidence > 0 && beforeNewVotes > beforeOldVotes && beforeNewVotes >= requiredAfterVotes)
+                    {
+                        continue;
+                    }
+
+                    int ssimBoundaryIdx = i;
+                    if (meanScores[ssimBoundaryIdx] <= darkFrameMean)
+                    {
+                        double rewindWindowMs = Math.Max(1000.0, Math.Abs(newOffsetSec - oldOffsetSec) * 1000.0 + 500.0);
+                        for (int j = ssimBoundaryIdx - 1; j >= 0 && sourceTimestampsMs[ssimBoundaryIdx] - sourceTimestampsMs[j] <= rewindWindowMs; j--)
+                        {
+                            if (!valid[j])
+                            {
+                                continue;
+                            }
+
+                            if (meanScores[j] > darkFrameMean)
+                            {
+                                break;
+                            }
+
+                            if (newMseScores[j] <= 1200.0 && newMseScores[j] <= oldMseScores[j] * 0.60 && oldMseScores[j] - newMseScores[j] >= 250.0)
+                            {
+                                ssimBoundaryIdx = j;
+                                continue;
+                            }
+
+                            if (oldMseScores[j] <= newMseScores[j] * 0.98)
+                            {
+                                break;
+                            }
+                        }
+                    }
+
+                    result = sourceTimestampsMs[ssimBoundaryIdx] / 1000.0;
+                    if (transition != null && transition.Candidates.Count < candidateDiagnosticsLimit && longInsertTransition)
+                    {
+                        transition.Candidates.Add(new DeepAnalysisTransitionCandidateDiagnostic
+                        {
+                            SourceSec = result,
+                            Score = afterNewVotes - afterOldVotes,
+                            MotionMse = motionScores[ssimBoundaryIdx],
+                            OldMse = oldMseScores[ssimBoundaryIdx],
+                            NewMse = newMseScores[ssimBoundaryIdx],
+                            Verified = false,
+                            CanDeferToGlobalVerification = true,
+                            AudioRejected = false,
+                            Decision = "insert-ssim-unverified-large-delta"
+                        });
+                    }
+                    if (!longInsertTransition)
+                    {
+                        DeepAnalysisLocalVerificationDiagnostic candidateVerification = this.VerifyTransitionLocal(sourceFile, langFile, result, oldOffsetSec, newOffsetSec, inverseRatio);
+                        if (transition != null && transition.Candidates.Count < candidateDiagnosticsLimit)
+                        {
+                            transition.Candidates.Add(new DeepAnalysisTransitionCandidateDiagnostic
+                            {
+                                SourceSec = result,
+                                Score = afterNewVotes - afterOldVotes,
+                                MotionMse = motionScores[ssimBoundaryIdx],
+                                OldMse = oldMseScores[ssimBoundaryIdx],
+                                NewMse = newMseScores[ssimBoundaryIdx],
+                                Verified = candidateVerification != null && candidateVerification.Verified,
+                                CanDeferToGlobalVerification = candidateVerification != null && candidateVerification.CanDeferToGlobalVerification,
+                                AudioRejected = candidateVerification != null && candidateVerification.AudioRejected,
+                                Decision = candidateVerification == null || (!candidateVerification.Verified && !candidateVerification.CanDeferToGlobalVerification) ? "insert-ssim-rejected-local" : "insert-ssim-accepted-local"
+                            });
+                        }
+                        if (candidateVerification == null || (!candidateVerification.Verified && !candidateVerification.CanDeferToGlobalVerification))
+                        {
+                            continue;
+                        }
+                    }
+
+                    ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione differenziale: boundary video a src " + result.ToString("F3", CultureInfo.InvariantCulture) + "s (after new=" + afterNewVotes.ToString(CultureInfo.InvariantCulture) + ", old=" + afterOldVotes.ToString(CultureInfo.InvariantCulture) + ")");
+                    if (mseInsertAccepted &&
+                        mseInsertOldMse - mseInsertNewMse >= insertRunPreferredBoundaryMargin &&
+                        mseInsertResult >= 0.0 &&
+                        mseInsertResult <= result &&
+                        result - mseInsertResult <= 3.0)
+                    {
+                        // Usa il primo boundary MSE solo quando il cambio e' netto: in fade/logo ambigui SSIM
+                        // puo' trovare un frame quasi perfetto piu' avanti e non va scavalcato da un vantaggio debole.
+                        ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione differenziale: uso boundary MSE insert a src " + mseInsertResult.ToString("F3", CultureInfo.InvariantCulture) + "s (score=" + mseInsertScore.ToString("F1", CultureInfo.InvariantCulture) + ")");
+                        return mseInsertResult;
+                    }
+
+                    if (longInsertTransition && newMseScores[ssimBoundaryIdx] <= 100.0)
+                    {
+                        double insertDurationSec = Math.Abs(newOffsetSec - oldOffsetSec);
+                        double shiftedResult = result - insertDurationSec;
+                        if (result - longInsertTargetSec >= insertDurationSec * 0.75 &&
+                            Math.Abs(shiftedResult - longInsertTargetSec) <= 1.0 &&
+                            shiftedResult >= searchStartSrc)
+                        {
+                            // Se SSIM aggancia il primo contenuto dopo un gap source-only, l'edit operativo parte all'inizio del gap.
+                            ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione differenziale: boundary SSIM post-gap riportato a src " + shiftedResult.ToString("F3", CultureInfo.InvariantCulture) + "s da contenuto " + result.ToString("F3", CultureInfo.InvariantCulture) + "s");
+                            return shiftedResult;
+                        }
+                    }
+
+                    return result;
+                }
+
+                if (mseInsertResult >= 0.0)
+                {
+                    ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione differenziale: fallback boundary MSE insert a src " + mseInsertResult.ToString("F3", CultureInfo.InvariantCulture) + "s (score=" + mseInsertScore.ToString("F1", CultureInfo.InvariantCulture) + ")");
+                    return mseInsertResult;
+                }
+
+                result = -1.0;
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Warning, "    Scansione differenziale: non conclusiva");
+                return result;
+            }
+            else
+            {
+                // CUT: scorre i candidati MSE e valida solo una quota limitata di boundary locali
+                int verifiedCutCandidates = 0;
+                double strongMotionThreshold = 10000.0;
+                double strongDifferentialScore = 100.0;
+                double cutRewindMargin = 5.0;
+                for (int c = 0; c < candidates.Count; c++)
+                {
+                    int candidateIdx = candidates[c].Key;
+                    int boundaryIdx = candidateIdx;
+                    DeepAnalysisLocalVerificationDiagnostic candidateVerification = null;
+                    DeepAnalysisTransitionCandidateDiagnostic candidateDiagnostic = null;
+                    bool candidateRejected;
+                    bool strongDifferentialCut;
+                    for (int i = candidateIdx; i < maxIdx && i < candidateIdx + 120; i++)
+                    {
+                        if (valid[i] && motionScores[i] >= motionThreshold && oldMseScores[i] - newMseScores[i] >= cutSwitchMseMargin)
+                        {
+                            boundaryIdx = i;
+                            break;
+                        }
+                    }
+
+                    if (oldMseScores[boundaryIdx] - newMseScores[boundaryIdx] >= cutSwitchMseMargin)
+                    {
+                        // Nei CUT il primo frame utile puo' precedere il frame con contrasto piu' forte:
+                        // risale la run new-dominante senza attraversare un frame dove il vecchio offset torna corretto.
+                        int rewindIdx = boundaryIdx;
+                        double rewindWindowMs = Math.Max(1000.0, Math.Abs(newOffsetSec - oldOffsetSec) * 1000.0 + 500.0);
+                        for (int i = boundaryIdx - 1; i >= 0 && sourceTimestampsMs[boundaryIdx] - sourceTimestampsMs[i] <= rewindWindowMs; i--)
+                        {
+                            if (!valid[i])
+                            {
+                                continue;
+                            }
+
+                            double newAdvantage = oldMseScores[i] - newMseScores[i];
+                            if (oldMseScores[i] <= newMseScores[i] * 0.98 && -newAdvantage >= cutRewindMargin)
+                            {
+                                break;
+                            }
+
+                            if (newAdvantage >= cutSwitchMseMargin || (newMseScores[i] <= oldMseScores[i] * 0.98 && newAdvantage >= cutRewindMargin))
+                            {
+                                rewindIdx = i;
+                                continue;
+                            }
+
+                            if (motionScores[i] >= motionThreshold)
+                            {
+                                break;
+                            }
+                        }
+
+                        if (rewindIdx != boundaryIdx)
+                        {
+                            boundaryIdx = rewindIdx;
+                        }
+                    }
+
+                    result = sourceTimestampsMs[boundaryIdx] / 1000.0;
+                    if (Math.Abs(newOffsetSec - oldOffsetSec) > 1.5 && verifiedCutCandidates >= 30)
+                    {
+                        break;
+                    }
+
+                    if (Math.Abs(newOffsetSec - oldOffsetSec) <= 1.5 || verifiedCutCandidates < 30)
+                    {
+                        verifiedCutCandidates++;
+                        candidateVerification = this.VerifyTransitionLocal(sourceFile, langFile, result, oldOffsetSec, newOffsetSec, inverseRatio);
+                        if (collectCutDiagnostics && transition.Candidates.Count < candidateDiagnosticsLimit)
+                        {
+                            candidateDiagnostic = new DeepAnalysisTransitionCandidateDiagnostic
+                            {
+                                SourceSec = result,
+                                Score = candidates[c].Value,
+                                MotionMse = motionScores[boundaryIdx],
+                                OldMse = oldMseScores[boundaryIdx],
+                                NewMse = newMseScores[boundaryIdx],
+                                Verified = candidateVerification != null && candidateVerification.Verified,
+                                CanDeferToGlobalVerification = candidateVerification != null && candidateVerification.CanDeferToGlobalVerification,
+                                AudioRejected = candidateVerification != null && candidateVerification.AudioRejected,
+                                Decision = candidateVerification == null || (!candidateVerification.Verified && !candidateVerification.CanDeferToGlobalVerification) ? "rejected-local" : "accepted-local"
+                            };
+                            transition.Candidates.Add(candidateDiagnostic);
+                        }
+                        candidateRejected = candidateVerification == null || (!candidateVerification.Verified && !candidateVerification.CanDeferToGlobalVerification);
+                        strongDifferentialCut = collectCutDiagnostics &&
+                            candidates[c].Value >= strongDifferentialScore &&
+                            oldMseScores[boundaryIdx] - newMseScores[boundaryIdx] >= cutSwitchMseMargin &&
+                            (candidateVerification == null || !candidateVerification.AudioRejected);
+                        if (candidateRejected && !strongDifferentialCut)
+                        {
+                            continue;
+                        }
+                        if (candidateRejected && strongDifferentialCut && candidateDiagnostic != null)
+                        {
+                            candidateDiagnostic.Decision = "accepted-strong-differential";
+                        }
+                    }
+
+                    if (duration > 60.0 && Math.Abs(newOffsetSec - oldOffsetSec) <= 1.5 && boundaryIdx >= 0 && boundaryIdx < motionScores.Length)
+                    {
+                        for (int i = boundaryIdx + 1; i < maxIdx; i++)
+                        {
+                            if (!valid[i] || motionScores[i] < strongMotionThreshold)
+                            {
+                                continue;
+                            }
+
+                            double motionBoundary = sourceTimestampsMs[i] / 1000.0;
+                            DeepAnalysisLocalVerificationDiagnostic motionVerification = this.VerifyTransitionLocal(sourceFile, langFile, motionBoundary, oldOffsetSec, newOffsetSec, inverseRatio);
+                            if (motionVerification != null && motionVerification.Verified)
+                            {
+                                if (collectCutDiagnostics && transition.Candidates.Count < candidateDiagnosticsLimit)
+                                {
+                                    transition.Candidates.Add(new DeepAnalysisTransitionCandidateDiagnostic
+                                    {
+                                        SourceSec = motionBoundary,
+                                        Score = candidates[c].Value,
+                                        MotionMse = motionScores[i],
+                                        OldMse = oldMseScores[i],
+                                        NewMse = newMseScores[i],
+                                        Verified = motionVerification.Verified,
+                                        CanDeferToGlobalVerification = motionVerification.CanDeferToGlobalVerification,
+                                        AudioRejected = motionVerification.AudioRejected,
+                                        Decision = "accepted-strong-motion"
+                                    });
+                                }
+                                ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione differenziale: boundary spostato su motion forte a src " + motionBoundary.ToString("F3", CultureInfo.InvariantCulture) + "s (motion=" + motionScores[i].ToString("F1", CultureInfo.InvariantCulture) + ")");
+                                return motionBoundary;
+                            }
+                        }
+                    }
+
+                    ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Scansione differenziale: boundary video a src " + result.ToString("F3", CultureInfo.InvariantCulture) + "s (score=" + candidates[c].Value.ToString("F1", CultureInfo.InvariantCulture) + ")");
+                    return result;
                 }
             }
 
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Warning, "    Scansione differenziale: non conclusiva");
-
-            return result;
-        }
-
-        /// <summary>
-        /// Refine locale audio: confronta source con language a vecchio e nuovo offset nella finestra
-        /// </summary>
-        /// <param name="sourceFile">Percorso file source</param>
-        /// <param name="langFile">Percorso file language</param>
-        /// <param name="searchStartSrc">Inizio finestra source in secondi</param>
-        /// <param name="searchEndSrc">Fine finestra source in secondi</param>
-        /// <param name="oldOffsetSec">Offset precedente in secondi</param>
-        /// <param name="newOffsetSec">Offset successivo in secondi</param>
-        /// <param name="inverseRatio">Rapporto inverso stretch</param>
-        /// <returns>Timestamp source dell'operazione, oppure -1 se non conclusivo</returns>
-        private double AudioDifferentialCrossover(string sourceFile, string langFile, double searchStartSrc, double searchEndSrc, double oldOffsetSec, double newOffsetSec, double inverseRatio)
-        {
-            double result = -1.0;
-            double duration = searchEndSrc - searchStartSrc;
-            double langStartOld = searchStartSrc - oldOffsetSec;
-            double langStartNew = searchStartSrc - newOffsetSec;
-            double[] sourceEnvelope;
-            double[] oldEnvelope;
-            double[] newEnvelope;
-            int windowMs = 50;
-            int compareWindows = 200;
-            int stepWindows = 10;
-            int requiredWindows = 2;
-            int maxIndex;
-            int consecutive = 0;
-            int crossoverIndex = -1;
-            double oldScore;
-            double newScore;
-            double minScore = 0.70;
-            double minMargin = 0.05;
-
-            if (duration < 2.0)
-            {
-                return result;
-            }
-
-            if (Math.Abs(inverseRatio - 1.0) > 0.0001)
-            {
-                langStartOld = langStartOld * inverseRatio;
-                langStartNew = langStartNew * inverseRatio;
-            }
-
-            if (langStartOld < 0.0) { langStartOld = 0.0; }
-            if (langStartNew < 0.0) { langStartNew = 0.0; }
-
-            sourceEnvelope = this.ExtractAudioEnvelope(sourceFile, searchStartSrc, duration, windowMs);
-            oldEnvelope = this.ExtractAudioEnvelope(langFile, langStartOld, duration, windowMs);
-            newEnvelope = this.ExtractAudioEnvelope(langFile, langStartNew, duration, windowMs);
-
-            if (sourceEnvelope == null || oldEnvelope == null || newEnvelope == null)
-            {
-                return result;
-            }
-
-            maxIndex = Math.Min(sourceEnvelope.Length, Math.Min(oldEnvelope.Length, newEnvelope.Length)) - compareWindows;
-            if (maxIndex <= compareWindows)
-            {
-                return result;
-            }
-
-            for (int i = 0; i < maxIndex; i += stepWindows)
-            {
-                oldScore = this.ScoreAudioEnvelopeWindow(sourceEnvelope, oldEnvelope, i, compareWindows);
-                newScore = this.ScoreAudioEnvelopeWindow(sourceEnvelope, newEnvelope, i, compareWindows);
-
-                if (newScore >= minScore && newScore > oldScore + minMargin)
-                {
-                    if (consecutive == 0)
-                    {
-                        crossoverIndex = i;
-                    }
-
-                    consecutive++;
-
-                    if (consecutive >= requiredWindows)
-                    {
-                        result = searchStartSrc + ((crossoverIndex * windowMs) / 1000.0);
-                        ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "    Refine audio locale: new=" + newScore.ToString("F3", CultureInfo.InvariantCulture) + " old=" + oldScore.ToString("F3", CultureInfo.InvariantCulture));
-                        return result;
-                    }
-                }
-                else
-                {
-                    consecutive = 0;
-                    crossoverIndex = -1;
-                }
-            }
 
             return result;
         }
@@ -1442,27 +1660,19 @@ namespace RemuxForge.Core.Analysis.Deep
         private double[] ExtractAudioEnvelope(string filePath, double startSec, double durationSec, int windowMs)
         {
             int audioStreamIndex = 0;
-            if (this._currentAnalysisHasCommonAudio)
+            if (this._currentTrackPolicy != null && this._currentTrackPolicy.AudioValidationAvailable)
             {
                 if (string.Equals(filePath, this._currentAnalysisSourceFile, StringComparison.Ordinal))
                 {
-                    audioStreamIndex = this._currentSourceAudioStreamIndex;
+                    audioStreamIndex = this._currentTrackPolicy.SourceAudioStreamIndex;
                 }
                 else if (string.Equals(filePath, this._currentAnalysisLanguageFile, StringComparison.Ordinal))
                 {
-                    audioStreamIndex = this._currentLanguageAudioStreamIndex;
+                    audioStreamIndex = this._currentTrackPolicy.LanguageAudioStreamIndex;
                 }
             }
 
             return this._audioEnvelopeService.Extract(filePath, startSec, durationSec, windowMs, audioStreamIndex);
-        }
-
-        /// <summary>
-        /// Confronta due finestre envelope audio
-        /// </summary>
-        private double ScoreAudioEnvelopeWindow(double[] sourceEnvelope, double[] languageEnvelope, int startIndex, int count)
-        {
-            return this._audioEnvelopeService.ScoreWindow(sourceEnvelope, languageEnvelope, startIndex, count);
         }
 
         /// <summary>
@@ -1481,18 +1691,16 @@ namespace RemuxForge.Core.Analysis.Deep
         }
 
         /// <summary>
-        /// Scansione lineare differenziale di conferma attorno al punto trovato dalla binaria
-        /// Cerca il primo frame dove SSIM col nuovo offset supera SSIM col vecchio offset
-        /// per almeno this._daConfig.LinearScanConfirmFrames consecutivi
+        /// Scansione lineare di conferma attorno al punto trovato dalla binaria
+        /// Cerca il primo frame dove il vecchio offset smette di produrre match visivo
         /// </summary>
         /// <param name="sourceFile">Percorso file source</param>
         /// <param name="langFile">Percorso file lang</param>
         /// <param name="approximateSrc">Punto approssimato dalla binaria in secondi source</param>
         /// <param name="oldOffsetSec">Offset vecchio in secondi</param>
-        /// <param name="newOffsetSec">Offset nuovo in secondi</param>
         /// <param name="inverseRatio">Rapporto inverso stretch</param>
         /// <returns>Timestamp source raffinato del crossover in secondi</returns>
-        private double LinearScanConfirm(string sourceFile, string langFile, double approximateSrc, double oldOffsetSec, double newOffsetSec, double inverseRatio)
+        private double LinearScanConfirm(string sourceFile, string langFile, double approximateSrc, double oldOffsetSec, double inverseRatio)
         {
             double result = approximateSrc;
             double scanStart = approximateSrc - this._daConfig.LinearScanWindowSec;
@@ -1502,10 +1710,7 @@ namespace RemuxForge.Core.Analysis.Deep
             double[] sourceTimestampsMs;
             List<byte[]> langOldFrames;
             double[] langOldTimestampsMs;
-            List<byte[]> langNewFrames = null;
-            double[] langNewTimestampsMs = null;
             double toleranceMs;
-            double srcRelMs;
             double targetLangOldMs;
             int nearestOldIdx;
             double nearestOldDistMs;
@@ -1519,14 +1724,8 @@ namespace RemuxForge.Core.Analysis.Deep
             if (Math.Abs(inverseRatio - 1.0) > 0.0001) { langStartOld = langStartOld * inverseRatio; }
             if (langStartOld < 0.0) { langStartOld = 0.0; }
 
-            // Posizione lang col nuovo offset
-            double langStartNew = scanStart - newOffsetSec;
-            if (Math.Abs(inverseRatio - 1.0) > 0.0001) { langStartNew = langStartNew * inverseRatio; }
-            if (langStartNew < 0.0) { langStartNew = 0.0; }
-
-            // Estrai frame lang con entrambi gli offset (passthrough)
+            // Estrae il vecchio offset: questa conferma lineare cerca il primo punto dove old smette di funzionare
             this.ExtractDeepSegment(langFile, (int)(langStartOld * 1000), scanDuration, 0.0, this._geometryCropLanguageToFourThree, out langOldFrames, out langOldTimestampsMs);
-            this.ExtractDeepSegment(langFile, (int)(langStartNew * 1000), scanDuration, 0.0, this._geometryCropLanguageToFourThree, out langNewFrames, out langNewTimestampsMs);
 
             if (langOldFrames.Count < 4 || langOldTimestampsMs.Length < 4) { return result; }
 
@@ -1543,8 +1742,11 @@ namespace RemuxForge.Core.Analysis.Deep
 
             for (int i = 0; i < maxIdx; i++)
             {
-                srcRelMs = sourceTimestampsMs[i] - sourceTimestampsMs[0];
-                targetLangOldMs = langOldTimestampsMs[0] + srcRelMs;
+                targetLangOldMs = sourceTimestampsMs[i] - (oldOffsetSec * 1000.0);
+                if (Math.Abs(inverseRatio - 1.0) > 0.0001)
+                {
+                    targetLangOldMs = targetLangOldMs * inverseRatio;
+                }
                 nearestOldIdx = NearestTimestampIndex(langOldTimestampsMs, targetLangOldMs);
                 if (nearestOldIdx < 0 || nearestOldIdx >= langOldFrames.Count) { continue; }
                 nearestOldDistMs = Math.Abs(langOldTimestampsMs[nearestOldIdx] - targetLangOldMs);
@@ -1585,41 +1787,6 @@ namespace RemuxForge.Core.Analysis.Deep
         #region Metodi privati — Fase 4: Verifica globale
 
         /// <summary>
-        /// Verifica l'allineamento globale dopo aver applicato le regioni e le operazioni
-        /// </summary>
-        /// <param name="sourceFile">Percorso file source</param>
-        /// <param name="langFile">Percorso file lang</param>
-        /// <param name="regions">Regioni con offset</param>
-        /// <param name="operations">Operazioni di edit</param>
-        /// <param name="inverseRatio">Rapporto inverso stretch</param>
-        /// <param name="sourceDurationMs">Durata source in ms</param>
-        /// <param name="baselineMse">MSE baseline calcolato (output)</param>
-        /// <param name="verification">Diagnostica della verifica globale (output)</param>
-        /// <returns>True se la verifica ha successo</returns>
-        private bool VerifyGlobal(string sourceFile, string langFile, List<OffsetRegion> regions, List<EditOperation> operations, double inverseRatio, int sourceDurationMs, out double baselineMse, out DeepAnalysisGlobalVerificationDiagnostic verification)
-        {
-            return this._globalVerifier.Verify(sourceFile, langFile, regions, operations, inverseRatio, sourceDurationMs, out baselineMse, out verification);
-        }
-
-        /// <summary>
-        /// Calcola MSE per un punto della verifica globale
-        /// </summary>
-        private bool TryComputeGlobalPointMse(string sourceFile, string langFile, List<OffsetRegion> regions, double srcPointMs, double inverseRatio, out double mse)
-        {
-            return this._visualFrameAnalyzer.TryComputeGlobalPointMse(sourceFile, langFile, regions, srcPointMs, inverseRatio, this._daConfig.CoarseFps, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree, out mse);
-        }
-
-        /// <summary>
-        /// Converte regioni interne in DTO diagnostici pubblici
-        /// </summary>
-        /// <param name="regions">Regioni interne</param>
-        /// <returns>Lista diagnostica regioni</returns>
-        private List<DeepAnalysisRegionDiagnostic> BuildRegionDiagnostics(List<OffsetRegion> regions)
-        {
-            return this._regionMapper.BuildDiagnostics(regions);
-        }
-
-        /// <summary>
         /// Wrapper diagnostico per estrazioni frame DeepAnalysis
         /// </summary>
         private void ExtractDeepSegment(string filePath, int startMs, double durationSec, double targetFps, bool geometryCropToFourThree, out List<byte[]> frames, out double[] timestampsMs)
@@ -1658,10 +1825,54 @@ namespace RemuxForge.Core.Analysis.Deep
             bool afterOrForwardImproved;
             bool overallImproved;
             bool visualVerified;
+            bool afterIndeterminate;
+            bool postVisualStrong;
+            bool postVisualConsistent;
+            bool beforeSsimStable;
+            bool beforeSsimStrictStable;
+            bool beforeMseStable;
+            bool afterSsimImproved;
+            bool forwardSsimImproved;
+            bool afterSsimNotWorse;
+            bool forwardSsimNotWorse;
+            bool postSsimStrong;
+            bool postSsimConsistent;
+            bool postSsimRejects;
+            bool postSsimAvailable;
+            bool ssimPostCanDefer;
+            bool msePostCanDefer;
+            bool mseForwardCanDefer;
+            bool mseIndeterminateCanDefer;
+            bool mseVisualPostCanDefer;
+            bool mseVisualVerified;
+            bool mseAfterNotWorse;
+            bool mseForwardImproved;
+            double afterForwardOldTotal;
+            double afterForwardNewTotal;
+            double afterForwardImprovementRatio;
+            double beforeOldMse;
+            double beforeOldSsim;
+            double beforeNewMse;
+            double beforeNewSsim;
+            double afterOldMse;
+            double afterOldSsim;
+            double afterNewMse;
+            double afterNewSsim;
+            double forwardOldMse;
+            double forwardOldSsim;
+            double forwardNewMse;
+            double forwardNewSsim;
+            if (this._currentAnalysisUsesTimelineMap && offsetDeltaSec < 0.0)
+            {
+                // Nei CUT timeline il frame immediatamente prima puo' cadere in una zona ambigua: il veto old-before va misurato piu' indietro
+                beforeSrcSec = crossoverSrcSec - Math.Max(4.0, transitionDurationSec + 2.0);
+                forwardSrcSec = crossoverSrcSec + Math.Max(LOCAL_TIMELINE_CUT_FORWARD_SEC, transitionDurationSec + 2.0);
+            }
+
             if (beforeSrcSec < 0.0) { beforeSrcSec = 0.0; }
             if (insertSilenceTransition)
             {
-                // In INSERT_SILENCE il crossover e' il punto operativo: il nuovo offset diventa verificabile solo dopo la durata inserita.
+                // In INSERT_SILENCE il crossover e' il punto operativo: il nuovo offset diventa verificabile solo dopo la durata inserita
                 afterSrcSec = crossoverSrcSec + transitionDurationSec + 2.0;
                 forwardSrcSec = crossoverSrcSec + transitionDurationSec + Math.Max(8.0, transitionDurationSec + 2.0);
             }
@@ -1669,12 +1880,26 @@ namespace RemuxForge.Core.Analysis.Deep
             result.BeforeSrcSec = beforeSrcSec;
             result.AfterSrcSec = afterSrcSec;
             result.ForwardSrcSec = forwardSrcSec;
-            result.BeforeOldMse = this.ComputeLocalMseAt(sourceFile, langFile, beforeSrcSec, oldOffsetSec, inverseRatio);
-            result.BeforeNewMse = this.ComputeLocalMseAt(sourceFile, langFile, beforeSrcSec, newOffsetSec, inverseRatio);
-            result.AfterOldMse = this.ComputeLocalMseAt(sourceFile, langFile, afterSrcSec, oldOffsetSec, inverseRatio);
-            result.AfterNewMse = this.ComputeLocalMseAt(sourceFile, langFile, afterSrcSec, newOffsetSec, inverseRatio);
-            result.ForwardOldMse = this.ComputeLocalMseAt(sourceFile, langFile, forwardSrcSec, oldOffsetSec, inverseRatio);
-            result.ForwardNewMse = this.ComputeLocalMseAt(sourceFile, langFile, forwardSrcSec, newOffsetSec, inverseRatio);
+
+            // Calcola SSIM e MSE sugli stessi campioni per confrontare vecchio e nuovo offset senza doppie estrazioni
+            this._visualFrameAnalyzer.TryComputeLocalVisualScoreAt(sourceFile, langFile, beforeSrcSec, oldOffsetSec, inverseRatio, this._daConfig.CoarseFps, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree, out beforeOldMse, out beforeOldSsim);
+            this._visualFrameAnalyzer.TryComputeLocalVisualScoreAt(sourceFile, langFile, beforeSrcSec, newOffsetSec, inverseRatio, this._daConfig.CoarseFps, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree, out beforeNewMse, out beforeNewSsim);
+            this._visualFrameAnalyzer.TryComputeLocalVisualScoreAt(sourceFile, langFile, afterSrcSec, oldOffsetSec, inverseRatio, this._daConfig.CoarseFps, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree, out afterOldMse, out afterOldSsim);
+            this._visualFrameAnalyzer.TryComputeLocalVisualScoreAt(sourceFile, langFile, afterSrcSec, newOffsetSec, inverseRatio, this._daConfig.CoarseFps, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree, out afterNewMse, out afterNewSsim);
+            this._visualFrameAnalyzer.TryComputeLocalVisualScoreAt(sourceFile, langFile, forwardSrcSec, oldOffsetSec, inverseRatio, this._daConfig.CoarseFps, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree, out forwardOldMse, out forwardOldSsim);
+            this._visualFrameAnalyzer.TryComputeLocalVisualScoreAt(sourceFile, langFile, forwardSrcSec, newOffsetSec, inverseRatio, this._daConfig.CoarseFps, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree, out forwardNewMse, out forwardNewSsim);
+            result.BeforeOldMse = beforeOldMse;
+            result.BeforeNewMse = beforeNewMse;
+            result.AfterOldMse = afterOldMse;
+            result.AfterNewMse = afterNewMse;
+            result.ForwardOldMse = forwardOldMse;
+            result.ForwardNewMse = forwardNewMse;
+            result.BeforeOldSsim = beforeOldSsim;
+            result.BeforeNewSsim = beforeNewSsim;
+            result.AfterOldSsim = afterOldSsim;
+            result.AfterNewSsim = afterNewSsim;
+            result.ForwardOldSsim = forwardOldSsim;
+            result.ForwardNewSsim = forwardNewSsim;
 
             if (insertSilenceTransition)
             {
@@ -1689,29 +1914,63 @@ namespace RemuxForge.Core.Analysis.Deep
 
             result.ImprovementRatio = this.ComputeSafeImprovementRatio(oldTotal, newTotal);
             result.ForwardImprovementRatio = this.ComputeSafeImprovementRatio(result.ForwardOldMse, result.ForwardNewMse);
+            beforeSsimStable = result.BeforeOldSsim + LOCAL_SSIM_TIE_MARGIN >= result.BeforeNewSsim;
+            beforeSsimStrictStable = result.BeforeOldSsim + 0.001 >= result.BeforeNewSsim;
+            beforeMseStable = result.BeforeOldMse <= result.BeforeNewMse * 1.02;
+            afterSsimImproved = result.AfterNewSsim > result.AfterOldSsim + LOCAL_SSIM_CLEAR_MARGIN;
+            forwardSsimImproved = result.ForwardNewSsim > result.ForwardOldSsim + LOCAL_SSIM_CLEAR_MARGIN;
+            afterSsimNotWorse = result.AfterNewSsim + LOCAL_SSIM_TIE_MARGIN >= result.AfterOldSsim;
+            forwardSsimNotWorse = result.ForwardNewSsim + LOCAL_SSIM_TIE_MARGIN >= result.ForwardOldSsim;
+            postSsimStrong = (afterSsimImproved && forwardSsimNotWorse) || (forwardSsimImproved && afterSsimNotWorse);
+            postSsimConsistent = afterSsimNotWorse && forwardSsimNotWorse && (afterSsimImproved || forwardSsimImproved);
+            postSsimAvailable = result.AfterOldSsim > 0.0 && result.AfterNewSsim > 0.0 && result.ForwardOldSsim > 0.0 && result.ForwardNewSsim > 0.0;
+            postSsimRejects = postSsimAvailable && !afterSsimNotWorse && !forwardSsimNotWorse;
             this.VerifyAudioTransitionLocal(sourceFile, langFile, crossoverSrcSec, oldOffsetSec, newOffsetSec, inverseRatio, result);
 
+            // SSIM decide quando il segnale e' chiaro; MSE resta fallback quando SSIM e' saturo o quasi pari
             if (this._currentAnalysisUsesTimelineMap)
             {
                 if (insertSilenceTransition)
                 {
-                    beforeStable = result.BeforeOldMse <= result.BeforeNewMse || result.ImprovementRatio >= 2.0;
-                    afterOrForwardImproved = result.AfterNewMse <= result.AfterOldMse * 1.10 || result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO;
-                    overallImproved = result.ImprovementRatio >= 1.05 || result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO;
-                    visualVerified = beforeStable && afterOrForwardImproved && overallImproved;
-                    result.CanDeferToGlobalVerification = result.AudioVerified || (beforeStable && result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO && result.ImprovementRatio >= 1.05);
-                    result.Verified = visualVerified || result.AudioVerified;
+                    beforeStable = beforeSsimStable || result.BeforeOldMse <= result.BeforeNewMse || result.ImprovementRatio >= 2.0;
+                    afterOrForwardImproved = result.AfterNewMse < result.AfterOldMse * 0.995 || result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO;
+                    overallImproved = result.ImprovementRatio >= 1.005 || result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO;
+                    afterIndeterminate = result.AfterNewMse <= result.AfterOldMse * 1.02 && result.ForwardNewMse <= result.ForwardOldMse * 1.02;
+                    postVisualStrong = result.AfterNewMse <= result.AfterOldMse * 1.02 && result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO;
+                    postVisualConsistent = result.AfterNewMse < result.AfterOldMse && result.ForwardNewMse <= result.ForwardOldMse * 1.02 && result.ImprovementRatio >= 1.10;
+                    ssimPostCanDefer = transitionDurationSec >= 0.5 && (postSsimStrong || postSsimConsistent);
+                    mseForwardCanDefer = beforeStable && result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO && result.ImprovementRatio >= 1.005;
+                    mseIndeterminateCanDefer = transitionDurationSec >= 0.5 && beforeStable && afterIndeterminate && result.ImprovementRatio >= 0.99;
+                    mseVisualPostCanDefer = transitionDurationSec >= 0.5 && (postVisualStrong || postVisualConsistent);
+                    msePostCanDefer = mseForwardCanDefer || mseIndeterminateCanDefer || mseVisualPostCanDefer;
+                    mseAfterNotWorse = result.ForwardNewMse <= result.ForwardOldMse * 1.02;
+                    mseVisualVerified = afterOrForwardImproved && overallImproved && mseAfterNotWorse;
+                    visualVerified = beforeStable && (postSsimStrong || mseVisualVerified);
+                    result.CanDeferToGlobalVerification = !result.AudioRejected && (result.AudioVerified || visualVerified || (!postSsimRejects && (ssimPostCanDefer || msePostCanDefer)));
+                    result.Verified = !result.AudioRejected && (visualVerified || result.AudioVerified);
                 }
                 else
                 {
-                    visualVerified = result.AfterNewMse <= result.AfterOldMse * 1.02 && result.ForwardNewMse < result.ForwardOldMse && result.ImprovementRatio >= 1.05;
-                    result.CanDeferToGlobalVerification = result.AudioVerified || (result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO && result.ImprovementRatio >= 1.05);
-                    result.Verified = visualVerified || result.AudioVerified;
+                    beforeStable = transitionDurationSec > 1.5 || (beforeSsimStrictStable && beforeMseStable) || result.BeforeOldMse <= result.BeforeNewMse * 0.90;
+                    afterForwardOldTotal = this.SumValidMse(result.AfterOldMse, result.ForwardOldMse, double.MaxValue);
+                    afterForwardNewTotal = this.SumValidMse(result.AfterNewMse, result.ForwardNewMse, double.MaxValue);
+                    afterForwardImprovementRatio = this.ComputeSafeImprovementRatio(afterForwardOldTotal, afterForwardNewTotal);
+                    postVisualConsistent = result.AfterNewMse <= result.AfterOldMse * 1.02 && result.ForwardNewMse <= result.ForwardOldMse * 1.02 && result.ImprovementRatio >= 1.10;
+                    ssimPostCanDefer = transitionDurationSec >= 0.5 && beforeStable && postSsimConsistent;
+                    mseForwardCanDefer = beforeStable && result.ForwardImprovementRatio >= LOCAL_FORWARD_STRONG_RATIO && afterForwardImprovementRatio >= 1.10;
+                    mseVisualPostCanDefer = transitionDurationSec >= 0.5 && beforeStable && postVisualConsistent;
+                    msePostCanDefer = mseForwardCanDefer || mseVisualPostCanDefer;
+                    mseAfterNotWorse = result.AfterNewMse <= result.AfterOldMse * 1.02;
+                    mseForwardImproved = result.ForwardNewMse < result.ForwardOldMse && afterForwardImprovementRatio >= 1.10;
+                    mseVisualVerified = mseAfterNotWorse && mseForwardImproved;
+                    visualVerified = beforeStable && (postSsimStrong || mseVisualVerified);
+                    result.CanDeferToGlobalVerification = !result.AudioRejected && (result.AudioVerified || visualVerified || (!postSsimRejects && (ssimPostCanDefer || msePostCanDefer)));
+                    result.Verified = !result.AudioRejected && (visualVerified || result.AudioVerified);
                 }
             }
             else
             {
-                result.Verified = result.BeforeOldMse <= result.BeforeNewMse && result.AfterNewMse < result.AfterOldMse && result.ForwardNewMse < result.ForwardOldMse;
+                result.Verified = beforeSsimStable && postSsimStrong;
             }
 
             return result;
@@ -1730,8 +1989,10 @@ namespace RemuxForge.Core.Analysis.Deep
             bool beforeStable;
             bool afterImproved;
             bool forwardImproved;
+            bool afterRejected;
+            bool forwardRejected;
 
-            if (!this._currentAnalysisUsesTimelineMap || !this._currentAnalysisHasCommonAudio)
+            if (!this._currentAnalysisUsesTimelineMap || this._currentTrackPolicy == null || !this._currentTrackPolicy.AudioValidationAvailable)
             {
                 return;
             }
@@ -1760,7 +2021,10 @@ namespace RemuxForge.Core.Analysis.Deep
             beforeStable = !beforeAvailable || beforeOldScore + LOCAL_AUDIO_VERIFY_BEFORE_TOLERANCE >= beforeNewScore;
             afterImproved = afterAvailable && afterNewScore >= LOCAL_AUDIO_VERIFY_MIN_SCORE && afterNewScore > afterOldScore + LOCAL_AUDIO_VERIFY_MIN_MARGIN;
             forwardImproved = forwardAvailable && forwardNewScore >= LOCAL_AUDIO_VERIFY_MIN_SCORE && forwardNewScore > forwardOldScore + LOCAL_AUDIO_VERIFY_MIN_MARGIN;
+            afterRejected = afterAvailable && afterOldScore >= LOCAL_AUDIO_REJECT_MIN_SCORE && afterOldScore > afterNewScore + LOCAL_AUDIO_REJECT_MIN_MARGIN;
+            forwardRejected = forwardAvailable && forwardOldScore >= LOCAL_AUDIO_REJECT_MIN_SCORE && forwardOldScore > forwardNewScore + LOCAL_AUDIO_REJECT_MIN_MARGIN;
             result.AudioVerified = beforeStable && (afterImproved || forwardImproved);
+            result.AudioRejected = beforeStable && afterRejected && forwardRejected;
         }
 
         /// <summary>
@@ -1811,8 +2075,8 @@ namespace RemuxForge.Core.Analysis.Deep
                 return false;
             }
 
-            oldScore = this.ScoreAudioEnvelopeWindow(sourceEnvelope, oldEnvelope, 0, compareCount);
-            newScore = this.ScoreAudioEnvelopeWindow(sourceEnvelope, newEnvelope, 0, compareCount);
+            oldScore = this._audioEnvelopeService.ScoreWindow(sourceEnvelope, oldEnvelope, 0, 0, compareCount);
+            newScore = this._audioEnvelopeService.ScoreWindow(sourceEnvelope, newEnvelope, 0, 0, compareCount);
             return true;
         }
 
@@ -1834,14 +2098,6 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             return oldValue / denominator;
-        }
-
-        /// <summary>
-        /// Calcola MSE locale per un punto source e un offset candidato
-        /// </summary>
-        private double ComputeLocalMseAt(string sourceFile, string langFile, double srcSec, double offsetSec, double inverseRatio)
-        {
-            return this._visualFrameAnalyzer.ComputeLocalMseAt(sourceFile, langFile, srcSec, offsetSec, inverseRatio, this._daConfig.CoarseFps, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree);
         }
 
         /// <summary>

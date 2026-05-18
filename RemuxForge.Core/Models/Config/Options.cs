@@ -1,5 +1,6 @@
 using RemuxForge.Core.Configuration;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace RemuxForge.Core.Models
 {
@@ -46,8 +47,12 @@ namespace RemuxForge.Core.Models
             this.Recursive = true;
             this.DryRun = false;
             this.FileExtensions = new List<string> { "mkv" };
-            this.ConvertFormat = "";
-            this.RenameAllTracks = false;
+            this.AudioFormat = "";
+            this.AudioProcessingScope = "disabled";
+            this.AudioDownsample24To16 = false;
+            this.AudioPeakNormalize = false;
+            this.AudioPeakTargetDb = -1.0;
+            this.AudioRenameScope = "disabled";
             this.ErrorMessage = "";
             this.EncodingProfileName = "";
             this.Split = new MkvSplitOptions();
@@ -255,7 +260,8 @@ namespace RemuxForge.Core.Models
             bool handled = true;
             string value;
             int delay;
-            string cfLower;
+            string audioFormat;
+            double peakTargetDb;
 
             if (key == "fs" || key == "framesync")
             {
@@ -287,9 +293,14 @@ namespace RemuxForge.Core.Models
                 options.AudioOnly = true;
                 i++;
             }
-            else if (key == "rt" || key == "rename-tracks")
+            else if (key == "audio-24-to-16")
             {
-                options.RenameAllTracks = true;
+                options.AudioDownsample24To16 = true;
+                i++;
+            }
+            else if (key == "audio-peak-normalize")
+            {
+                options.AudioPeakNormalize = true;
                 i++;
             }
             else if (key == "o" || key == "overwrite")
@@ -390,16 +401,44 @@ namespace RemuxForge.Core.Models
                 {
                     ParseCsvToList(value, options.KeepSourceSubtitleLangs);
                 }
-                else if (key == "cf" || key == "convert-format")
+                else if (key == "audio-format")
                 {
-                    cfLower = value.Trim().ToLowerInvariant();
-                    if (cfLower == "flac" || cfLower == "opus")
+                    audioFormat = value.Trim().ToLowerInvariant();
+                    if (audioFormat == "flac" || audioFormat == "lpcm" || audioFormat == "aac" || audioFormat == "opus")
                     {
-                        options.ConvertFormat = cfLower;
+                        options.AudioFormat = audioFormat;
+                        if (options.AudioProcessingScope == "disabled")
+                        {
+                            options.AudioProcessingScope = "all";
+                        }
                     }
                     else
                     {
-                        options.ErrorMessage = "Formato conversione non valido: " + value + ". Valori validi: flac, opus";
+                        options.ErrorMessage = "Formato audio non valido: " + value + ". Valori validi: flac, lpcm, aac, opus";
+                    }
+                }
+                else if (key == "audio-scope")
+                {
+                    options.AudioProcessingScope = NormalizeScope(value);
+                    if (options.AudioProcessingScope.Length == 0)
+                    {
+                        options.ErrorMessage = "Scope audio non valido: " + value + ". Valori validi: disabled, lang, all";
+                    }
+                }
+                else if (key == "audio-peak-target-db")
+                {
+                    if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out peakTargetDb))
+                    {
+                        options.ErrorMessage = "Valore non valido per audio-peak-target-db: " + value;
+                    }
+                    options.AudioPeakTargetDb = peakTargetDb;
+                }
+                else if (key == "audio-rename-scope")
+                {
+                    options.AudioRenameScope = NormalizeScope(value);
+                    if (options.AudioRenameScope.Length == 0)
+                    {
+                        options.ErrorMessage = "Scope rinomina audio non valido: " + value + ". Valori validi: disabled, lang, all";
                     }
                 }
                 else if (key == "mkv" || key == "mkvmerge-path")
@@ -422,6 +461,30 @@ namespace RemuxForge.Core.Models
             }
 
             return handled;
+        }
+
+        /// <summary>
+        /// Normalizza uno scope audio
+        /// </summary>
+        private static string NormalizeScope(string value)
+        {
+            string result = "";
+            string trimmed = value != null ? value.Trim().ToLowerInvariant() : "";
+
+            if (trimmed == "disabled" || trimmed == "off" || trimmed == "no")
+            {
+                result = "disabled";
+            }
+            else if (trimmed == "lang" || trimmed == "language")
+            {
+                result = "lang";
+            }
+            else if (trimmed == "all" || trimmed == "tutti")
+            {
+                result = "all";
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -822,14 +885,34 @@ namespace RemuxForge.Core.Models
         public string MkvMergePath { get; set; }
 
         /// <summary>
-        /// Formato conversione tracce lossless (-cf, --convert-format). Valori: "flac", "opus", "" = disabilitato
+        /// Formato audio finale per tracce processate. Valori: flac, lpcm, aac, opus o vuoto
         /// </summary>
-        public string ConvertFormat { get; set; }
+        public string AudioFormat { get; set; }
 
         /// <summary>
-        /// Forza rinomina di tutte le tracce audio (non solo quelle convertite) (-rt, --rename-tracks)
+        /// Scope del processing audio: disabled, lang, all
         /// </summary>
-        public bool RenameAllTracks { get; set; }
+        public string AudioProcessingScope { get; set; }
+
+        /// <summary>
+        /// Converte audio 24-bit in 16-bit con soxr e dither
+        /// </summary>
+        public bool AudioDownsample24To16 { get; set; }
+
+        /// <summary>
+        /// Applica peak normalization alle tracce processate
+        /// </summary>
+        public bool AudioPeakNormalize { get; set; }
+
+        /// <summary>
+        /// Target dB per peak normalization
+        /// </summary>
+        public double AudioPeakTargetDb { get; set; }
+
+        /// <summary>
+        /// Scope rinomina audio finale: disabled, lang, all
+        /// </summary>
+        public string AudioRenameScope { get; set; }
 
         /// <summary>
         /// Indica se cercare ricorsivamente nelle sottocartelle (-r, --recursive). Default: true

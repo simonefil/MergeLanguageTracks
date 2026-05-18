@@ -47,14 +47,6 @@ namespace RemuxForge.Core.Analysis.Deep
         #region Metodi pubblici
 
         /// <summary>
-        /// Estrae envelope RMS/abs mono a bassa frequenza
-        /// </summary>
-        public double[] Extract(string filePath, double startSec, double durationSec, int windowMs)
-        {
-            return this.Extract(filePath, startSec, durationSec, windowMs, 0);
-        }
-
-        /// <summary>
         /// Estrae envelope RMS/abs mono a bassa frequenza da una traccia audio specifica
         /// </summary>
         public double[] Extract(string filePath, double startSec, double durationSec, int windowMs, int audioStreamIndex)
@@ -138,11 +130,7 @@ namespace RemuxForge.Core.Analysis.Deep
             }
             finally
             {
-                if (this._recordExtract != null)
-                {
-                    this._recordExtract(stopwatch.ElapsedMilliseconds);
-                }
-
+                this._recordExtract?.Invoke(stopwatch.ElapsedMilliseconds);
             }
 
             if (result.Count < 20)
@@ -151,14 +139,6 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             return result.ToArray();
-        }
-
-        /// <summary>
-        /// Confronta due finestre envelope audio
-        /// </summary>
-        public double ScoreWindow(double[] sourceEnvelope, double[] languageEnvelope, int startIndex, int count)
-        {
-            return this.ScoreWindow(sourceEnvelope, languageEnvelope, startIndex, startIndex, count);
         }
 
         /// <summary>

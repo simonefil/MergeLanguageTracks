@@ -43,6 +43,11 @@ namespace RemuxForge.Core.Media.Ffmpeg
         /// </summary>
         private LogSection _logSection;
 
+        /// <summary>
+        /// True dopo il primo fallback software per evitare log ripetuti.
+        /// </summary>
+        private static bool s_reportedHwAccelFallback;
+
         #endregion
 
         #region Costruttore
@@ -87,6 +92,8 @@ namespace RemuxForge.Core.Media.Ffmpeg
             double ptsSec;
             int minCount;
             bool useFpsFilter;
+            int maxAttempts;
+            int timeoutMs;
             try
             {
                 startSec = startMs / 1000.0;
@@ -95,69 +102,96 @@ namespace RemuxForge.Core.Media.Ffmpeg
                 endFormatted = endSec.ToString("F3", CultureInfo.InvariantCulture);
                 resolution = this._videoSyncConfig.FrameWidth + ":" + this._videoSyncConfig.FrameHeight;
                 useFpsFilter = targetFps > 0.0;
+                maxAttempts = this._ffmpegConfig.HardwareAcceleration ? 2 : 1;
+                timeoutMs = this._ffmpegConfig.FrameExtractionTimeoutMs;
 
-                args.Add("-nostdin");
-                args.Add("-hide_banner");
-                if (this._ffmpegConfig.HardwareAcceleration)
+                for (int attempt = 0; attempt < maxAttempts; attempt++)
                 {
-                    args.Add("-hwaccel");
-                    args.Add("auto");
-                }
-                args.Add("-ss");
-                args.Add(startFormatted);
-                args.Add("-i");
-                args.Add(filePath);
-                args.Add("-copyts");
-                args.Add("-to");
-                args.Add(endFormatted);
-                args.Add("-fps_mode");
-                args.Add(useFpsFilter ? "vfr" : "passthrough");
+                    bool useHardwareAcceleration = this._ffmpegConfig.HardwareAcceleration && attempt == 0;
+                    args.Clear();
+                    extractedFrames.Clear();
+                    tsList.Clear();
+                    totalRead = 0;
 
-                filterChain = this.BuildFilterChain(targetFps, geometryCropToFourThree, useFpsFilter, resolution);
-                args.Add("-vf");
-                args.Add(filterChain);
-                args.Add("-f");
-                args.Add("rawvideo");
-                args.Add("-");
-
-                frameData = new byte[frameSize];
-                processResult = ProcessRunner.RunBinaryStdout(this._ffmpegPath, args.ToArray(), (buffer, bytesRead) =>
-                {
-                    int offset = 0;
-                    while (offset < bytesRead)
+                    args.Add("-nostdin");
+                    args.Add("-hide_banner");
+                    if (useHardwareAcceleration)
                     {
-                        int copyCount = Math.Min(frameSize - totalRead, bytesRead - offset);
-                        Array.Copy(buffer, offset, frameData, totalRead, copyCount);
-                        totalRead += copyCount;
-                        offset += copyCount;
+                        args.Add("-hwaccel");
+                        args.Add("auto");
+                    }
+                    args.Add("-ss");
+                    args.Add(startFormatted);
+                    args.Add("-i");
+                    args.Add(filePath);
+                    args.Add("-copyts");
+                    args.Add("-to");
+                    args.Add(endFormatted);
+                    args.Add("-fps_mode");
+                    args.Add(useFpsFilter ? "vfr" : "passthrough");
 
-                        if (totalRead == frameSize)
+                    filterChain = this.BuildFilterChain(targetFps, geometryCropToFourThree, useFpsFilter, resolution);
+                    args.Add("-vf");
+                    args.Add(filterChain);
+                    args.Add("-f");
+                    args.Add("rawvideo");
+                    args.Add("-");
+
+                    frameData = new byte[frameSize];
+                    processResult = ProcessRunner.RunBinaryStdout(this._ffmpegPath, args.ToArray(), (buffer, bytesRead) =>
+                    {
+                        int offset = 0;
+                        while (offset < bytesRead)
                         {
-                            extractedFrames.Add(frameData);
-                            frameData = new byte[frameSize];
-                            totalRead = 0;
+                            int copyCount = Math.Min(frameSize - totalRead, bytesRead - offset);
+                            Array.Copy(buffer, offset, frameData, totalRead, copyCount);
+                            totalRead += copyCount;
+                            offset += copyCount;
+
+                            if (totalRead == frameSize)
+                            {
+                                extractedFrames.Add(frameData);
+                                frameData = new byte[frameSize];
+                                totalRead = 0;
+                            }
+                        }
+                    }, timeoutMs);
+
+                    stderrText = processResult.Stderr;
+                    ptsMatches = s_ptsTimeRegex.Matches(stderrText);
+                    for (int i = 0; i < ptsMatches.Count; i++)
+                    {
+                        if (double.TryParse(ptsMatches[i].Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out ptsSec))
+                        {
+                            tsList.Add(ptsSec * 1000.0);
                         }
                     }
-                });
 
-                stderrText = processResult.Stderr;
-                ptsMatches = s_ptsTimeRegex.Matches(stderrText);
-                for (int i = 0; i < ptsMatches.Count; i++)
-                {
-                    if (double.TryParse(ptsMatches[i].Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out ptsSec))
+                    minCount = Math.Min(extractedFrames.Count, tsList.Count);
+                    if (minCount < extractedFrames.Count)
                     {
-                        tsList.Add(ptsSec * 1000.0);
+                        extractedFrames.RemoveRange(minCount, extractedFrames.Count - minCount);
                     }
-                }
+                    if (minCount < tsList.Count)
+                    {
+                        tsList.RemoveRange(minCount, tsList.Count - minCount);
+                    }
 
-                minCount = Math.Min(extractedFrames.Count, tsList.Count);
-                if (minCount < extractedFrames.Count)
-                {
-                    extractedFrames.RemoveRange(minCount, extractedFrames.Count - minCount);
-                }
-                if (minCount < tsList.Count)
-                {
-                    tsList.RemoveRange(minCount, tsList.Count - minCount);
+                    if (extractedFrames.Count > 0 || !useHardwareAcceleration)
+                    {
+                        if (extractedFrames.Count == 0 && processResult.ExitCode != 0)
+                        {
+                            ConsoleHelper.Write(this._logSection, LogLevel.Warning, "  Estrazione frame fallita: " + this.GetLastErrorLine(processResult.Stderr));
+                        }
+
+                        break;
+                    }
+
+                    if (!s_reportedHwAccelFallback)
+                    {
+                        ConsoleHelper.Write(this._logSection, LogLevel.Notice, "  HWAccel non utilizzabile per questa estrazione, retry software (" + this.GetLastErrorLine(processResult.Stderr) + ")");
+                        s_reportedHwAccelFallback = true;
+                    }
                 }
 
                 timestampsMs = tsList.ToArray();
@@ -171,6 +205,32 @@ namespace RemuxForge.Core.Media.Ffmpeg
         #endregion
 
         #region Metodi privati
+
+        /// <summary>
+        /// Estrae l'ultima riga utile da un messaggio stderr
+        /// </summary>
+        /// <param name="text">Testo stderr</param>
+        /// <returns>Ultima riga utile, o messaggio generico</returns>
+        private string GetLastErrorLine(string text)
+        {
+            string result = "nessun dettaglio";
+            string[] lines;
+
+            if (!string.IsNullOrEmpty(text))
+            {
+                lines = text.Replace("\r", "").Split('\n');
+                for (int i = lines.Length - 1; i >= 0; i--)
+                {
+                    if (lines[i].Trim().Length > 0)
+                    {
+                        result = lines[i].Trim();
+                        break;
+                    }
+                }
+            }
+
+            return result;
+        }
 
         /// <summary>
         /// Costruisce filter chain ffmpeg per normalizzare frame

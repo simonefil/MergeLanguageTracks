@@ -17,14 +17,20 @@ namespace RemuxForge.Core.Tools
         #region Costanti
 
         /// <summary>
-        /// Release branch FFmpeg stabile usata per i download BtbN
+        /// Versione FFmpeg stabile usata dove il provider pubblica release versionate permanenti
+        /// </summary>
+        private const string FFMPEG_PINNED_VERSION = "8.1.1";
+
+        /// <summary>
+        /// Release branch FFmpeg stabile usata per i download BtbN.
+        /// BtbN mantiene solo poche autobuild, quindi su Linux si usa latest del branch stabile.
         /// </summary>
         private const string FFMPEG_STABLE_BRANCH = "8.1";
 
         /// <summary>
         /// URL download Windows x64
         /// </summary>
-        private const string WINDOWS_X64_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
+        private const string WINDOWS_X64_URL = "https://github.com/GyanD/codexffmpeg/releases/download/" + FFMPEG_PINNED_VERSION + "/ffmpeg-" + FFMPEG_PINNED_VERSION + "-full_build.zip";
 
         /// <summary>
         /// URL download Linux x64 dalla release branch stabile BtbN
@@ -35,11 +41,6 @@ namespace RemuxForge.Core.Tools
         /// URL download Linux arm64 dalla release branch stabile BtbN
         /// </summary>
         private const string LINUX_ARM64_URL = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n" + FFMPEG_STABLE_BRANCH + "-latest-linuxarm64-gpl-" + FFMPEG_STABLE_BRANCH + ".tar.xz";
-
-        /// <summary>
-        /// URL download macOS universal binary
-        /// </summary>
-        private const string MACOS_FFMPEG_URL = "https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip";
 
         #endregion
 
@@ -74,7 +75,7 @@ namespace RemuxForge.Core.Tools
         /// <returns>True se ffmpeg e' stato trovato o scaricato</returns>
         public bool Resolve()
         {
-            return this.Resolve(true, true);
+            return this.Resolve(true, true, false);
         }
 
         /// <summary>
@@ -85,6 +86,18 @@ namespace RemuxForge.Core.Tools
         /// <param name="allowDownload">Se true, tenta il download se non trovato localmente</param>
         /// <returns>True se ffmpeg e' stato trovato o scaricato</returns>
         public bool Resolve(bool autoSave, bool allowDownload)
+        {
+            return this.Resolve(autoSave, allowDownload, false);
+        }
+
+        /// <summary>
+        /// Individua ffmpeg nel sistema con eventuale requisito libsoxr per il binario gestito
+        /// </summary>
+        /// <param name="autoSave">Se true, salva il percorso trovato in AppSettings</param>
+        /// <param name="allowDownload">Se true, tenta il download se non trovato localmente</param>
+        /// <param name="requireLibSoxr">Se true, aggiorna il binario RemuxForge gestito se non espone libsoxr</param>
+        /// <returns>True se ffmpeg e' stato trovato o scaricato</returns>
+        public bool Resolve(bool autoSave, bool allowDownload, bool requireLibSoxr)
         {
             bool resolved = false;
             string ffmpegName = "ffmpeg" + GetExecutableExtension();
@@ -102,6 +115,12 @@ namespace RemuxForge.Core.Tools
             {
                 this._resolvedPath = toolsFfmpeg;
                 resolved = true;
+            }
+
+            if (resolved && requireLibSoxr && allowDownload && this.IsManagedFfmpegPath(this._resolvedPath, toolsFfmpeg) && !RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && !SupportsLibSoxr(this._resolvedPath))
+            {
+                ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Warning, "  ffmpeg gestito da RemuxForge senza libsoxr: download build aggiornata");
+                resolved = false;
             }
 
             // Controlla posizioni note del sistema
@@ -140,6 +159,50 @@ namespace RemuxForge.Core.Tools
             }
 
             return resolved;
+        }
+
+        /// <summary>
+        /// Legge la prima riga di versione ffmpeg
+        /// </summary>
+        /// <param name="ffmpegPath">Percorso ffmpeg</param>
+        /// <returns>Prima riga di ffmpeg -version, vuota se non leggibile</returns>
+        public static string ReadVersionLine(string ffmpegPath)
+        {
+            string output;
+            string[] lines;
+
+            if (!TryReadVersionOutput(ffmpegPath, out output))
+            {
+                return "";
+            }
+
+            lines = output.Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i].Trim();
+                if (line.Length > 0)
+                {
+                    return line;
+                }
+            }
+
+            return "";
+        }
+
+        /// <summary>
+        /// Indica se la build ffmpeg espone libsoxr
+        /// </summary>
+        /// <param name="ffmpegPath">Percorso ffmpeg</param>
+        /// <returns>True se ffmpeg -version contiene --enable-libsoxr</returns>
+        public static bool SupportsLibSoxr(string ffmpegPath)
+        {
+            string output;
+            if (!TryReadVersionOutput(ffmpegPath, out output))
+            {
+                return false;
+            }
+
+            return output.IndexOf("--enable-libsoxr", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         #endregion
@@ -232,6 +295,8 @@ namespace RemuxForge.Core.Tools
             string extractPath = Path.Combine(this._toolsFolder, "ffmpeg_temp");
             WebClient webClient = null;
             string foundFfmpeg;
+            string foundFfprobe;
+            string ffprobeDest;
             try
             {
                 ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Info, "\n  Download ffmpeg per Windows x64...");
@@ -250,10 +315,17 @@ namespace RemuxForge.Core.Tools
                 ZipFile.ExtractToDirectory(zipPath, extractPath);
 
                 foundFfmpeg = FindFileRecursive(extractPath, "ffmpeg.exe");
+                foundFfprobe = FindFileRecursive(extractPath, "ffprobe.exe");
 
                 if (foundFfmpeg.Length > 0)
                 {
                     File.Copy(foundFfmpeg, ffmpegDest, true);
+                    if (foundFfprobe.Length > 0)
+                    {
+                        ffprobeDest = Path.Combine(this._toolsFolder, "ffprobe.exe");
+                        File.Copy(foundFfprobe, ffprobeDest, true);
+                    }
+
                     this._resolvedPath = ffmpegDest;
                     success = true;
                     ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Success, "  ffmpeg scaricato in: " + this._toolsFolder);
@@ -361,64 +433,16 @@ namespace RemuxForge.Core.Tools
         }
 
         /// <summary>
-        /// Scarica ffmpeg su macOS
+        /// Segnala che il download automatico ffmpeg non e' supportato su macOS
         /// </summary>
         /// <param name="ffmpegDest">Percorso di destinazione dell'eseguibile</param>
-        /// <returns>True se il download e l'estrazione sono riusciti</returns>
+        /// <returns>Sempre false: usare Homebrew o path manuale</returns>
         private bool DownloadMacOS(string ffmpegDest)
         {
-            bool success = false;
-            string ffmpegZipPath = Path.Combine(this._toolsFolder, "ffmpeg.zip");
-            string extractPath = Path.Combine(this._toolsFolder, "ffmpeg_temp");
-            WebClient webClient = null;
-            string foundFfmpeg;
-            try
-            {
-                ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Info, "\n  Download ffmpeg per macOS (universal binary)...");
-
-                if (Directory.Exists(extractPath))
-                {
-                    Directory.Delete(extractPath, true);
-                }
-                Directory.CreateDirectory(extractPath);
-
-                webClient = new WebClient();
-
-                ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Debug, "  Download ffmpeg da: " + MACOS_FFMPEG_URL);
-                webClient.DownloadFile(MACOS_FFMPEG_URL, ffmpegZipPath);
-
-                ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Debug, "  Estrazione in corso...");
-                ZipFile.ExtractToDirectory(ffmpegZipPath, extractPath);
-                foundFfmpeg = FindFileRecursive(extractPath, "ffmpeg");
-
-                if (foundFfmpeg.Length > 0)
-                {
-                    File.Copy(foundFfmpeg, ffmpegDest, true);
-                    RunCommand("chmod", new string[] { "+x", ffmpegDest });
-                    RunCommand("xattr", new string[] { "-d", "com.apple.quarantine", ffmpegDest });
-                    this._resolvedPath = ffmpegDest;
-                    success = true;
-                    ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Success, "  ffmpeg scaricato in: " + this._toolsFolder);
-                }
-                else
-                {
-                    ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Error, "  Impossibile trovare ffmpeg nell'archivio");
-                }
-            }
-            catch (Exception ex)
-            {
-                // Download o estrazione fallita
-                ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Warning, "Impossibile scaricare ffmpeg: " + ex.Message);
-                ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Info, "  Scaricalo manualmente da https://evermeet.cx/ffmpeg/");
-                ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Info, "  Oppure installa con: brew install ffmpeg");
-            }
-            finally
-            {
-                if (webClient != null) { webClient.Dispose(); }
-                CleanupTempFiles(ffmpegZipPath, extractPath);
-            }
-
-            return success;
+            ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Warning, "  Download automatico ffmpeg disabilitato su macOS");
+            ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Info, "  Installa ffmpeg con Homebrew: brew install ffmpeg");
+            ConsoleHelper.Write(LogSection.Ffmpeg, LogLevel.Info, "  Oppure specifica manualmente il percorso di ffmpeg nelle impostazioni.");
+            return false;
         }
 
         /// <summary>
@@ -432,6 +456,50 @@ namespace RemuxForge.Core.Tools
             ProcessResult result = ProcessRunner.Run(command, args);
 
             return result.ExitCode;
+        }
+
+        /// <summary>
+        /// Legge output completo di ffmpeg -version
+        /// </summary>
+        private static bool TryReadVersionOutput(string ffmpegPath, out string output)
+        {
+            ProcessResult result;
+
+            output = "";
+            if (ffmpegPath == null || ffmpegPath.Length == 0 || !File.Exists(ffmpegPath))
+            {
+                return false;
+            }
+
+            result = ProcessRunner.Run(ffmpegPath, new string[] { "-version" });
+            output = result.Stdout + "\n" + result.Stderr;
+
+            return result.ExitCode == 0 && output.Length > 0;
+        }
+
+        /// <summary>
+        /// Indica se il path ffmpeg corrisponde al binario gestito nella cartella RemuxForge
+        /// </summary>
+        private bool IsManagedFfmpegPath(string resolvedPath, string toolsFfmpeg)
+        {
+            string resolvedFullPath;
+            string toolsFullPath;
+
+            if (resolvedPath == null || toolsFfmpeg == null || resolvedPath.Length == 0 || toolsFfmpeg.Length == 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                resolvedFullPath = Path.GetFullPath(resolvedPath);
+                toolsFullPath = Path.GetFullPath(toolsFfmpeg);
+                return string.Equals(resolvedFullPath, toolsFullPath, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>

@@ -817,12 +817,16 @@ namespace RemuxForge.Web.Services
                 previousOptions.AudioSourceFillEnd != newOptions.AudioSourceFillEnd ||
                 previousOptions.AudioSourceFillInsertSilence != newOptions.AudioSourceFillInsertSilence ||
                 previousOptions.Overwrite != newOptions.Overwrite ||
-                previousOptions.RenameAllTracks != newOptions.RenameAllTracks ||
                 !string.Equals(previousOptions.AudioSourceFillLanguage, newOptions.AudioSourceFillLanguage, StringComparison.Ordinal) ||
                 !string.Equals(previousOptions.SpeedCorrectionMode, newOptions.SpeedCorrectionMode, StringComparison.Ordinal) ||
                 !string.Equals(previousOptions.ManualStretchFactor, newOptions.ManualStretchFactor, StringComparison.Ordinal) ||
                 !string.Equals(previousOptions.DestinationFolder, newOptions.DestinationFolder, StringComparison.Ordinal) ||
-                !string.Equals(previousOptions.ConvertFormat, newOptions.ConvertFormat, StringComparison.Ordinal) ||
+                !string.Equals(previousOptions.AudioFormat, newOptions.AudioFormat, StringComparison.Ordinal) ||
+                !string.Equals(previousOptions.AudioProcessingScope, newOptions.AudioProcessingScope, StringComparison.Ordinal) ||
+                previousOptions.AudioDownsample24To16 != newOptions.AudioDownsample24To16 ||
+                previousOptions.AudioPeakNormalize != newOptions.AudioPeakNormalize ||
+                Math.Abs(previousOptions.AudioPeakTargetDb - newOptions.AudioPeakTargetDb) > 0.0001 ||
+                !string.Equals(previousOptions.AudioRenameScope, newOptions.AudioRenameScope, StringComparison.Ordinal) ||
                 !string.Equals(previousOptions.EncodingProfileName, newOptions.EncodingProfileName, StringComparison.Ordinal) ||
                 !string.Equals(previousOptions.MkvMergePath, newOptions.MkvMergePath, StringComparison.Ordinal))
             {
@@ -915,7 +919,7 @@ namespace RemuxForge.Web.Services
             record.KeptSourceSubIds.Clear();
             record.ImportedAudioTracks.Clear();
             record.ImportedSubTracks.Clear();
-            record.DisplayConvertFormat = "";
+            record.DisplayAudioFormat = "";
             record.DeepAnalysisMap = null;
             record.DeepAnalysisTimeMs = 0;
             record.DeepAnalysisApplied = false;
@@ -1036,7 +1040,7 @@ namespace RemuxForge.Web.Services
             result.KeptSourceSubIds = new List<int>(record.KeptSourceSubIds);
             result.ImportedAudioTracks = new List<TrackInfo>(record.ImportedAudioTracks);
             result.ImportedSubTracks = new List<TrackInfo>(record.ImportedSubTracks);
-            result.DisplayConvertFormat = record.DisplayConvertFormat;
+            result.DisplayAudioFormat = record.DisplayAudioFormat;
             result.DeepAnalysisMap = record.DeepAnalysisMap;
             result.DeepAnalysisTimeMs = record.DeepAnalysisTimeMs;
             result.DeepAnalysisApplied = record.DeepAnalysisApplied;

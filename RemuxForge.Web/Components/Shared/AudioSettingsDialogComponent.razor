@@ -1,6 +1,6 @@
 <div class="dialog-overlay visible" @onclick="OnClose">
     <div class="dialog-box" style="min-width: 40ch;" @onclick:stopPropagation="true">
-        <div class="dialog-title">Impostazioni Conversione Audio</div>
+        <div class="dialog-title">Impostazioni Audio</div>
         <div class="dialog-body">
             <div class="form-section">== FLAC ==</div>
             <div class="form-row">
@@ -27,6 +27,27 @@
             </div>
             <div class="form-row" style="color: var(--foreground2);">
                 Range: @AppSettingsModel.OPUS_BITRATE_MIN-@AppSettingsModel.OPUS_BITRATE_MAX kbps
+            </div>
+
+            <div class="form-section">== AAC (bitrate kbps) ==</div>
+            <div class="form-row">
+                <span class="form-label">Mono (1ch):</span>
+                <input class="form-input" style="width: 8ch;" @bind="_aacMono" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Stereo (2ch):</span>
+                <input class="form-input" style="width: 8ch;" @bind="_aacStereo" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Surround 5.1:</span>
+                <input class="form-input" style="width: 8ch;" @bind="_aacS51" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Surround 7.1:</span>
+                <input class="form-input" style="width: 8ch;" @bind="_aacS71" />
+            </div>
+            <div class="form-row" style="color: var(--foreground2);">
+                Range: @AppSettingsModel.AAC_BITRATE_MIN-@AppSettingsModel.AAC_BITRATE_MAX kbps
             </div>
         </div>
         @if (_validationError.Length > 0)
@@ -72,6 +93,26 @@
     private string _opusS71 = "";
 
     /// <summary>
+    /// Bitrate AAC mono
+    /// </summary>
+    private string _aacMono = "";
+
+    /// <summary>
+    /// Bitrate AAC stereo
+    /// </summary>
+    private string _aacStereo = "";
+
+    /// <summary>
+    /// Bitrate AAC surround 5.1
+    /// </summary>
+    private string _aacS51 = "";
+
+    /// <summary>
+    /// Bitrate AAC surround 7.1
+    /// </summary>
+    private string _aacS71 = "";
+
+    /// <summary>
     /// Messaggio errore validazione
     /// </summary>
     private string _validationError = "";
@@ -86,6 +127,10 @@
         _opusStereo = AppSettingsService.Instance.Settings.Opus.Bitrate.Stereo.ToString();
         _opusS51 = AppSettingsService.Instance.Settings.Opus.Bitrate.Surround51.ToString();
         _opusS71 = AppSettingsService.Instance.Settings.Opus.Bitrate.Surround71.ToString();
+        _aacMono = AppSettingsService.Instance.Settings.Aac.Bitrate.Mono.ToString();
+        _aacStereo = AppSettingsService.Instance.Settings.Aac.Bitrate.Stereo.ToString();
+        _aacS51 = AppSettingsService.Instance.Settings.Aac.Bitrate.Surround51.ToString();
+        _aacS71 = AppSettingsService.Instance.Settings.Aac.Bitrate.Surround71.ToString();
     }
 
     /// <summary>
@@ -101,6 +146,10 @@
         if (int.TryParse(_opusStereo, out val)) { AppSettingsService.Instance.Settings.Opus.Bitrate.Stereo = val; }
         if (int.TryParse(_opusS51, out val)) { AppSettingsService.Instance.Settings.Opus.Bitrate.Surround51 = val; }
         if (int.TryParse(_opusS71, out val)) { AppSettingsService.Instance.Settings.Opus.Bitrate.Surround71 = val; }
+        if (int.TryParse(_aacMono, out val)) { AppSettingsService.Instance.Settings.Aac.Bitrate.Mono = val; }
+        if (int.TryParse(_aacStereo, out val)) { AppSettingsService.Instance.Settings.Aac.Bitrate.Stereo = val; }
+        if (int.TryParse(_aacS51, out val)) { AppSettingsService.Instance.Settings.Aac.Bitrate.Surround51 = val; }
+        if (int.TryParse(_aacS71, out val)) { AppSettingsService.Instance.Settings.Aac.Bitrate.Surround71 = val; }
 
         // Valida
         string errorMessage;

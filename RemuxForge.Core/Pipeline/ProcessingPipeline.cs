@@ -104,11 +104,6 @@ namespace RemuxForge.Core.Pipeline
         private PipelineOutputManager _outputManager;
 
         /// <summary>
-        /// Gestore conversione audio della pipeline
-        /// </summary>
-        private PipelineAudioConversionManager _audioConversionManager;
-
-        /// <summary>
         /// Applicatore EditMap deep-analysis per tracce importate
         /// </summary>
         private PipelineDeepEditApplier _deepEditApplier;
@@ -143,7 +138,6 @@ namespace RemuxForge.Core.Pipeline
             this._trackMapper = new PipelineTrackMapper();
             this._diagnosticsWriter = new PipelineDiagnosticsWriter();
             this._outputManager = new PipelineOutputManager();
-            this._audioConversionManager = new PipelineAudioConversionManager();
             this._deepEditApplier = new PipelineDeepEditApplier();
             this._mergePreviewBuilder = new PipelineMergePreviewBuilder(this._trackMapper, this._outputManager);
             this._toolPathResolver = new ToolPathResolverService(AppSettingsService.Instance.ConfigFolder);
@@ -196,7 +190,7 @@ namespace RemuxForge.Core.Pipeline
             // Determina modalita' operative
             this._needsMerge = (this._opts.TargetLanguage.Count > 0);
             this._needsFilter = (this._opts.KeepSourceAudioLangs.Count > 0 || this._opts.KeepSourceAudioCodec.Count > 0 || this._opts.KeepSourceSubtitleLangs.Count > 0);
-            this._needsRemux = (this._needsMerge || this._needsFilter || this._opts.ConvertFormat.Length > 0);
+            this._needsRemux = (this._needsMerge || this._needsFilter || this._opts.AudioFormat.Length > 0 || this._opts.AudioRenameScope != "disabled");
             this._needsEncode = (this._opts.EncodingProfileName.Length > 0);
 
             // Modalita' singola sorgente per merge
@@ -266,16 +260,27 @@ namespace RemuxForge.Core.Pipeline
                     this.Log(LogSection.Config, LogLevel.Success, "Trovato mkvmerge: " + this._opts.MkvMergePath);
 
                     // Risolvi ffmpeg (tentato sempre per supportare speed correction automatica)
-                    this._ffmpegPath = this._toolPathResolver.ResolveFfmpegPath(true, true);
+                    this._ffmpegPath = this._toolPathResolver.ResolveFfmpegPath(true, true, !this._opts.DryRun && this._opts.AudioDownsample24To16);
                     if (this._ffmpegPath.Length > 0)
                     {
                         this.Log(LogSection.Config, LogLevel.Success, "Trovato ffmpeg: " + this._ffmpegPath);
+                        string ffmpegVersion = FfmpegProvider.ReadVersionLine(this._ffmpegPath);
+                        if (ffmpegVersion.Length > 0)
+                        {
+                            this.Log(LogSection.Config, LogLevel.Debug, "  " + ffmpegVersion);
+                        }
                     }
-                    else if (this._opts.FrameSync || this._opts.DeepAnalysis || this._opts.ConvertFormat.Length > 0 || this._opts.EncodingProfileName.Length > 0 || this._opts.AudioSourceFillThresholdMs > 0)
+                    else if (this._opts.FrameSync || this._opts.DeepAnalysis || (!this._opts.DryRun && this._opts.AudioFormat.Length > 0) || this._opts.EncodingProfileName.Length > 0 || (!this._opts.DryRun && this._opts.AudioSourceFillThresholdMs > 0))
                     {
                         // ffmpeg richiesto per analisi sync, conversione audio, audio source fill o encoding video
-                        string reason = this._opts.FrameSync ? "frame-sync" : (this._opts.DeepAnalysis ? "deep analysis" : (this._opts.AudioSourceFillThresholdMs > 0 ? "audio source fill" : (this._opts.EncodingProfileName.Length > 0 ? "encoding video" : "conversione audio")));
+                        string reason = this._opts.FrameSync ? "frame-sync" : (this._opts.DeepAnalysis ? "deep analysis" : (this._opts.AudioSourceFillThresholdMs > 0 ? "audio source fill" : (this._opts.EncodingProfileName.Length > 0 ? "encoding video" : "processing audio")));
                         this.Log(LogSection.Config, LogLevel.Error, "ffmpeg non trovato e impossibile scaricarlo. Necessario per " + reason);
+                        success = false;
+                    }
+
+                    if (success && !this._opts.DryRun && this._opts.AudioDownsample24To16 && this._ffmpegPath.Length > 0 && !FfmpegProvider.SupportsLibSoxr(this._ffmpegPath))
+                    {
+                        this.Log(LogSection.Config, LogLevel.Error, "ffmpeg non supporta libsoxr: 24bit -> 16bit richiede una build con --enable-libsoxr");
                         success = false;
                     }
 
@@ -286,14 +291,18 @@ namespace RemuxForge.Core.Pipeline
                     }
 
                     // Log impostazioni conversione se attiva
-                    if (success && this._opts.ConvertFormat.Length > 0)
+                    if (success && this._opts.AudioFormat.Length > 0)
                     {
-                        this.Log(LogSection.Config, LogLevel.Phase, "Conversione audio attiva: " + this._opts.ConvertFormat.ToUpper());
-                        if (string.Equals(this._opts.ConvertFormat, "flac", StringComparison.OrdinalIgnoreCase))
+                        this.Log(LogSection.Config, LogLevel.Phase, "Processing audio attivo: " + this._opts.AudioFormat.ToUpper() + " (" + this._opts.AudioProcessingScope + ")");
+                        if (string.Equals(this._opts.AudioFormat, "flac", StringComparison.OrdinalIgnoreCase))
                         {
                             this.Log(LogSection.Config, LogLevel.Debug, "  FLAC compression level: " + AppSettingsService.Instance.Settings.Flac.CompressionLevel);
                         }
-                        else
+                        else if (string.Equals(this._opts.AudioFormat, "aac", StringComparison.OrdinalIgnoreCase))
+                        {
+                            this.Log(LogSection.Config, LogLevel.Debug, "  AAC bitrate: mono=" + AppSettingsService.Instance.Settings.Aac.Bitrate.Mono + "k, stereo=" + AppSettingsService.Instance.Settings.Aac.Bitrate.Stereo + "k, 5.1=" + AppSettingsService.Instance.Settings.Aac.Bitrate.Surround51 + "k, 7.1=" + AppSettingsService.Instance.Settings.Aac.Bitrate.Surround71 + "k");
+                        }
+                        else if (string.Equals(this._opts.AudioFormat, "opus", StringComparison.OrdinalIgnoreCase))
                         {
                             this.Log(LogSection.Config, LogLevel.Debug, "  Opus bitrate: mono=" + AppSettingsService.Instance.Settings.Opus.Bitrate.Mono + "k, stereo=" + AppSettingsService.Instance.Settings.Opus.Bitrate.Stereo + "k, 5.1=" + AppSettingsService.Instance.Settings.Opus.Bitrate.Surround51 + "k, 7.1=" + AppSettingsService.Instance.Settings.Opus.Bitrate.Surround71 + "k");
                         }
@@ -424,6 +433,16 @@ namespace RemuxForge.Core.Pipeline
                 {
                     this._outputManager.RunEncodingAndRecord(record, finalOutput, this._opts, this._ffmpegPath, this.OnFileUpdated);
                 }
+
+                // Rinomina finale dopo merge/encoding, usando l'ordine reale delle tracce nel file scritto
+                if (!done && !this._opts.DryRun && record.Status == FileStatus.Done && this._opts.AudioRenameScope != "disabled" && finalOutput.Length > 0)
+                {
+                    this.ApplyFinalAudioTrackNames(record, finalOutput);
+                    if (record.Status == FileStatus.Error)
+                    {
+                        done = true;
+                    }
+                }
             }
             finally
             {
@@ -474,7 +493,7 @@ namespace RemuxForge.Core.Pipeline
 
             bool needsMerge = (opts.TargetLanguage.Count > 0);
             bool needsFilter = (opts.KeepSourceAudioLangs.Count > 0 || opts.KeepSourceAudioCodec.Count > 0 || opts.KeepSourceSubtitleLangs.Count > 0);
-            bool needsConvert = (opts.ConvertFormat.Length > 0);
+            bool needsConvert = (opts.AudioFormat.Length > 0);
             bool needsAudioSourceFill = opts.AudioSourceFillThresholdMs > 0;
             bool needsRemux = (needsMerge || needsFilter || needsConvert || needsAudioSourceFill);
             bool needsEncode = (opts.EncodingProfileName.Length > 0);
@@ -500,7 +519,7 @@ namespace RemuxForge.Core.Pipeline
             // Step 4: Conversione audio
             if (needsConvert)
             {
-                steps.Add("Conversione audio (" + opts.ConvertFormat.ToUpper() + ")");
+                steps.Add("Processing audio (" + opts.AudioFormat.ToUpper() + ")");
             }
 
             // Step 5: Audio source fill
@@ -634,10 +653,9 @@ namespace RemuxForge.Core.Pipeline
             Dictionary<int, string> convertedSourceTracks = new Dictionary<int, string>();
             Dictionary<int, string> convertedLangTracks = new Dictionary<int, string>();
             Dictionary<int, string> processedLangSubTracks = new Dictionary<int, string>();
-            HashSet<int> codecConvertedLangIds = new HashSet<int>();
             HashSet<int> audioDelayBypassedLangIds = new HashSet<int>();
-            Dictionary<int, string> processedLangAudioFormats = new Dictionary<int, string>();
-            EditMap audioEditMap = null;
+            Dictionary<int, TrackInfo> processedSourceAudioInfo = new Dictionary<int, TrackInfo>();
+            Dictionary<int, TrackInfo> processedLangAudioInfo = new Dictionary<int, TrackInfo>();
             string stretchFactor = record.StretchFactor;
             List<string> mergeArgs;
             string delayInfo;
@@ -682,41 +700,66 @@ namespace RemuxForge.Core.Pipeline
             // Conversione, deep analysis e merge con garanzia cleanup file temporanei
             try
             {
-                // Conversione tracce lossless se attiva
-                if (!done && this._opts.ConvertFormat.Length > 0 && this._ffmpegPath.Length > 0)
+                if (!done && (this._opts.AudioProcessingScope != "disabled" ||
+                    this._opts.AudioSourceFillThresholdMs > 0 ||
+                    (record.DeepAnalysisApplied && record.DeepAnalysisMap != null && record.DeepAnalysisMap.Operations.Count > 0 && !this._opts.SubOnly)))
                 {
-                    if (this._audioConversionManager.ConvertLosslessTracks(record, sourceTracks, sourceAudioIds, audioTracks, convertedSourceTracks, convertedLangTracks, this._opts, this._ffmpegPath, this._filterSourceAudio))
+                    AudioProcessingRequest audioRequest = this.BuildAudioProcessingRequest(record, sourceInfo, langInfo, sourceTracks, sourceAudioIds, audioTracks, effectiveAudioDelay);
+                    if (this._opts.AudioFormat.Length == 0 && (audioRequest.SourceTracksToProcess.Count > 0 || audioRequest.LangTracksToProcess.Count > 0))
                     {
-                        // Salva ID tracce effettivamente convertite di codec (serve per rinominarle col formato target)
-                        foreach (int convertedId in convertedLangTracks.Keys)
+                        record.ErrorMessage = "Processing audio richiesto ma formato audio non impostato";
+                        record.Status = FileStatus.Error;
+                        done = true;
+                    }
+                    else if (this._opts.DryRun)
+                    {
+                        this.AddDryRunAudioPlaceholders(audioRequest, convertedSourceTracks, convertedLangTracks, processedSourceAudioInfo, processedLangAudioInfo);
+                        if (convertedSourceTracks.Count > 0 && sourceTracks != null)
                         {
-                            codecConvertedLangIds.Add(convertedId);
+                            for (int i = 0; i < sourceTracks.Count; i++)
+                            {
+                                if (string.Equals(sourceTracks[i].Type, "audio", StringComparison.OrdinalIgnoreCase) && !sourceAudioIds.Contains(sourceTracks[i].Id))
+                                {
+                                    sourceAudioIds.Add(sourceTracks[i].Id);
+                                }
+                            }
                         }
                     }
                     else
                     {
-                        done = true;
+                        AudioProcessingService audioService = new AudioProcessingService(this._ffmpegPath, AppSettingsService.Instance.GetTempFolder(), this._mkvService);
+                        AudioProcessingResult audioResult = audioService.Process(audioRequest);
+                        if (audioResult.Success)
+                        {
+                            convertedSourceTracks = audioResult.SourceOutputFiles;
+                            convertedLangTracks = audioResult.LangOutputFiles;
+                            processedSourceAudioInfo = audioResult.SourceOutputInfo;
+                            processedLangAudioInfo = audioResult.LangOutputInfo;
+                            audioDelayBypassedLangIds = audioResult.AudioDelayBypassedLangIds;
+                            effectiveAudioDelay = audioResult.EffectiveAudioDelayMs;
+                            record.AudioDelayApplied = effectiveAudioDelay;
+
+                            if (convertedSourceTracks.Count > 0 && sourceTracks != null)
+                            {
+                                for (int i = 0; i < sourceTracks.Count; i++)
+                                {
+                                    if (string.Equals(sourceTracks[i].Type, "audio", StringComparison.OrdinalIgnoreCase) && !sourceAudioIds.Contains(sourceTracks[i].Id))
+                                    {
+                                        sourceAudioIds.Add(sourceTracks[i].Id);
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            done = true;
+                        }
                     }
                 }
 
-                if (!done && this._needsMerge && this._opts.AudioSourceFillThresholdMs > 0)
+                // Deep analysis: applica EditMap solo ai sottotitoli. Audio e stretch restano gestiti da AudioProcessingService/mkvmerge.
+                if (!done && this._deepEditApplier.ApplySubtitles(record, subtitleTracks, processedLangSubTracks, this._opts, this._ffmpegPath))
                 {
-                    AudioSourceFillService fillService = new AudioSourceFillService(this._ffmpegPath, AppSettingsService.Instance.GetTempFolder(), this._mkvService);
-                    if (fillService.Apply(record, sourceInfo, langInfo, audioTracks, this._opts, effectiveAudioDelay, convertedLangTracks, audioDelayBypassedLangIds, processedLangAudioFormats, out effectiveAudioDelay, out audioEditMap))
-                    {
-                        record.AudioDelayApplied = effectiveAudioDelay;
-                    }
-                    else
-                    {
-                        done = true;
-                    }
-                }
-
-                // Deep analysis: applica EditMap alle tracce lang (taglia-cuci)
-                if (!done && this._deepEditApplier.Apply(record, audioTracks, subtitleTracks, convertedLangTracks, processedLangSubTracks, audioEditMap, this._opts, this._ffmpegPath))
-                {
-                    // Se deep analysis ha operazioni, lo stretch e' gia' applicato nel file processato
-                    stretchFactor = "";
                 }
                 else if (!done && record.Status == FileStatus.Error)
                 {
@@ -738,7 +781,7 @@ namespace RemuxForge.Core.Pipeline
                     {
                         mergeReq.SourceAudioTracks = this._trackMapper.FilterTracksByIds(sourceTracks, sourceAudioIds);
                     }
-                    else if (this._opts.RenameAllTracks && sourceTracks != null)
+                    else if (this._opts.AudioRenameScope == "all" && sourceTracks != null)
                     {
                         mergeReq.SourceAudioTracks = this._trackMapper.FilterTracksByType(sourceTracks, "audio");
                     }
@@ -750,14 +793,14 @@ namespace RemuxForge.Core.Pipeline
                     mergeReq.FilterSourceAudio = this._filterSourceAudio || convertedSourceTracks.Count > 0;
                     mergeReq.FilterSourceSubs = this._filterSourceSubs;
                     mergeReq.StretchFactor = stretchFactor;
-                    mergeReq.ConvertFormat = this._opts.ConvertFormat;
-                    mergeReq.RenameAllTracks = this._opts.RenameAllTracks;
+                    mergeReq.AudioFormat = this._opts.AudioFormat;
+                    mergeReq.AudioRenameScope = this._opts.AudioRenameScope;
                     mergeReq.SourceTitle = (sourceInfo != null) ? sourceInfo.ContainerTitle : "";
                     mergeReq.ConvertedSourceTracks = convertedSourceTracks;
                     mergeReq.ConvertedLangTracks = convertedLangTracks;
-                    mergeReq.CodecConvertedLangIds = codecConvertedLangIds;
                     mergeReq.AudioDelayBypassedLangIds = audioDelayBypassedLangIds;
-                    mergeReq.ProcessedLangAudioFormats = processedLangAudioFormats;
+                    mergeReq.ProcessedSourceAudioInfo = processedSourceAudioInfo;
+                    mergeReq.ProcessedLangAudioInfo = processedLangAudioInfo;
                     mergeReq.ProcessedLangSubTracks = processedLangSubTracks;
                     mergeArgs = this._mkvService.BuildMergeArguments(mergeReq);
 
@@ -771,7 +814,7 @@ namespace RemuxForge.Core.Pipeline
                     record.KeptSourceSubIds = sourceSubIds;
                     record.ImportedAudioTracks = audioTracks;
                     record.ImportedSubTracks = subtitleTracks;
-                    record.DisplayConvertFormat = this._opts.ConvertFormat;
+                    record.DisplayAudioFormat = this._opts.AudioFormat;
 
                     // Calcola lingue risultato
                     this.PopulateResultLanguages(record, sourceTracks, sourceAudioIds, audioTracks, subtitleTracks);
@@ -838,6 +881,170 @@ namespace RemuxForge.Core.Pipeline
             }
 
             return finalOutput;
+        }
+
+        /// <summary>
+        /// Applica la rinomina audio sul file finale tramite mkvpropedit
+        /// </summary>
+        private void ApplyFinalAudioTrackNames(FileProcessingRecord record, string finalOutput)
+        {
+            string mkvPropEditPath;
+            string errorMessage;
+
+            mkvPropEditPath = this._toolPathResolver.ResolveMkvPropEditPath(this._opts.MkvMergePath, true);
+            if (!this._mkvService.ApplyFinalAudioTrackNames(finalOutput, this._opts.AudioRenameScope, this._opts.TargetLanguage, mkvPropEditPath, out errorMessage))
+            {
+                ConsoleHelper.Write(LogSection.Merge, LogLevel.Error, "  " + errorMessage);
+                record.ErrorMessage = errorMessage;
+                record.Status = FileStatus.Error;
+            }
+        }
+
+        /// <summary>
+        /// Costruisce la richiesta audio usando solo tracce che finiranno nel file di output
+        /// </summary>
+        private AudioProcessingRequest BuildAudioProcessingRequest(FileProcessingRecord record, MkvFileInfo sourceInfo, MkvFileInfo langInfo, List<TrackInfo> sourceTracks, List<int> sourceAudioIds, List<TrackInfo> audioTracks, int effectiveAudioDelay)
+        {
+            AudioProcessingRequest request = new AudioProcessingRequest();
+            List<TrackInfo> finalSourceAudioTracks = this.ResolveFinalSourceAudioTracks(sourceTracks, sourceAudioIds);
+            bool deepAudioRequired = record.DeepAnalysisApplied && record.DeepAnalysisMap != null && record.DeepAnalysisMap.Operations.Count > 0 && !this._opts.SubOnly;
+            bool sourceFillRequired = this._opts.AudioSourceFillThresholdMs > 0;
+
+            request.Record = record;
+            request.Options = this._opts;
+            request.SourceFilePath = record.SourceFilePath;
+            request.LanguageFilePath = this._needsMerge ? record.LangFilePath : "";
+            request.SourceInfo = sourceInfo;
+            request.LangInfo = langInfo;
+            request.LangEditMap = record.DeepAnalysisMap;
+            request.EffectiveAudioDelayMs = effectiveAudioDelay;
+
+            if (this._opts.AudioProcessingScope == "all")
+            {
+                for (int i = 0; i < finalSourceAudioTracks.Count; i++)
+                {
+                    request.SourceTracksToProcess.Add(finalSourceAudioTracks[i]);
+                    request.GenericSourceTrackIds.Add(finalSourceAudioTracks[i].Id);
+                }
+                for (int i = 0; i < audioTracks.Count; i++)
+                {
+                    request.LangTracksToProcess.Add(audioTracks[i]);
+                    request.GenericLangTrackIds.Add(audioTracks[i].Id);
+                }
+            }
+            else if (this._opts.AudioProcessingScope == "lang")
+            {
+                if (this._needsMerge)
+                {
+                    for (int i = 0; i < audioTracks.Count; i++)
+                    {
+                        request.LangTracksToProcess.Add(audioTracks[i]);
+                        request.GenericLangTrackIds.Add(audioTracks[i].Id);
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < finalSourceAudioTracks.Count; i++)
+                    {
+                        request.SourceTracksToProcess.Add(finalSourceAudioTracks[i]);
+                        request.GenericSourceTrackIds.Add(finalSourceAudioTracks[i].Id);
+                    }
+                }
+            }
+
+            if (deepAudioRequired || sourceFillRequired)
+            {
+                for (int i = 0; i < audioTracks.Count; i++)
+                {
+                    bool containsTrack = false;
+                    for (int trackIndex = 0; trackIndex < request.LangTracksToProcess.Count; trackIndex++)
+                    {
+                        if (request.LangTracksToProcess[trackIndex].Id == audioTracks[i].Id)
+                        {
+                            containsTrack = true;
+                            break;
+                        }
+                    }
+
+                    if (!containsTrack)
+                    {
+                        request.LangTracksToProcess.Add(audioTracks[i]);
+                    }
+                }
+            }
+
+            return request;
+        }
+
+        /// <summary>
+        /// In dry-run crea placeholder audio senza eseguire ffmpeg
+        /// </summary>
+        private void AddDryRunAudioPlaceholders(AudioProcessingRequest request, Dictionary<int, string> convertedSourceTracks, Dictionary<int, string> convertedLangTracks, Dictionary<int, TrackInfo> processedSourceAudioInfo, Dictionary<int, TrackInfo> processedLangAudioInfo)
+        {
+            for (int i = 0; i < request.SourceTracksToProcess.Count; i++)
+            {
+                TrackInfo track = request.SourceTracksToProcess[i];
+                convertedSourceTracks[track.Id] = "<processed-audio:source-track-" + track.Id + ">";
+                processedSourceAudioInfo[track.Id] = this.CloneAudioInfoForDryRun(track, request.Options.AudioFormat);
+            }
+
+            for (int i = 0; i < request.LangTracksToProcess.Count; i++)
+            {
+                TrackInfo track = request.LangTracksToProcess[i];
+                convertedLangTracks[track.Id] = "<processed-audio:lang-track-" + track.Id + ">";
+                processedLangAudioInfo[track.Id] = this.CloneAudioInfoForDryRun(track, request.Options.AudioFormat);
+            }
+        }
+
+        /// <summary>
+        /// Crea metadati audio stimati per preview dry-run
+        /// </summary>
+        private TrackInfo CloneAudioInfoForDryRun(TrackInfo source, string audioFormat)
+        {
+            TrackInfo result = new TrackInfo();
+            result.Id = source.Id;
+            result.Type = source.Type;
+            result.Codec = audioFormat.ToUpperInvariant();
+            result.Language = source.Language;
+            result.LanguageIetf = source.LanguageIetf;
+            result.Name = source.Name;
+            result.DefaultTrack = source.DefaultTrack;
+            result.ForcedTrack = source.ForcedTrack;
+            result.DefaultDurationNs = source.DefaultDurationNs;
+            result.VideoFrameCount = source.VideoFrameCount;
+            result.TrackDurationNs = source.TrackDurationNs;
+            result.Channels = source.Channels;
+            result.BitsPerSample = this._opts.AudioDownsample24To16 ? 16 : source.BitsPerSample;
+            result.SamplingFrequency = source.SamplingFrequency;
+            result.Bitrate = source.Bitrate;
+            return result;
+        }
+
+        /// <summary>
+        /// Risolve le tracce audio sorgente che saranno presenti nell'output
+        /// </summary>
+        private List<TrackInfo> ResolveFinalSourceAudioTracks(List<TrackInfo> sourceTracks, List<int> sourceAudioIds)
+        {
+            List<TrackInfo> result = new List<TrackInfo>();
+            if (sourceTracks == null)
+            {
+                return result;
+            }
+
+            for (int i = 0; i < sourceTracks.Count; i++)
+            {
+                if (!string.Equals(sourceTracks[i].Type, "audio", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                if (this._filterSourceAudio && !sourceAudioIds.Contains(sourceTracks[i].Id))
+                {
+                    continue;
+                }
+                result.Add(sourceTracks[i]);
+            }
+
+            return result;
         }
 
         /// <summary>

@@ -462,7 +462,7 @@ namespace RemuxForge.Core.Analysis.Deep
         }
 
         /// <summary>
-        /// Calcola MSE locale su un singolo punto source usando l'offset indicato
+        /// Calcola score visuali locali su un singolo punto source usando l'offset indicato
         /// </summary>
         /// <param name="sourceFile">File sorgente</param>
         /// <param name="langFile">File lingua</param>
@@ -472,10 +472,12 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="coarseFps">FPS estrazione</param>
         /// <param name="geometryCropSourceToFourThree">Normalizzazione geometrica 4:3 source</param>
         /// <param name="geometryCropLanguageToFourThree">Normalizzazione geometrica 4:3 lingua</param>
-        /// <returns>MSE locale, oppure double.MaxValue</returns>
-        public double ComputeLocalMseAt(string sourceFile, string langFile, double srcSec, double offsetSec, double inverseRatio, double coarseFps, bool geometryCropSourceToFourThree, bool geometryCropLanguageToFourThree)
+        /// <param name="mse">MSE migliore trovato</param>
+        /// <param name="ssim">SSIM migliore trovato</param>
+        /// <returns>True se almeno un confronto valido e' stato eseguito</returns>
+        public bool TryComputeLocalVisualScoreAt(string sourceFile, string langFile, double srcSec, double offsetSec, double inverseRatio, double coarseFps, bool geometryCropSourceToFourThree, bool geometryCropLanguageToFourThree, out double mse, out double ssim)
         {
-            double result = double.MaxValue;
+            bool result = false;
             int srcMs = (int)Math.Round(srcSec * 1000.0);
             double langMs = (srcSec - offsetSec) * 1000.0;
             List<byte[]> srcFrames;
@@ -488,6 +490,9 @@ namespace RemuxForge.Core.Analysis.Deep
             int nearestIdx;
             double nearestDistMs;
             double currentMse;
+            double currentSsim;
+            mse = double.MaxValue;
+            ssim = 0.0;
             if (Math.Abs(inverseRatio - 1.0) > 0.0001)
             {
                 langMs = langMs * inverseRatio;
@@ -523,10 +528,18 @@ namespace RemuxForge.Core.Analysis.Deep
                 }
 
                 currentMse = this._mseMetric(srcFrames[i], langFrames[nearestIdx]);
-                if (currentMse < result)
+                if (currentMse < mse)
                 {
-                    result = currentMse;
+                    mse = currentMse;
                 }
+
+                currentSsim = this._ssimMetric(srcFrames[i], langFrames[nearestIdx]);
+                if (currentSsim > ssim)
+                {
+                    ssim = currentSsim;
+                }
+
+                result = true;
             }
 
             return result;
@@ -549,6 +562,7 @@ namespace RemuxForge.Core.Analysis.Deep
         {
             bool result = false;
             double offsetSec;
+            double srcPointSec;
             double langPointMs;
             List<byte[]> srcFrames;
             double[] srcFramesTs;
@@ -561,7 +575,17 @@ namespace RemuxForge.Core.Analysis.Deep
             double toleranceMs = (1000.0 / coarseFps) * 2.0;
 
             mse = double.MaxValue;
-            offsetSec = this.GetOffsetForPosition(regions, srcPointMs / 1000.0);
+            srcPointSec = srcPointMs / 1000.0;
+            offsetSec = 0.0;
+            for (int r = regions.Count - 1; r >= 0; r--)
+            {
+                if (regions[r].StartSrcSec <= srcPointSec)
+                {
+                    offsetSec = regions[r].OffsetMs / 1000.0;
+                    break;
+                }
+            }
+
             langPointMs = srcPointMs - (offsetSec * 1000.0);
             if (Math.Abs(inverseRatio - 1.0) > 0.0001)
             {
@@ -722,27 +746,6 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             return result;
-        }
-
-        /// <summary>
-        /// Recupera l'offset valido per una posizione source
-        /// </summary>
-        /// <param name="regions">Regioni offset ordinate</param>
-        /// <param name="srcSec">Timestamp source in secondi</param>
-        /// <returns>Offset in secondi</returns>
-        private double GetOffsetForPosition(List<OffsetRegion> regions, double srcSec)
-        {
-            double offsetSec = 0.0;
-            for (int r = regions.Count - 1; r >= 0; r--)
-            {
-                if (regions[r].StartSrcSec <= srcSec)
-                {
-                    offsetSec = regions[r].OffsetMs / 1000.0;
-                    break;
-                }
-            }
-
-            return offsetSec;
         }
 
         #endregion

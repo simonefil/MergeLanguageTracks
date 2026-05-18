@@ -56,7 +56,7 @@ namespace RemuxForge.Core.Models
             this.KeptSourceSubIds = new List<int>();
             this.ImportedAudioTracks = new List<TrackInfo>();
             this.ImportedSubTracks = new List<TrackInfo>();
-            this.DisplayConvertFormat = "";
+            this.DisplayAudioFormat = "";
             this.DeepAnalysisMap = null;
             this.DeepAnalysisTimeMs = 0;
             this.DeepAnalysisApplied = false;
@@ -285,7 +285,7 @@ namespace RemuxForge.Core.Models
         /// <summary>
         /// Formato conversione audio per display (flac, opus, vuoto se nessuna)
         /// </summary>
-        public string DisplayConvertFormat { get; set; }
+        public string DisplayAudioFormat { get; set; }
 
         /// <summary>
         /// EditMap prodotta dalla deep analysis, null se non eseguita

@@ -553,10 +553,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
             }
 
             this._lastResult = this.BuildLegacyResult(resultOffset, initialDelay, failureReason);
-            if (this._lastResult != null)
-            {
-                this._lastResult.InitialToFinalDeltaMs = initialFinalDeltaMs;
-            }
+            this._lastResult?.InitialToFinalDeltaMs = initialFinalDeltaMs;
             this.ClearExtractSegmentCache();
             this._geometryCropSourceToFourThree = originalSourceGeometryCropToFourThree;
             this._geometryCropLanguageToFourThree = originalLanguageGeometryCropToFourThree;

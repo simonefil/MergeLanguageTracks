@@ -166,13 +166,35 @@ namespace RemuxForge.Core.Configuration
         public static bool IsSpatialCodec(TrackInfo track)
         {
             bool result = false;
+            string codecText;
+            string nameText;
+            string combined;
+            if (track == null)
+            {
+                return result;
+            }
+
+            codecText = track.Codec != null ? track.Codec : "";
+            nameText = track.Name != null ? track.Name : "";
+            combined = codecText + " " + nameText;
+
             // DTS:X: codec gia' distinto in mkvmerge
-            if (string.Equals(track.Codec, "DTS:X", StringComparison.OrdinalIgnoreCase))
+            if (combined.IndexOf("DTS:X", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 result = true;
             }
             // TrueHD Atmos: codec TrueHD + nome traccia contiene "Atmos"
-            else if (string.Equals(track.Codec, "TrueHD", StringComparison.OrdinalIgnoreCase) && track.Name.IndexOf("Atmos", StringComparison.OrdinalIgnoreCase) >= 0)
+            else if (codecText.IndexOf("TrueHD", StringComparison.OrdinalIgnoreCase) >= 0 && nameText.IndexOf("Atmos", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                result = true;
+            }
+            else if (codecText.IndexOf("E-AC-3", StringComparison.OrdinalIgnoreCase) >= 0 && nameText.IndexOf("Atmos", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                result = true;
+            }
+            else if (combined.IndexOf("A/52 B Atmos", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                combined.IndexOf("JOC", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                combined.IndexOf("Dolby Atmos", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 result = true;
             }

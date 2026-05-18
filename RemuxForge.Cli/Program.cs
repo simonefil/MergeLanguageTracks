@@ -266,6 +266,7 @@ REMUX - SYNC:
                                  Lingua audio source da usare per i segmenti di riempimento
         --audio-source-fill-modes <list>
                                  Modalita': start,end,insert-silence
+                                 Richiede --audio-format e --audio-scope lang|all
 
   NOTA: In auto la correzione velocita' usa MediaInfo e non viene applicata
         su VFR. Per VFR usare --speed-correction manual --stretch-factor.
@@ -276,15 +277,24 @@ REMUX - FILTRO TRACCE:
   -ksa, --keep-source-audio      Lingue audio da mantenere nel sorgente (es: eng,jpn)
   -ksac,--keep-source-audio-codec Codec audio da mantenere nel sorgente (es: DTS,E-AC-3)
   -kss, --keep-source-subs       Lingue sub da mantenere nel sorgente
-  -rt,  --rename-tracks          Rinomina tutte le tracce audio (non solo quelle convertite)
 
 REMUX - MATCHING:
   -m,   --match-pattern <regex>  Pattern per matching episodi (default: S(\d+)E(\d+))
 
-REMUX - CONVERSIONE:
-  -cf,  --convert-format <fmt>   Converte tracce lossless nel formato specificato: flac o opus
-                                 Le tracce TrueHD Atmos e DTS:X non vengono mai convertite
-                                 Impostazioni bitrate/compressione in .remux-forge/appsettings.json
+REMUX - AUDIO:
+        --audio-format <fmt>     Formato finale audio: flac, lpcm, aac, opus.
+                                 Se impostato senza --audio-scope, default: all
+        --audio-scope <scope>    Tracce da processare: disabled, lang, all
+                                 disabled evita conversioni generiche
+        --audio-24-to-16         Converte 24bit -> 16bit con soxr/shibata (flac/lpcm)
+        --audio-peak-normalize   Peak normalization globale multicanale
+        --audio-peak-target-db   Target peak in dB (default: -1.0)
+        --audio-rename-scope <scope>
+                                 Rinomina audio finale: disabled, lang, all
+
+  NOTA: Deep analysis con 0 operazioni usa solo delay mkvmerge. Se invece produce
+        cut/insert su audio importato, serve --audio-format per ricodificare le
+        tracce toccate. --audio-source-fill richiede anche scope lang o all.
 
 REMUX - ENCODING:
   -ep,  --encoding-profile <name> Profilo encoding video post-merge (definito in appsettings.json)
@@ -393,11 +403,14 @@ ESEMPI REMUX:
   # Singola sorgente: applica delay 960ms alle tracce ita, mantieni jpn+eng audio e eng+jpn sub
   RemuxForge --mode remux -s ""D:\Serie"" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
 
-  # Converti tracce lossless in FLAC (TrueHD Atmos e DTS:X esclusi)
-  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -cf flac -d ""D:\Out""
+  # Processa audio lang in FLAC
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita --audio-format flac --audio-scope lang -d ""D:\Out""
 
-  # Converti tracce lossless in Opus (bitrate configurabile in .remux-forge/appsettings.json)
-  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -cf opus -ksa eng -d ""D:\Out"" -fs
+  # Processa tutte le tracce audio in Opus (bitrate configurabile in .remux-forge/appsettings.json)
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita --audio-format opus --audio-scope all -ksa eng -d ""D:\Out"" -fs
+
+  # Audio source fill: usa audio source ita per riempire gap start/end oltre 100ms
+  RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita --audio-format flac --audio-scope lang --audio-source-fill-threshold-ms 100 --audio-source-fill-language ita --audio-source-fill-modes start,end -d ""D:\Out"" -da
 
   # Merge + encoding video con profilo definito in appsettings.json
   RemuxForge --mode remux -s ""D:\EN"" -l ""D:\IT"" -t ita -ep ""libx265_CRF28"" -d ""D:\Out""
@@ -422,7 +435,7 @@ CODICI LINGUA (ISO 639-2):
 
 REQUISITI:
   - MKVToolNix (mkvmerge) nel PATH
-  - ffmpeg per frame-sync (scaricato automaticamente se mancante)
+  - ffmpeg per frame-sync (download automatico su Windows/Linux; su macOS installare con Homebrew o configurare il path)
 
 NOTE:
   Correzione velocita' (stretch): default off. In auto rileva differenze FPS
@@ -434,7 +447,7 @@ NOTE:
   tra sorgente e lingua per trovare il delay. Verifica a 9 punti distribuiti
   nel video con retry adattivo. Copre offset fino a +-60 secondi.
 
-  Entrambe le funzionalita' richiedono ffmpeg (scaricato automaticamente).
+  Entrambe le funzionalita' richiedono ffmpeg. Il download automatico e' disponibile su Windows/Linux; su macOS usare Homebrew o path manuale.
 ";
             Console.WriteLine(helpText);
         }
@@ -500,6 +513,22 @@ NOTE:
             if (opts.AudioSourceFillThresholdMs > 0)
             {
                 ConsoleHelper.Write(LogSection.Config, LogLevel.Text, "  Audio source fill:   >" + opts.AudioSourceFillThresholdMs + "ms da " + opts.AudioSourceFillLanguage + " (" + FormatAudioSourceFillModes(opts) + ")");
+            }
+            if (opts.AudioFormat.Length > 0)
+            {
+                ConsoleHelper.Write(LogSection.Config, LogLevel.Text, "  Formato audio:       " + opts.AudioFormat.ToUpperInvariant() + " (" + opts.AudioProcessingScope + ")");
+                if (opts.AudioDownsample24To16)
+                {
+                    ConsoleHelper.Write(LogSection.Config, LogLevel.Text, "  24bit -> 16bit:      SI");
+                }
+                if (opts.AudioPeakNormalize)
+                {
+                    ConsoleHelper.Write(LogSection.Config, LogLevel.Text, "  Normalizzazione:     " + opts.AudioPeakTargetDb.ToString(System.Globalization.CultureInfo.InvariantCulture) + " dB");
+                }
+            }
+            if (opts.AudioRenameScope != "disabled")
+            {
+                ConsoleHelper.Write(LogSection.Config, LogLevel.Text, "  Rinomina audio:      " + opts.AudioRenameScope);
             }
 
             // Mostra flag filtro

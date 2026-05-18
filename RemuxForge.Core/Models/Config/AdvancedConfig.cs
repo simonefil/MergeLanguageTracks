@@ -561,16 +561,16 @@ namespace RemuxForge.Core.Models
     }
 
     /// <summary>
-    /// Configurazione parametri track split (TrackSplitService)
+    /// Configurazione parametri riscrittura sottotitoli
     /// </summary>
-    public class TrackSplitConfig
+    public class SubtitleEditConfig
     {
         #region Costruttore
 
         /// <summary>
         /// Costruttore con valori di default
         /// </summary>
-        public TrackSplitConfig()
+        public SubtitleEditConfig()
         {
             this.FfmpegTimeoutMs = 300000;
         }
@@ -600,6 +600,7 @@ namespace RemuxForge.Core.Models
         public FfmpegConfig()
         {
             this.HardwareAcceleration = false;
+            this.FrameExtractionTimeoutMs = 120000;
         }
 
         #endregion
@@ -610,6 +611,11 @@ namespace RemuxForge.Core.Models
         /// Abilita accelerazione hardware ffmpeg (-hwaccel auto)
         /// </summary>
         public bool HardwareAcceleration { get; set; }
+
+        /// <summary>
+        /// Timeout singola estrazione frame rawvideo in millisecondi
+        /// </summary>
+        public int FrameExtractionTimeoutMs { get; set; }
 
         #endregion
     }
@@ -630,7 +636,7 @@ namespace RemuxForge.Core.Models
             this.SpeedCorrection = new SpeedCorrectionConfig();
             this.FrameSync = new FrameSyncConfig();
             this.DeepAnalysis = new DeepAnalysisConfig();
-            this.TrackSplit = new TrackSplitConfig();
+            this.SubtitleEdit = new SubtitleEditConfig();
             this.Ffmpeg = new FfmpegConfig();
         }
 
@@ -659,9 +665,9 @@ namespace RemuxForge.Core.Models
         public DeepAnalysisConfig DeepAnalysis { get; set; }
 
         /// <summary>
-        /// Parametri track split
+        /// Parametri riscrittura sottotitoli
         /// </summary>
-        public TrackSplitConfig TrackSplit { get; set; }
+        public SubtitleEditConfig SubtitleEdit { get; set; }
 
         /// <summary>
         /// Parametri ffmpeg

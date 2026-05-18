@@ -23,13 +23,14 @@ namespace RemuxForge.Core.Models
             this.LangAudioTracks = new List<TrackInfo>();
             this.LangSubTracks = new List<TrackInfo>();
             this.StretchFactor = "";
-            this.ConvertFormat = "";
+            this.AudioFormat = "";
+            this.AudioRenameScope = "disabled";
             this.ConvertedSourceTracks = new Dictionary<int, string>();
             this.ConvertedLangTracks = new Dictionary<int, string>();
             this.ProcessedLangSubTracks = new Dictionary<int, string>();
-            this.CodecConvertedLangIds = new HashSet<int>();
             this.AudioDelayBypassedLangIds = new HashSet<int>();
-            this.ProcessedLangAudioFormats = new Dictionary<int, string>();
+            this.ProcessedSourceAudioInfo = new Dictionary<int, TrackInfo>();
+            this.ProcessedLangAudioInfo = new Dictionary<int, TrackInfo>();
             this.SourceTitle = "";
         }
 
@@ -103,14 +104,14 @@ namespace RemuxForge.Core.Models
         public string StretchFactor { get; set; }
 
         /// <summary>
-        /// Formato di conversione audio (flac, opus) o stringa vuota se nessuna conversione
+        /// Formato audio processato o stringa vuota se nessuna conversione
         /// </summary>
-        public string ConvertFormat { get; set; }
+        public string AudioFormat { get; set; }
 
         /// <summary>
-        /// Forza rinomina di tutte le tracce audio (non solo quelle convertite)
+        /// Scope rinomina audio finale: disabled, lang, all
         /// </summary>
-        public bool RenameAllTracks { get; set; }
+        public string AudioRenameScope { get; set; }
 
         /// <summary>
         /// Mappa trackId sorgente -> percorso file audio convertito. Le tracce in questa mappa
@@ -131,19 +132,19 @@ namespace RemuxForge.Core.Models
         public Dictionary<int, string> ProcessedLangSubTracks { get; set; }
 
         /// <summary>
-        /// ID tracce lang effettivamente convertite di codec (non solo processate da taglia-cuci)
-        /// </summary>
-        public HashSet<int> CodecConvertedLangIds { get; set; }
-
-        /// <summary>
         /// ID tracce lang per cui il delay audio e' stato sostituito da audio source fill
         /// </summary>
         public HashSet<int> AudioDelayBypassedLangIds { get; set; }
 
         /// <summary>
-        /// Formato effettivo dei file audio lang preprocessati
+        /// Info effettive dei file audio sorgente processati
         /// </summary>
-        public Dictionary<int, string> ProcessedLangAudioFormats { get; set; }
+        public Dictionary<int, TrackInfo> ProcessedSourceAudioInfo { get; set; }
+
+        /// <summary>
+        /// Info effettive dei file audio lang processati
+        /// </summary>
+        public Dictionary<int, TrackInfo> ProcessedLangAudioInfo { get; set; }
 
         /// <summary>
         /// Titolo segmento del file sorgente (container title), stringa vuota se assente

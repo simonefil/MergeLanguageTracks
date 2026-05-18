@@ -444,6 +444,7 @@ namespace RemuxForge.Core.Infrastructure
             Exception stdoutException = null;
             Stream stdoutStream;
             StreamReader stderrReader;
+            bool completed;
             try
             {
                 proc = new Process();
@@ -495,7 +496,8 @@ namespace RemuxForge.Core.Infrastructure
                 stdoutThread.Start();
                 stderrThread.Start();
 
-                if (!WaitForExitOrStop(proc, timeoutMs))
+                completed = WaitForExitOrStop(proc, timeoutMs);
+                if (!completed)
                 {
                     KillProcessTree(proc);
                 }
@@ -509,6 +511,16 @@ namespace RemuxForge.Core.Infrastructure
                 }
 
                 result.Stderr = stderr.ToString();
+                if (!completed)
+                {
+                    if (result.Stderr.Length > 0)
+                    {
+                        result.Stderr = result.Stderr + Environment.NewLine;
+                    }
+
+                    result.Stderr = result.Stderr + "Processo interrotto per timeout o richiesta stop";
+                    result.ExitCode = -1;
+                }
                 if (stdoutException != null)
                 {
                     result.ExitCode = -1;

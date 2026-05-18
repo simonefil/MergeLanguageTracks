@@ -73,9 +73,21 @@ namespace RemuxForge.Core.Tools
         /// <returns>Path risolto o stringa vuota</returns>
         public string ResolveFfmpegPath(bool autoSave, bool allowDownload)
         {
+            return this.ResolveFfmpegPath(autoSave, allowDownload, false);
+        }
+
+        /// <summary>
+        /// Risolve il path di ffmpeg con eventuale requisito libsoxr
+        /// </summary>
+        /// <param name="autoSave">True per salvare il risultato in AppSettings quando valido</param>
+        /// <param name="allowDownload">True per tentare il download automatico</param>
+        /// <param name="requireLibSoxr">True quando serve una build con --enable-libsoxr</param>
+        /// <returns>Path risolto o stringa vuota</returns>
+        public string ResolveFfmpegPath(bool autoSave, bool allowDownload, bool requireLibSoxr)
+        {
             string result = "";
             FfmpegProvider provider = new FfmpegProvider(this._configFolder);
-            if (provider.Resolve(autoSave, allowDownload))
+            if (provider.Resolve(autoSave, allowDownload, requireLibSoxr))
             {
                 result = provider.FfmpegPath;
             }

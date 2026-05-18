@@ -112,6 +112,7 @@ namespace RemuxForge.Core.Pipeline
             bool done = false;
             DeepAnalysisTimingDiagnostic deepTiming;
             DeepAnalysisPerformanceDiagnostic deepPerformance;
+            DeepAnalysisTrackPolicy deepTrackPolicy;
             FrameSyncTimingInfo frameSyncTiming;
             VideoTimingInfo sourceTiming = null;
             VideoTimingInfo langTiming = null;
@@ -407,8 +408,9 @@ namespace RemuxForge.Core.Pipeline
                         (sourceDurationMs > 0 && sourceDefaultDuration > 0 && langDefaultDuration > 0) ||
                         (sourceDurationMs > 0 && speedCorrectionMode == Options.SPEED_CORRECTION_AUTO && !deepAllowAutoStretch))
                     {
+                        deepTrackPolicy = this.BuildDeepAnalysisTrackPolicy(sourceInfo, langInfo);
                         DeepAnalysisService deepService = new DeepAnalysisService(ffmpegPath, this._toolPathResolver);
-                        EditMap editMap = deepService.Analyze(record.SourceFilePath, record.LangFilePath, sourceDefaultDuration, langDefaultDuration, sourceDurationMs, deepManualStretchFactor, deepAllowAutoStretch);
+                        EditMap editMap = deepService.Analyze(record.SourceFilePath, record.LangFilePath, sourceDefaultDuration, langDefaultDuration, sourceDurationMs, deepManualStretchFactor, deepAllowAutoStretch, deepTrackPolicy);
 
                         record.DeepAnalysisTimeMs = deepService.AnalysisTimeMs;
 
@@ -679,6 +681,221 @@ namespace RemuxForge.Core.Pipeline
             this._clearLogRedirect();
 
             return true;
+        }
+
+        /// <summary>
+        /// Costruisce la policy delle tracce audio che DeepAnalysis puo' usare come conferma locale
+        /// </summary>
+        /// <param name="sourceInfo">Metadata source</param>
+        /// <param name="langInfo">Metadata file lingua</param>
+        /// <returns>Policy tracce audio per DeepAnalysis</returns>
+        private DeepAnalysisTrackPolicy BuildDeepAnalysisTrackPolicy(MkvFileInfo sourceInfo, MkvFileInfo langInfo)
+        {
+            DeepAnalysisTrackPolicy result = new DeepAnalysisTrackPolicy();
+            List<TrackInfo> sourceAudio = new List<TrackInfo>();
+            List<TrackInfo> languageAudio = new List<TrackInfo>();
+            string[] sourceCodecPatterns = this.ResolveCodecPatterns(this._opts.KeepSourceAudioCodec);
+            string[] languageCodecPatterns = this.ResolveCodecPatterns(this._opts.AudioCodec);
+            TrackInfo sourceTrack;
+            TrackInfo languageTrack;
+
+            if (sourceInfo == null || langInfo == null || sourceInfo.Tracks == null || langInfo.Tracks == null)
+            {
+                result.RejectReason = "metadata audio non disponibili";
+                return result;
+            }
+
+            if (this._opts.SubOnly)
+            {
+                result.RejectReason = "sub-only: nessuna traccia language audio finale";
+                return result;
+            }
+
+            for (int i = 0; i < sourceInfo.Tracks.Count; i++)
+            {
+                sourceTrack = sourceInfo.Tracks[i];
+                if (!string.Equals(sourceTrack.Type, "audio", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (this._opts.KeepSourceAudioLangs.Count > 0 && !this.IsTrackLanguageInList(sourceTrack, this._opts.KeepSourceAudioLangs))
+                {
+                    continue;
+                }
+
+                if (this.IsTrackLanguageInList(sourceTrack, this._opts.TargetLanguage))
+                {
+                    continue;
+                }
+
+                if (sourceCodecPatterns != null && !CodecMapping.MatchesCodec(sourceTrack.Codec, sourceCodecPatterns))
+                {
+                    continue;
+                }
+
+                sourceAudio.Add(sourceTrack);
+            }
+
+            for (int i = 0; i < langInfo.Tracks.Count; i++)
+            {
+                languageTrack = langInfo.Tracks[i];
+                if (!string.Equals(languageTrack.Type, "audio", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!this.IsTrackLanguageInList(languageTrack, this._opts.TargetLanguage))
+                {
+                    continue;
+                }
+
+                if (languageCodecPatterns != null && !CodecMapping.MatchesCodec(languageTrack.Codec, languageCodecPatterns))
+                {
+                    continue;
+                }
+
+                languageAudio.Add(languageTrack);
+            }
+
+            for (int s = 0; s < sourceAudio.Count && !result.AudioValidationAvailable; s++)
+            {
+                sourceTrack = sourceAudio[s];
+                for (int l = 0; l < languageAudio.Count; l++)
+                {
+                    languageTrack = languageAudio[l];
+                    if (!this.IsSameTrackLanguage(sourceTrack, languageTrack))
+                    {
+                        continue;
+                    }
+
+                    result.AudioValidationAvailable = true;
+                    result.TrackLanguage = sourceTrack.Language.Length > 0 ? sourceTrack.Language : sourceTrack.LanguageIetf;
+                    result.SourceTrackId = sourceTrack.Id;
+                    result.LanguageTrackId = languageTrack.Id;
+                    result.SourceTrackName = sourceTrack.Name;
+                    result.LanguageTrackName = languageTrack.Name;
+                    result.SourceAudioStreamIndex = this.GetAudioStreamIndex(sourceInfo.Tracks, sourceTrack.Id);
+                    result.LanguageAudioStreamIndex = this.GetAudioStreamIndex(langInfo.Tracks, languageTrack.Id);
+                    break;
+                }
+            }
+
+            if (!result.AudioValidationAvailable)
+            {
+                result.RejectReason = "nessuna coppia audio comune inclusa nell'output";
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Risolve i pattern codec da una lista di nomi codec
+        /// </summary>
+        /// <param name="codecNames">Lista nomi codec</param>
+        /// <returns>Array pattern o null se non ci sono filtri</returns>
+        private string[] ResolveCodecPatterns(List<string> codecNames)
+        {
+            List<string> patterns = new List<string>();
+            string[] codecPatterns;
+
+            if (codecNames == null || codecNames.Count == 0)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < codecNames.Count; i++)
+            {
+                codecPatterns = CodecMapping.GetCodecPatterns(codecNames[i]);
+                if (codecPatterns == null)
+                {
+                    continue;
+                }
+
+                for (int p = 0; p < codecPatterns.Length; p++)
+                {
+                    if (!patterns.Contains(codecPatterns[p]))
+                    {
+                        patterns.Add(codecPatterns[p]);
+                    }
+                }
+            }
+
+            return patterns.Count > 0 ? patterns.ToArray() : null;
+        }
+
+        /// <summary>
+        /// Verifica se una traccia ha una lingua contenuta nella lista
+        /// </summary>
+        /// <param name="track">Traccia da verificare</param>
+        /// <param name="languages">Lista lingue ammesse</param>
+        /// <returns>True se la traccia corrisponde</returns>
+        private bool IsTrackLanguageInList(TrackInfo track, List<string> languages)
+        {
+            if (track == null || languages == null || languages.Count == 0)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < languages.Count; i++)
+            {
+                if (string.Equals(track.Language, languages[i], StringComparison.OrdinalIgnoreCase) ||
+                    (track.LanguageIetf.Length > 0 && (track.LanguageIetf.StartsWith(languages[i], StringComparison.OrdinalIgnoreCase) || string.Equals(track.LanguageIetf, languages[i], StringComparison.OrdinalIgnoreCase))))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Verifica se due tracce audio hanno la stessa lingua effettiva
+        /// </summary>
+        /// <param name="sourceTrack">Traccia source</param>
+        /// <param name="languageTrack">Traccia language</param>
+        /// <returns>True se la lingua coincide</returns>
+        private bool IsSameTrackLanguage(TrackInfo sourceTrack, TrackInfo languageTrack)
+        {
+            string sourceLanguage = sourceTrack.Language.Length > 0 ? sourceTrack.Language : sourceTrack.LanguageIetf;
+            string language = languageTrack.Language.Length > 0 ? languageTrack.Language : languageTrack.LanguageIetf;
+
+            if (sourceLanguage.Length == 0 || language.Length == 0)
+            {
+                return false;
+            }
+
+            return string.Equals(sourceLanguage, language, StringComparison.OrdinalIgnoreCase) ||
+                sourceLanguage.StartsWith(language, StringComparison.OrdinalIgnoreCase) ||
+                language.StartsWith(sourceLanguage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Converte l'ID traccia MKV nell'indice audio usato da ffmpeg
+        /// </summary>
+        /// <param name="tracks">Tracce del container</param>
+        /// <param name="trackId">ID MKV da cercare</param>
+        /// <returns>Indice audio ffmpeg</returns>
+        private int GetAudioStreamIndex(List<TrackInfo> tracks, int trackId)
+        {
+            int audioIndex = 0;
+
+            for (int i = 0; i < tracks.Count; i++)
+            {
+                if (!string.Equals(tracks[i].Type, "audio", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (tracks[i].Id == trackId)
+                {
+                    return audioIndex;
+                }
+
+                audioIndex++;
+            }
+
+            return 0;
         }
 
         /// <summary>

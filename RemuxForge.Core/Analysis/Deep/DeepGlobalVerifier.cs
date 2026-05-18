@@ -11,22 +11,13 @@ namespace RemuxForge.Core.Analysis.Deep
     /// </summary>
     public class DeepGlobalVerifier
     {
-        #region Delegati
-
-        /// <summary>
-        /// Calcola l'MSE di un punto globale
-        /// </summary>
-        public delegate bool PointMseCalculator(string sourceFile, string langFile, List<OffsetRegion> regions, double srcPointMs, double inverseRatio, out double mse);
-
-        #endregion
-
         #region Variabili di classe
 
         private readonly DeepAnalysisConfig _deepAnalysisConfig;
 
         private readonly VideoSyncConfig _videoSyncConfig;
 
-        private readonly PointMseCalculator _pointMseCalculator;
+        private readonly DeepVisualFrameAnalyzer _visualFrameAnalyzer;
 
         #endregion
 
@@ -37,12 +28,12 @@ namespace RemuxForge.Core.Analysis.Deep
         /// </summary>
         /// <param name="deepAnalysisConfig">Configurazione DeepAnalysis</param>
         /// <param name="videoSyncConfig">Configurazione metrica video</param>
-        /// <param name="pointMseCalculator">Callback calcolo MSE punto</param>
-        public DeepGlobalVerifier(DeepAnalysisConfig deepAnalysisConfig, VideoSyncConfig videoSyncConfig, PointMseCalculator pointMseCalculator)
+        /// <param name="visualFrameAnalyzer">Analyzer visuale frame-based</param>
+        public DeepGlobalVerifier(DeepAnalysisConfig deepAnalysisConfig, VideoSyncConfig videoSyncConfig, DeepVisualFrameAnalyzer visualFrameAnalyzer)
         {
             this._deepAnalysisConfig = deepAnalysisConfig;
             this._videoSyncConfig = videoSyncConfig;
-            this._pointMseCalculator = pointMseCalculator;
+            this._visualFrameAnalyzer = visualFrameAnalyzer;
         }
 
         #endregion
@@ -52,7 +43,7 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <summary>
         /// Verifica che l'EditMap risultante produca match visuali coerenti lungo tutto il file
         /// </summary>
-        public bool Verify(string sourceFile, string langFile, List<OffsetRegion> regions, List<EditOperation> operations, double inverseRatio, int sourceDurationMs, out double baselineMse, out DeepAnalysisGlobalVerificationDiagnostic verification)
+        public bool Verify(string sourceFile, string langFile, List<OffsetRegion> regions, List<EditOperation> operations, double inverseRatio, int sourceDurationMs, bool geometryCropSourceToFourThree, bool geometryCropLanguageToFourThree, out double baselineMse, out DeepAnalysisGlobalVerificationDiagnostic verification)
         {
             bool verified;
             int validPoints = 0;
@@ -80,7 +71,7 @@ namespace RemuxForge.Core.Analysis.Deep
                 double mse;
                 double srcPointMs = stepMs * p;
 
-                if (this._pointMseCalculator(sourceFile, langFile, verificationRegions, srcPointMs, inverseRatio, out mse))
+                if (this._visualFrameAnalyzer.TryComputeGlobalPointMse(sourceFile, langFile, verificationRegions, srcPointMs, inverseRatio, this._deepAnalysisConfig.CoarseFps, geometryCropSourceToFourThree, geometryCropLanguageToFourThree, out mse))
                 {
                     pointMse[p] = mse;
                     pointValid[p] = true;

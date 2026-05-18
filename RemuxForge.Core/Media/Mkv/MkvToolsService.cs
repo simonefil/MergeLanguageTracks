@@ -318,41 +318,6 @@ namespace RemuxForge.Core.Media.Mkv
                 }
             }
 
-            // Rinomina tracce audio sorgente non convertite (se flag attivo)
-            if (req.RenameAllTracks)
-            {
-                if (sourceAudioKeep.Count > 0)
-                {
-                    // Filtro attivo: rinomina solo le tracce selezionate
-                    for (int i = 0; i < sourceAudioKeep.Count; i++)
-                    {
-                        TrackInfo srcTrack = FindTrackById(req.SourceAudioTracks, sourceAudioKeep[i]);
-                        if (srcTrack != null)
-                        {
-                            string trackName = BuildOriginalTrackName(srcTrack);
-                            if (trackName.Length > 0)
-                            {
-                                mkvArgs.Add("--track-name");
-                                mkvArgs.Add(sourceAudioKeep[i] + ":" + trackName);
-                            }
-                        }
-                    }
-                }
-                else if (req.SourceAudioTracks != null)
-                {
-                    // Nessun filtro: rinomina tutte le tracce audio source
-                    for (int i = 0; i < req.SourceAudioTracks.Count; i++)
-                    {
-                        string trackName = BuildOriginalTrackName(req.SourceAudioTracks[i]);
-                        if (trackName.Length > 0)
-                        {
-                            mkvArgs.Add("--track-name");
-                            mkvArgs.Add(req.SourceAudioTracks[i].Id + ":" + trackName);
-                        }
-                    }
-                }
-            }
-
             // Selezione tracce sottotitoli sorgente
             if (req.FilterSourceSubs && req.SourceSubIds.Count > 0)
             {
@@ -385,7 +350,7 @@ namespace RemuxForge.Core.Media.Mkv
                         // Imposta lingua e titolo sulla traccia convertita (trackId 0 nel file standalone)
                         if (origTrack != null)
                         {
-                            AddTrackMetadata(mkvArgs, origTrack, req.ConvertFormat, req.RenameAllTracks);
+                            AddAudioLanguageMetadata(mkvArgs, origTrack);
                         }
 
                         mkvArgs.Add(req.ConvertedSourceTracks[srcId]);
@@ -431,23 +396,6 @@ namespace RemuxForge.Core.Media.Mkv
                         }
                     }
 
-                    // Rinomina tracce audio lingua non convertite (se flag attivo)
-                    if (req.RenameAllTracks)
-                    {
-                        for (int i = 0; i < langAudioKeep.Count; i++)
-                        {
-                            TrackInfo langTrack = FindTrackById(req.LangAudioTracks, langAudioKeep[i]);
-                            if (langTrack != null)
-                            {
-                                string trackName = BuildOriginalTrackName(langTrack);
-                                if (trackName.Length > 0)
-                                {
-                                    mkvArgs.Add("--track-name");
-                                    mkvArgs.Add(langAudioKeep[i] + ":" + trackName);
-                                }
-                            }
-                        }
-                    }
                 }
                 else if (!hasConvertedLang)
                 {
@@ -524,20 +472,10 @@ namespace RemuxForge.Core.Media.Mkv
                             }
 
                             // Imposta lingua e titolo sulla traccia (trackId 0 nel file standalone)
-                            // Usa ConvertFormat solo se la traccia e' stata effettivamente convertita di codec
                             TrackInfo origLangTrack = FindTrackById(req.LangAudioTracks, langId);
                             if (origLangTrack != null)
                             {
-                                string langConvertFmt = "";
-                                if (req.ProcessedLangAudioFormats != null && req.ProcessedLangAudioFormats.ContainsKey(langId))
-                                {
-                                    langConvertFmt = req.ProcessedLangAudioFormats[langId];
-                                }
-                                else if (req.CodecConvertedLangIds.Contains(langId))
-                                {
-                                    langConvertFmt = req.ConvertFormat;
-                                }
-                                AddTrackMetadata(mkvArgs, origLangTrack, langConvertFmt, req.RenameAllTracks);
+                                AddAudioLanguageMetadata(mkvArgs, origLangTrack);
                             }
 
                             mkvArgs.Add(req.ConvertedLangTracks[langId]);
@@ -557,11 +495,16 @@ namespace RemuxForge.Core.Media.Mkv
                             mkvArgs.Add("-D");
                             mkvArgs.Add("-A");
 
-                            // Applica delay iniziale (trackId 0 nel file processato)
-                            if (req.SubDelayMs != 0)
+                            // Applica delay/stretch via mkvmerge anche ai sottotitoli standalone
+                            if (req.SubDelayMs != 0 || req.StretchFactor.Length > 0)
                             {
+                                syncValue = "0:" + req.SubDelayMs;
+                                if (req.StretchFactor.Length > 0)
+                                {
+                                    syncValue = syncValue + "," + req.StretchFactor;
+                                }
                                 mkvArgs.Add("--sync");
-                                mkvArgs.Add("0:" + req.SubDelayMs);
+                                mkvArgs.Add(syncValue);
                             }
 
                             AddStandaloneSubtitleMetadata(mkvArgs, req.LangSubTracks[i]);
@@ -623,6 +566,86 @@ namespace RemuxForge.Core.Media.Mkv
             output = sb.ToString();
 
             return result.ExitCode;
+        }
+
+        /// <summary>
+        /// Applica i nomi audio sul file finale tramite mkvpropedit
+        /// </summary>
+        /// <param name="filePath">File MKV finale</param>
+        /// <param name="audioRenameScope">Scope rinomina: disabled, lang, all</param>
+        /// <param name="targetLanguages">Lingue target usate per scope lang</param>
+        /// <param name="mkvPropEditPath">Percorso mkvpropedit</param>
+        /// <param name="errorMessage">Errore, vuoto se riuscito</param>
+        /// <returns>True se riuscito o rinomina disabilitata</returns>
+        public bool ApplyFinalAudioTrackNames(string filePath, string audioRenameScope, List<string> targetLanguages, string mkvPropEditPath, out string errorMessage)
+        {
+            MkvFileInfo info;
+            List<string> args;
+            int audioIndex = 0;
+            string trackName;
+            ProcessResult result;
+
+            errorMessage = "";
+            if (audioRenameScope == "disabled")
+            {
+                return true;
+            }
+
+            if (mkvPropEditPath == null || mkvPropEditPath.Length == 0)
+            {
+                errorMessage = "mkvpropedit non trovato per rinomina audio finale";
+                return false;
+            }
+
+            info = this.GetFileInfo(filePath);
+            if (info == null || info.Tracks == null)
+            {
+                errorMessage = "Impossibile leggere tracce finali per rinomina audio";
+                return false;
+            }
+
+            args = new List<string>();
+            args.Add(filePath);
+
+            for (int i = 0; i < info.Tracks.Count; i++)
+            {
+                TrackInfo track = info.Tracks[i];
+                if (!string.Equals(track.Type, "audio", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                audioIndex++;
+                if (audioRenameScope == "lang" && !this.IsLanguageInList(track, targetLanguages))
+                {
+                    continue;
+                }
+
+                trackName = BuildFinalAudioTrackName(track);
+                if (trackName.Length == 0 || string.Equals(track.Name, trackName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                args.Add("--edit");
+                args.Add("track:a" + audioIndex);
+                args.Add("--set");
+                args.Add("name=" + trackName);
+            }
+
+            if (args.Count == 1)
+            {
+                return true;
+            }
+
+            result = ProcessRunner.Run(mkvPropEditPath, args.ToArray());
+            if (result.ExitCode != 0)
+            {
+                errorMessage = "mkvpropedit fallito: " + LastErrorLine(result.Stderr.Length > 0 ? result.Stderr : result.Stdout);
+                return false;
+            }
+
+            return true;
         }
 
         #endregion
@@ -844,13 +867,11 @@ namespace RemuxForge.Core.Media.Mkv
         }
 
         /// <summary>
-        /// Aggiunge argomenti --language e --track-name per una traccia standalone (trackId 0)
+        /// Aggiunge solo la lingua per una traccia audio standalone
         /// </summary>
         /// <param name="mkvArgs">Lista argomenti mkvmerge in costruzione</param>
-        /// <param name="origTrack">Traccia originale con metadati lingua e audio</param>
-        /// <param name="convertFormat">Formato conversione (flac, opus), vuoto se non convertita</param>
-        /// <param name="renameAllTracks">Se rinominare anche tracce non convertite</param>
-        private static void AddTrackMetadata(List<string> mkvArgs, TrackInfo origTrack, string convertFormat, bool renameAllTracks)
+        /// <param name="origTrack">Traccia originale con metadati lingua</param>
+        private static void AddAudioLanguageMetadata(List<string> mkvArgs, TrackInfo origTrack)
         {
             // Lingua: usa IETF se disponibile, altrimenti ISO 639-2
             if (origTrack.LanguageIetf.Length > 0)
@@ -862,23 +883,6 @@ namespace RemuxForge.Core.Media.Mkv
             {
                 mkvArgs.Add("--language");
                 mkvArgs.Add("0:" + origTrack.Language);
-            }
-
-            // Titolo: sempre per convertite, solo se flag attivo per non convertite
-            string trackName = "";
-            if (convertFormat.Length > 0)
-            {
-                trackName = BuildConvertedTrackName(origTrack, convertFormat);
-            }
-            else if (renameAllTracks)
-            {
-                trackName = BuildOriginalTrackName(origTrack);
-            }
-
-            if (trackName.Length > 0)
-            {
-                mkvArgs.Add("--track-name");
-                mkvArgs.Add("0:" + trackName);
             }
         }
 
@@ -914,12 +918,11 @@ namespace RemuxForge.Core.Media.Mkv
         }
 
         /// <summary>
-        /// Genera il nome traccia per una traccia audio non convertita (codec originale)
-        /// Formato: "AC-3 5.1 48kHz" o "DTS 5.1 24bit/48kHz"
+        /// Genera il nome traccia audio finale da metadati effettivi del file scritto
         /// </summary>
-        /// <param name="track">Traccia con info codec, canali, bit depth, sample rate</param>
+        /// <param name="track">Traccia audio finale</param>
         /// <returns>Nome traccia generato o stringa vuota se codec non disponibile</returns>
-        private static string BuildOriginalTrackName(TrackInfo track)
+        private static string BuildFinalAudioTrackName(TrackInfo track)
         {
             string result = "";
 
@@ -929,26 +932,32 @@ namespace RemuxForge.Core.Media.Mkv
             string channelLayout = FormatChannelLayout(track.Channels);
             int sampleRateKhz = track.SamplingFrequency / 1000;
 
-            // Codec originale
-            sb.Append(track.Codec);
+            sb.Append(FormatAudioCodecName(track.Codec));
 
             if (channelLayout.Length > 0)
             {
                 sb.Append(" " + channelLayout);
             }
 
-            // Bit depth e sample rate (stesso formato delle tracce convertite)
-            if (track.BitsPerSample > 0 && sampleRateKhz > 0)
+            if (IsAacCodec(track.Codec))
             {
-                sb.Append(" " + track.BitsPerSample + "bit/" + sampleRateKhz + "kHz");
+                if (sampleRateKhz > 0)
+                {
+                    sb.Append(" " + sampleRateKhz + "kHz");
+                }
+                AppendBitratePart(sb, track.Bitrate, AppSettingsService.Instance.GetAacBitrateForChannels(track.Channels));
             }
-            else if (track.BitsPerSample > 0)
+            else if (IsOpusCodec(track.Codec))
             {
-                sb.Append(" " + track.BitsPerSample + "bit");
+                if (sampleRateKhz > 0)
+                {
+                    sb.Append(" " + sampleRateKhz + "kHz");
+                }
+                AppendBitratePart(sb, track.Bitrate, AppSettingsService.Instance.GetOpusBitrateForChannels(track.Channels));
             }
-            else if (sampleRateKhz > 0)
+            else
             {
-                sb.Append(" " + sampleRateKhz + "kHz");
+                AppendLosslessNameParts(sb, "", track.BitsPerSample, sampleRateKhz);
             }
 
             result = sb.ToString();
@@ -957,63 +966,86 @@ namespace RemuxForge.Core.Media.Mkv
         }
 
         /// <summary>
-        /// Genera il nome traccia per una traccia audio convertita
-        /// FLAC: "FLAC 5.1 24bit/48kHz"
-        /// Opus: "Opus 5.1 48kHz 256kbps"
+        /// Aggiunge parti nome per formati con bit depth significativo
         /// </summary>
-        /// <param name="origTrack">Traccia originale con info canali, bit depth, sample rate</param>
-        /// <param name="convertFormat">Formato conversione (flac, opus)</param>
-        /// <returns>Nome traccia generato</returns>
-        private static string BuildConvertedTrackName(TrackInfo origTrack, string convertFormat)
+        private static void AppendLosslessNameParts(StringBuilder sb, string channelLayout, int bitsPerSample, int sampleRateKhz)
         {
-            StringBuilder sb = new StringBuilder();
-            string channelLayout = FormatChannelLayout(origTrack.Channels);
-            int sampleRateKhz = origTrack.SamplingFrequency / 1000;
-
-            if (string.Equals(convertFormat, "flac", StringComparison.OrdinalIgnoreCase))
+            if (channelLayout.Length > 0)
             {
-                // Formato: FLAC 5.1 24bit/48kHz
-                sb.Append("FLAC");
-
-                if (channelLayout.Length > 0)
-                {
-                    sb.Append(" " + channelLayout);
-                }
-
-                if (origTrack.BitsPerSample > 0 && sampleRateKhz > 0)
-                {
-                    sb.Append(" " + origTrack.BitsPerSample + "bit/" + sampleRateKhz + "kHz");
-                }
-                else if (origTrack.BitsPerSample > 0)
-                {
-                    sb.Append(" " + origTrack.BitsPerSample + "bit");
-                }
-                else if (sampleRateKhz > 0)
-                {
-                    sb.Append(" " + sampleRateKhz + "kHz");
-                }
-            }
-            else if (string.Equals(convertFormat, "opus", StringComparison.OrdinalIgnoreCase))
-            {
-                // Formato: Opus 5.1 48kHz 256kbps
-                sb.Append("Opus");
-
-                if (channelLayout.Length > 0)
-                {
-                    sb.Append(" " + channelLayout);
-                }
-
-                if (sampleRateKhz > 0)
-                {
-                    sb.Append(" " + sampleRateKhz + "kHz");
-                }
-
-                // Bitrate effettivo da impostazioni
-                int bitrate = AppSettingsService.Instance.GetOpusBitrateForChannels(origTrack.Channels);
-                sb.Append(" " + bitrate + "kbps");
+                sb.Append(" " + channelLayout);
             }
 
-            return sb.ToString();
+            if (bitsPerSample > 0 && sampleRateKhz > 0)
+            {
+                sb.Append(" " + bitsPerSample + "bit/" + sampleRateKhz + "kHz");
+            }
+            else if (bitsPerSample > 0)
+            {
+                sb.Append(" " + bitsPerSample + "bit");
+            }
+            else if (sampleRateKhz > 0)
+            {
+                sb.Append(" " + sampleRateKhz + "kHz");
+            }
+        }
+
+        /// <summary>
+        /// Aggiunge bitrate al nome usando bitrate reale se disponibile
+        /// </summary>
+        private static void AppendBitratePart(StringBuilder sb, int bitrate, int fallbackKbps)
+        {
+            int kbps = bitrate > 0 ? (int)Math.Round(bitrate / 1000.0) : fallbackKbps;
+            if (kbps > 0)
+            {
+                sb.Append(" " + kbps + "kbps");
+            }
+        }
+
+        /// <summary>
+        /// Nome codec normalizzato per tracce audio finali
+        /// </summary>
+        private static string FormatAudioCodecName(string codec)
+        {
+            if (codec == null) { return ""; }
+            if (codec.IndexOf("FLAC", StringComparison.OrdinalIgnoreCase) >= 0) { return "FLAC"; }
+            if (codec.IndexOf("PCM", StringComparison.OrdinalIgnoreCase) >= 0) { return "LPCM"; }
+            if (IsAacCodec(codec)) { return "AAC"; }
+            if (IsOpusCodec(codec)) { return "Opus"; }
+            return codec;
+        }
+
+        /// <summary>
+        /// True se codec e' AAC
+        /// </summary>
+        private static bool IsAacCodec(string codec)
+        {
+            return codec != null && codec.IndexOf("AAC", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        /// <summary>
+        /// True se codec e' Opus
+        /// </summary>
+        private static bool IsOpusCodec(string codec)
+        {
+            return codec != null && codec.IndexOf("Opus", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        /// <summary>
+        /// Ultima riga non vuota di output processo
+        /// </summary>
+        private static string LastErrorLine(string text)
+        {
+            string[] lines = text.Split('\n');
+            for (int i = lines.Length - 1; i >= 0; i--)
+            {
+                string line = lines[i].Trim();
+                if (line.Length > 0)
+                {
+                    return line;
+                }
+            }
+
+            return "";
         }
 
         /// <summary>

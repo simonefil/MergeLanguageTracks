@@ -12,7 +12,7 @@ Available through two interfaces: CLI (command line) and WebUI (web interface). 
 - Remux mode for importing audio and subtitles from other releases, including full seasons
 - Synchronization: speed correction for global speed differences, frame-sync for constant delay, Deep Analysis for constant delay plus cuts/insertions
 - Filter by language, audio codec, subtitles, both for import and for keeping from source
-- Audio conversion for selected lossless tracks, with FLAC or Opus output
+- Audio post-processing to FLAC, LPCM, AAC or Opus, with peak normalization, 24bit -> 16bit and track renaming
 - Post-merge video encoding with customizable profiles (x264, x265, SVT-AV1)
 - Optional GPU acceleration for video decoding during analysis phases
 - Two interfaces: scriptable CLI and WebUI for browser and headless servers
@@ -144,7 +144,7 @@ docker run -d \
 
 ## Remux Mode
 
-Remux mode imports audio tracks and subtitles from one MKV release into another. It handles episode matching, language/codec filters, synchronization, audio conversion, track renaming, video encoding and final reports.
+Remux mode imports audio tracks and subtitles from one MKV release into another. It handles episode matching, language/codec filters, synchronization, audio post-processing, track renaming, video encoding and final reports.
 
 Synchronization has three separate paths:
 
@@ -188,7 +188,7 @@ MediaInfo options are visible only if the mediainfo tool is configured and the c
 
 - **File**: Configuration (F2), Exit (Ctrl+Q)
 - **Actions**: Scan files (F5), Analyze selected (F6), Analyze all (F7), Skip/Unskip (F8), Process selected (F9), Process all (F10)
-- **Settings**: Tool paths, Audio conversion, Encoding profiles, Advanced
+- **Settings**: Tool paths, Audio, Encoding profiles, Advanced
 - **View**: Pipeline (shows the sequence of operations that will be executed based on the current configuration: sync, conversion, merge, encoding)
 - **Theme**: change graphical theme (8 themes)
 - **Help**: Info
@@ -201,13 +201,15 @@ The configuration dialog groups all processing options:
 
 - **Folders**: Source, Language, Destination, with browse button for each. Checkbox for overwrite source and recursive search
 - **Language and Tracks**: Target language, Audio codec, Keep source audio/codec/sub, Subtitles only, Audio only, Rename tracks
-- **Synchronization**: Speed correction (`off`/`auto`/`manual` with fixed stretch), Frame-sync, Deep Analysis, audio/sub delay and Audio source fill. Frame-sync and Deep Analysis are exclusive.
-- **Matching and post-processing**: Match pattern (regex), file extensions, audio conversion (flac/opus), encoding profile
+- **Synchronization**: Speed correction (`off`/`auto`/`manual` with fixed stretch), Frame-sync, Deep Analysis and manual delays. Frame-sync and Deep Analysis are exclusive.
+- **Matching**: Match pattern (regex) and file extensions
+- **Audio post-processing**: Audio format (flac/lpcm/aac/opus), audio scope, Audio source fill, 24bit -> 16bit, normalization and audio renaming
+- **Video post-processing**: Encoding profile
 
 #### Settings Menu
 
-- **Tool paths**: Paths to mkvmerge, mkvextract, mkvpropedit, ffmpeg, ffprobe, mediainfo and temporary files folder. Tools are auto-detected at startup. ffmpeg can be downloaded directly from the interface
-- **Audio conversion**: FLAC compression level and Opus bitrate per channel layout (mono, stereo, 5.1, 7.1)
+- **Tool paths**: Paths to mkvmerge, mkvextract, mkvpropedit, ffmpeg, ffprobe, mediainfo and temporary files folder. Tools are auto-detected at startup. ffmpeg can be downloaded from the interface on Windows/Linux; on macOS use Homebrew or configure the path manually
+- **Audio**: FLAC compression level and AAC/Opus bitrate per channel layout (mono, stereo, 5.1, 7.1)
 - **Encoding profiles**: Manage video encoding profiles (add, edit, delete). Profiles are saved in appsettings.json
 - **Advanced**: essential operational tuning for analysis, frame-sync, Deep Analysis, timeouts and hardware acceleration. Expert sections expose only the main thresholds; internal algorithm parameters remain in the configuration file.
 
@@ -261,7 +263,7 @@ RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Ou
 | -sd | --subtitle-delay | Manual delay in ms for subtitles |
 | | --audio-source-fill-threshold-ms | Threshold in ms for filling imported audio with source audio segments |
 | | --audio-source-fill-language | Source audio language to use for fill segments |
-| | --audio-source-fill-modes | Fill modes: `start`, `end`, `insert-silence` |
+| | --audio-source-fill-modes | Fill modes: `start`, `end`, `insert-silence`. Requires `--audio-format` and `--audio-scope lang|all` |
 
 Speed correction is disabled by default. In `auto` it is used only when CFR metadata is reliable; with VFR files `manual` and an explicit factor are required.
 
@@ -275,7 +277,6 @@ Speed correction is disabled by default. In `auto` it is used only when CFR meta
 | -ksa | --keep-source-audio | Audio languages to KEEP in the source (others are removed) |
 | -ksac | --keep-source-audio-codec | Audio codecs to KEEP in the source. Separate with comma: DTS,TrueHD |
 | -kss | --keep-source-subs | Subtitle languages to KEEP in the source |
-| -rt | --rename-tracks | Rename all audio tracks in the resulting file (see Track renaming section) |
 
 #### Matching
 
@@ -286,11 +287,16 @@ Speed correction is disabled by default. In `auto` it is used only when CFR meta
 | -nr | --no-recursive | Disable recursive search | |
 | -ext | --extensions | File extensions to search for. Separate with comma: mkv,mp4,avi | mkv |
 
-#### Conversion and Encoding
+#### Audio Post-Processing and Encoding
 
 | Short | Long | Description |
 |-------|------|-------------|
-| -cf | --convert-format | Convert lossless tracks: flac or opus. TrueHD Atmos and DTS:X excluded |
+| | --audio-format | Processed audio format: flac, lpcm, aac, opus. If set without `--audio-scope`, CLI defaults to `all` |
+| | --audio-scope | Audio processing scope: `disabled`, `lang`, `all` |
+| | --audio-24-to-16 | Convert 24bit -> 16bit with soxr/shibata (flac/lpcm) |
+| | --audio-peak-normalize | Global multichannel peak normalization |
+| | --audio-peak-target-db | Peak target in dB |
+| | --audio-rename-scope | Final audio rename scope: disabled, lang, all |
 | -ep | --encoding-profile | Video encoding profile post-merge (defined in appsettings.json) |
 
 #### Other Options
@@ -365,6 +371,8 @@ For each misalignment point, it generates the necessary operations: insertion of
 
 Imported audio tracks are processed through segment extraction, silence generation and concat. Subtitles are rewritten in their native format when supported: SRT, ASS/SSA, PGS/SUP and VobSub IDX/SUB. PGS and VobSub require mkvextract from the same MKVToolNix installation used for mkvmerge.
 
+If Deep Analysis finds only a constant delay, RemuxForge applies that delay through mkvmerge without re-encoding audio. If the map contains cut or insert operations on imported audio tracks, an output audio format is required (`--audio-format` or Audio format in WebUI); without it, the episode fails instead of producing unmodified audio.
+
 Deep Analysis is fail-safe: if a requested track cannot be rewritten or validated, the episode fails instead of importing an unedited track. Audio codecs without a usable ffmpeg encoder for cut-and-splice are not imported through a silent fallback.
 
 ### Audio source fill
@@ -377,49 +385,56 @@ When imported audio does not cover a portion that exists in the source, RemuxFor
 | `end` | The imported track ends before the source by more than the threshold | Appends the final segment from the source |
 | `insert-silence` | Deep Analysis generates an `INSERT_SILENCE` above the threshold | Uses the corresponding source segment instead of inserting silence |
 
-From CLI it is configured with `--audio-source-fill-threshold-ms`, `--audio-source-fill-language` and `--audio-source-fill-modes`. In WebUI the same fields are in the configuration dialog. If filling is requested but the selected source track is not available, the episode fails instead of producing an incomplete track.
+From CLI it is configured with `--audio-source-fill-threshold-ms`, `--audio-source-fill-language` and `--audio-source-fill-modes`. It also requires an audio format and an active audio scope (`--audio-format ... --audio-scope lang|all`). In WebUI it appears in the Audio post-processing block only after selecting Audio format. If filling is requested but the selected source track is not available, the episode fails instead of producing an incomplete track.
 
 ### Manual delay
 
 The parameters **-ad** (audio delay) and **-sd** (subtitle delay) specify an offset in milliseconds that is **added** to the frame-sync or speed correction result. In the WebUI it is possible to set different delays per episode.
 
-### Audio Conversion
+### Audio Post-Processing
 
-Converts selected lossless audio tracks during merge. Enabled with **-cf flac** or **-cf opus** from CLI, or from the "Convert audio" field in WebUI configuration. FLAC keeps a lossless output; Opus produces a lossy output.
+Processes selected audio tracks during merge. Enabled from CLI with `--audio-format flac|lpcm|aac|opus` and `--audio-scope lang|all`, or from the "Audio format" and "Audio" fields in WebUI configuration. In CLI, setting only `--audio-format` defaults the scope to `all`.
 
-**Convertible codecs:** DTS-HD Master Audio, DTS-HD High Resolution, TrueHD, PCM, ALAC, MLP, FLAC.
+FLAC and LPCM are lossless; AAC and Opus are lossy. Atmos/DTS:X tracks can be copied, but not processed.
 
-**Excluded:** TrueHD Atmos and DTS:X because they contain spatial metadata that would be lost.
+When multiple tracks are processed in the same episode, audio conversions run in parallel with an internal limit on simultaneous operations.
 
-Conversion applies both to source tracks kept via **-ksa**/**-ksac** and to tracks imported from the language file (only if lossless). If the target format is FLAC and the track is already FLAC, conversion is skipped.
+Additional options:
 
-Requested conversion is fail-safe: if a track that must be converted fails, the episode is marked as failed instead of automatically using the original track.
+- `--audio-24-to-16`: reduce 24-bit to 16-bit with soxr/shibata, FLAC/LPCM only
+- `--audio-peak-normalize`: global multichannel peak normalization
+- `--audio-peak-target-db`: peak target in dB, default -1.0
+- `--audio-rename-scope disabled|lang|all`: final audio rename scope
 
 **Default bitrates:**
 
 | Format | Setting | Default |
 |--------|---------|---------|
 | FLAC | Compression level (0-12) | 8 |
+| AAC Mono | kbps | 128 |
+| AAC Stereo | kbps | 256 |
+| AAC 5.1 | kbps | 768 |
+| AAC 7.1 | kbps | 1024 |
 | Opus Mono | kbps | 128 |
 | Opus Stereo | kbps | 256 |
 | Opus 5.1 | kbps | 510 |
 | Opus 7.1 | kbps | 768 |
 
-Values are configurable in `appsettings.json` or from the **Settings > Audio conversion** menu in WebUI.
+Values are configurable in `appsettings.json` or from the **Settings > Audio** menu in WebUI.
 
 ### Track Renaming
 
-When audio conversion is active (**-cf**), converted tracks are automatically renamed with a descriptive title that includes codec, channel layout, bit depth, sample rate and bitrate. This always happens, no additional options needed.
-
-With the **-rt** flag (or the "Rename all audio tracks" checkbox in WebUI), renaming is extended to audio tracks that were not converted, both from the source file and the language file. Useful to normalize track names in the resulting file when the original files have inconsistent or missing names.
+Audio renaming is controlled by `--audio-rename-scope disabled|lang|all`. Processed tracks receive a descriptive title with codec, channel layout, sample rate and bitrate/bit depth where meaningful.
 
 **Generated name format:**
 
 | Type | Format | Example |
 |------|--------|---------|
 | Original track | `Codec Layout BitDepth/SampleRate` | `DTS 5.1 24bit/48kHz` |
-| Converted to FLAC | `FLAC Layout BitDepth/SampleRate` | `FLAC 5.1 24bit/48kHz` |
-| Converted to Opus | `Opus Layout SampleRate Bitrate` | `Opus 5.1 48kHz 510kbps` |
+| Processed FLAC | `FLAC Layout BitDepth/SampleRate` | `FLAC 5.1 24bit/48kHz` |
+| Processed LPCM | `LPCM Layout BitDepth/SampleRate` | `LPCM 5.1 24bit/48kHz` |
+| Processed AAC | `AAC Layout SampleRate Bitrate` | `AAC 5.1 48kHz 768kbps` |
+| Processed Opus | `Opus Layout SampleRate Bitrate` | `Opus 5.1 48kHz 510kbps` |
 
 Channel layout is formatted as 1.0 (mono), 2.0 (stereo), 5.1, 7.1. Missing information is omitted.
 
@@ -589,18 +604,18 @@ Without **-l**, the application uses the source folder as language too. Allows r
 RemuxForge.Cli --mode remux -s "D:\Serie" -t ita -ksa jpn,eng -kss eng,jpn -ad 960 -sd 960 -o
 ```
 
-**14. Convert lossless tracks to FLAC during merge**
+**14. Process imported tracks to FLAC during merge**
 
 ```bash
-RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita --audio-format flac --audio-scope lang -d "D:\Output" -fs
 ```
 
-**15. Convert lossless tracks to Opus keeping only English from source**
+**15. Process all tracks to Opus keeping only English from source**
 
 TrueHD Atmos and DTS:X tracks are kept intact.
 
 ```bash
-RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf opus -ksa eng -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita --audio-format opus --audio-scope all -ksa eng -d "D:\Output" -fs
 ```
 
 **16. Merge + video encoding with x265 profile**
@@ -609,10 +624,10 @@ RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf opus 
 RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -ep "x265_CRF24" -d "D:\Output" -fs
 ```
 
-**17. Merge + audio conversion + video encoding**
+**17. Merge + audio post-processing + video encoding**
 
 ```bash
-RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -cf flac -ep "svtav1_CRF30" -ksa eng -d "D:\Output" -fs
+RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita --audio-format flac --audio-scope all -ep "svtav1_CRF30" -ksa eng -d "D:\Output" -fs
 ```
 
 **18. Deep Analysis for files with different scenes**
@@ -791,7 +806,7 @@ Split configuration exposes only essential options: source file or folder, outpu
 
 ### Split CLI
 
-The Split CLI always uses `--mode split`. Remux parameters such as `--target-language`, `--framesync`, `--deep-analysis`, codec filters and audio conversion do not apply to this mode.
+The Split CLI always uses `--mode split`. Remux parameters such as `--target-language`, `--framesync`, `--deep-analysis`, codec filters and audio post-processing do not apply to this mode.
 
 ```bash
 RemuxForge.Cli --mode split --source "INPUT.mkv" [cut mode] [options]
@@ -1021,6 +1036,14 @@ New fields added in subsequent updates are automatically merged without overwrit
       "Surround71": 768
     }
   },
+  "Aac": {
+    "Bitrate": {
+      "Mono": 128,
+      "Stereo": 256,
+      "Surround51": 768,
+      "Surround71": 1024
+    }
+  },
   "Ui": {
     "Theme": "nord",
     "LastMode": "remux"
@@ -1114,7 +1137,7 @@ New fields added in subsequent updates are automatically merged without overwrit
       "InitialOffsetStepSec": 0.5,
       "InitialVotingCuts": 50
     },
-    "TrackSplit": {
+    "SubtitleEdit": {
       "FfmpegTimeoutMs": 300000
     },
     "Ffmpeg": {
@@ -1129,6 +1152,7 @@ New fields added in subsequent updates are automatically merged without overwrit
 - **Tools**: paths to mkvmerge, mkvextract, mkvpropedit, ffmpeg, ffprobe, mediainfo and temporary files folder. Auto-detected at startup, editable from the Settings > Tool paths menu
 - **Flac**: FLAC compression level (0 = fast, 12 = maximum compression)
 - **Opus.Bitrate**: Opus bitrate in kbps per channel layout (range: 64-768)
+- **Aac.Bitrate**: AAC bitrate in kbps per channel layout (range: 32-1536)
 - **Ui.Theme**: selected graphical theme. Valid themes: `dark`, `nord`, `dos-blue`, `matrix`, `cyberpunk`, `solarized-dark`, `solarized-light`, `cybergum`, `everforest`
 - **Ui.LastMode**: last selected WebUI mode (`remux` or `split`)
 - **EncodingProfiles**: array of video encoding profiles (see the Video encoding section)

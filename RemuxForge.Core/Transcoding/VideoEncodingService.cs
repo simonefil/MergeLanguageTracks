@@ -250,6 +250,10 @@ namespace RemuxForge.Core.Transcoding
             // Mappa tutti gli stream (default ffmpeg ne prende uno per tipo)
             args.Add("-map");
             args.Add("0");
+            args.Add("-map_metadata");
+            args.Add("0");
+            args.Add("-map_chapters");
+            args.Add("0");
 
             // Codec
             args.Add("-c:v");

@@ -196,6 +196,8 @@ namespace RemuxForge.Core.Configuration
                     this._model = new AppSettingsModel();
                 }
 
+                this.MigrateSubtitleEditConfig(json);
+
                 // Assicura che sotto-oggetti non siano null
                 this.EnsureNotNull();
 
@@ -241,7 +243,7 @@ namespace RemuxForge.Core.Configuration
         }
 
         /// <summary>
-        /// Valida le impostazioni audio (FLAC e Opus)
+        /// Valida le impostazioni audio (FLAC, Opus e AAC)
         /// </summary>
         /// <param name="errorMessage">Messaggio di errore, vuoto se valido</param>
         /// <returns>True se tutti i valori audio sono validi</returns>
@@ -277,6 +279,30 @@ namespace RemuxForge.Core.Configuration
             if (this._model.Opus.Bitrate.Surround71 < AppSettingsModel.OPUS_BITRATE_MIN || this._model.Opus.Bitrate.Surround71 > AppSettingsModel.OPUS_BITRATE_MAX)
             {
                 errors.Add("Opus bitrate Surround 7.1 deve essere tra " + AppSettingsModel.OPUS_BITRATE_MIN + " e " + AppSettingsModel.OPUS_BITRATE_MAX + " kbps");
+            }
+
+            // Validazione AAC bitrate mono
+            if (this._model.Aac.Bitrate.Mono < AppSettingsModel.AAC_BITRATE_MIN || this._model.Aac.Bitrate.Mono > AppSettingsModel.AAC_BITRATE_MAX)
+            {
+                errors.Add("AAC bitrate Mono deve essere tra " + AppSettingsModel.AAC_BITRATE_MIN + " e " + AppSettingsModel.AAC_BITRATE_MAX + " kbps");
+            }
+
+            // Validazione AAC bitrate stereo
+            if (this._model.Aac.Bitrate.Stereo < AppSettingsModel.AAC_BITRATE_MIN || this._model.Aac.Bitrate.Stereo > AppSettingsModel.AAC_BITRATE_MAX)
+            {
+                errors.Add("AAC bitrate Stereo deve essere tra " + AppSettingsModel.AAC_BITRATE_MIN + " e " + AppSettingsModel.AAC_BITRATE_MAX + " kbps");
+            }
+
+            // Validazione AAC bitrate surround 5.1
+            if (this._model.Aac.Bitrate.Surround51 < AppSettingsModel.AAC_BITRATE_MIN || this._model.Aac.Bitrate.Surround51 > AppSettingsModel.AAC_BITRATE_MAX)
+            {
+                errors.Add("AAC bitrate Surround 5.1 deve essere tra " + AppSettingsModel.AAC_BITRATE_MIN + " e " + AppSettingsModel.AAC_BITRATE_MAX + " kbps");
+            }
+
+            // Validazione AAC bitrate surround 7.1
+            if (this._model.Aac.Bitrate.Surround71 < AppSettingsModel.AAC_BITRATE_MIN || this._model.Aac.Bitrate.Surround71 > AppSettingsModel.AAC_BITRATE_MAX)
+            {
+                errors.Add("AAC bitrate Surround 7.1 deve essere tra " + AppSettingsModel.AAC_BITRATE_MIN + " e " + AppSettingsModel.AAC_BITRATE_MAX + " kbps");
             }
 
             // Componi messaggio errore
@@ -401,6 +427,35 @@ namespace RemuxForge.Core.Configuration
         }
 
         /// <summary>
+        /// Restituisce il bitrate AAC appropriato in base al numero di canali
+        /// </summary>
+        /// <param name="channels">Numero di canali audio</param>
+        /// <returns>Bitrate in kbps</returns>
+        public int GetAacBitrateForChannels(int channels)
+        {
+            int bitrate;
+
+            if (channels <= 1)
+            {
+                bitrate = this._model.Aac.Bitrate.Mono;
+            }
+            else if (channels <= 2)
+            {
+                bitrate = this._model.Aac.Bitrate.Stereo;
+            }
+            else if (channels <= 6)
+            {
+                bitrate = this._model.Aac.Bitrate.Surround51;
+            }
+            else
+            {
+                bitrate = this._model.Aac.Bitrate.Surround71;
+            }
+
+            return bitrate;
+        }
+
+        /// <summary>
         /// Restituisce un profilo di encoding per nome
         /// </summary>
         /// <param name="name">Nome del profilo</param>
@@ -433,6 +488,8 @@ namespace RemuxForge.Core.Configuration
             if (this._model.Flac == null) { this._model.Flac = new FlacConfig(); }
             if (this._model.Opus == null) { this._model.Opus = new OpusConfig(); }
             if (this._model.Opus.Bitrate == null) { this._model.Opus.Bitrate = new OpusBitrateConfig(); }
+            if (this._model.Aac == null) { this._model.Aac = new AacConfig(); }
+            if (this._model.Aac.Bitrate == null) { this._model.Aac.Bitrate = new AacBitrateConfig(); }
             if (this._model.Ui == null) { this._model.Ui = new UiConfig(); }
             if (this._model.EncodingProfiles == null) { this._model.EncodingProfiles = new List<EncodingProfile>(); }
 
@@ -453,12 +510,47 @@ namespace RemuxForge.Core.Configuration
             if (this._model.Advanced.SpeedCorrection == null) { this._model.Advanced.SpeedCorrection = new SpeedCorrectionConfig(); }
             if (this._model.Advanced.FrameSync == null) { this._model.Advanced.FrameSync = new FrameSyncConfig(); }
             if (this._model.Advanced.DeepAnalysis == null) { this._model.Advanced.DeepAnalysis = new DeepAnalysisConfig(); }
-            if (this._model.Advanced.TrackSplit == null) { this._model.Advanced.TrackSplit = new TrackSplitConfig(); }
+            if (this._model.Advanced.SubtitleEdit == null) { this._model.Advanced.SubtitleEdit = new SubtitleEditConfig(); }
             if (this._model.Advanced.Ffmpeg == null) { this._model.Advanced.Ffmpeg = new FfmpegConfig(); }
 
             // Assicura array DeepAnalysis non null
             if (this._model.Advanced.DeepAnalysis.ProbeMultiMarginsSec == null) { this._model.Advanced.DeepAnalysis.ProbeMultiMarginsSec = new List<double> { 5.0, 15.0, 25.0 }; }
             if (this._model.Advanced.DeepAnalysis.OffsetProbeDeltas == null) { this._model.Advanced.DeepAnalysis.OffsetProbeDeltas = new List<int> { 1000, 2000, 3000, 4000, 5000, -1000, -2000, -3000, -4000, -5000 }; }
+        }
+
+        /// <summary>
+        /// Migra la vecchia sezione Advanced.TrackSplit nella sezione SubtitleEdit
+        /// </summary>
+        /// <param name="json">JSON originale delle impostazioni</param>
+        private void MigrateSubtitleEditConfig(string json)
+        {
+            JsonDocument document = null;
+
+            if (this._model == null || this._model.Advanced == null || this._model.Advanced.SubtitleEdit != null)
+            {
+                return;
+            }
+
+            try
+            {
+                document = JsonDocument.Parse(json);
+                if (document.RootElement.TryGetProperty("Advanced", out JsonElement advancedElement) &&
+                    advancedElement.TryGetProperty("TrackSplit", out JsonElement trackSplitElement) &&
+                    trackSplitElement.TryGetProperty("FfmpegTimeoutMs", out JsonElement timeoutElement) &&
+                    timeoutElement.TryGetInt32(out int timeoutMs))
+                {
+                    this._model.Advanced.SubtitleEdit = new SubtitleEditConfig();
+                    this._model.Advanced.SubtitleEdit.FfmpegTimeoutMs = timeoutMs;
+                }
+            }
+            catch
+            {
+                // Migrazione best-effort: in caso di JSON non atteso resta il default.
+            }
+            finally
+            {
+                if (document != null) { document.Dispose(); }
+            }
         }
 
         /// <summary>
@@ -481,6 +573,12 @@ namespace RemuxForge.Core.Configuration
             this._model.Opus.Bitrate.Stereo = this.ClampBitrate(this._model.Opus.Bitrate.Stereo);
             this._model.Opus.Bitrate.Surround51 = this.ClampBitrate(this._model.Opus.Bitrate.Surround51);
             this._model.Opus.Bitrate.Surround71 = this.ClampBitrate(this._model.Opus.Bitrate.Surround71);
+
+            // Clamp AAC bitrate
+            this._model.Aac.Bitrate.Mono = this.ClampAacBitrate(this._model.Aac.Bitrate.Mono);
+            this._model.Aac.Bitrate.Stereo = this.ClampAacBitrate(this._model.Aac.Bitrate.Stereo);
+            this._model.Aac.Bitrate.Surround51 = this.ClampAacBitrate(this._model.Aac.Bitrate.Surround51);
+            this._model.Aac.Bitrate.Surround71 = this.ClampAacBitrate(this._model.Aac.Bitrate.Surround71);
 
             // Validazione tema: se non e' tra quelli validi, reset a "nord"
             bool themeValid = false;
@@ -589,9 +687,10 @@ namespace RemuxForge.Core.Configuration
             da.InitialOffsetStepSec = this.ClampDouble(da.InitialOffsetStepSec, 0.01, 60.0);
             da.InitialVotingCuts = this.ClampInt(da.InitialVotingCuts, 1, 10000);
 
-            // Sanitizzazione Advanced — TrackSplit
-            TrackSplitConfig ts = this._model.Advanced.TrackSplit;
-            ts.FfmpegTimeoutMs = this.ClampInt(ts.FfmpegTimeoutMs, 1000, 3600000);
+            // Sanitizzazione Advanced — SubtitleEdit
+            SubtitleEditConfig subtitleEdit = this._model.Advanced.SubtitleEdit;
+            subtitleEdit.FfmpegTimeoutMs = this.ClampInt(subtitleEdit.FfmpegTimeoutMs, 1000, 3600000);
+            this._model.Advanced.Ffmpeg.FrameExtractionTimeoutMs = this.ClampInt(this._model.Advanced.Ffmpeg.FrameExtractionTimeoutMs, 1000, 3600000);
 
             // Sanitizzazione array DeepAnalysis: se vuoti, ripristina default
             if (da.ProbeMultiMarginsSec.Count == 0)
@@ -620,6 +719,27 @@ namespace RemuxForge.Core.Configuration
             if (result > AppSettingsModel.OPUS_BITRATE_MAX)
             {
                 result = AppSettingsModel.OPUS_BITRATE_MAX;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Limita un bitrate AAC entro il range consentito
+        /// </summary>
+        /// <param name="value">Valore da limitare</param>
+        /// <returns>Valore limitato nel range AAC</returns>
+        private int ClampAacBitrate(int value)
+        {
+            int result = value;
+
+            if (result < AppSettingsModel.AAC_BITRATE_MIN)
+            {
+                result = AppSettingsModel.AAC_BITRATE_MIN;
+            }
+            if (result > AppSettingsModel.AAC_BITRATE_MAX)
+            {
+                result = AppSettingsModel.AAC_BITRATE_MAX;
             }
 
             return result;

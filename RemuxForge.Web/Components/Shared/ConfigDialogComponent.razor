@@ -181,25 +181,6 @@
                 <input class="form-input" style="width: 8ch;" @bind="_subDelay" @onfocus="@(() => SetFieldHelp("remux.subDelay"))" @onmouseenter="@(() => SetFieldHelp("remux.subDelay"))" /> <span style="margin-left: 0.5ch;">ms</span>
             </div>
 
-            @* Riempimento audio source *@
-            <div class="form-section">== Riempimento audio source ==</div>
-            <div class="form-row">
-                <span class="form-label">Audio source:</span>
-                <input class="form-input" style="width: 8ch;" @bind="_audioSourceFillThresholdMs" @onfocus="@(() => SetFieldHelp("remux.audioSourceFill"))" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFill"))" /> <span style="margin-left: 0.5ch;">ms</span>
-            </div>
-            <div class="form-row">
-                <span class="form-label">Lingua source:</span>
-                <input class="form-input" style="width: 10ch;" @bind="_audioSourceFillLanguage" @onfocus="@(() => SetFieldHelp("remux.audioSourceFillLang"))" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillLang"))" />
-            </div>
-            <div class="form-row">
-                <span class="ui-toggle" @onclick="() => _audioSourceFillStart = !_audioSourceFillStart" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillStart"))">@(_audioSourceFillStart ? "[X]" : "[ ]") Inizio</span>
-                <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioSourceFillEnd = !_audioSourceFillEnd" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillEnd"))">@(_audioSourceFillEnd ? "[X]" : "[ ]") Fine</span>
-                @if (_deepAnalysis)
-                {
-                    <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioSourceFillInsertSilence = !_audioSourceFillInsertSilence" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillInsert"))">@(_audioSourceFillInsertSilence ? "[X]" : "[ ]") Insert silence</span>
-                }
-            </div>
-
             @* Matching *@
             <div class="form-section">== Matching ==</div>
             <div class="form-row">
@@ -211,19 +192,83 @@
                 <input class="form-input" @bind="_extensions" @onfocus="@(() => SetFieldHelp("remux.extensions"))" @onmouseenter="@(() => SetFieldHelp("remux.extensions"))" />
             </div>
 
-            @* Post-Processing *@
-            <div class="form-section">== Post-Processing ==</div>
+            @* Post-Processing audio *@
+            <div class="form-section">== Post-processing audio ==</div>
             <div class="form-row">
-                <span class="form-label">Converti audio:</span>
-                <select class="form-input" style="width: 12ch;" @bind="_convertFormat" @onfocus="@(() => SetFieldHelp("remux.convert"))" @onmouseenter="@(() => SetFieldHelp("remux.convert"))">
-                    <option value="0">No</option>
-                    <option value="1">FLAC</option>
-                    <option value="2">Opus</option>
+                <span class="form-label">Formato audio@(_audioSourceFillEnabled ? "*" : ""):</span>
+                <select class="form-input" style="width: 12ch;" value="@_audioFormat" @onchange="OnAudioFormatChanged" @onfocus="@(() => SetFieldHelp("remux.audioFormat"))" @onmouseenter="@(() => SetFieldHelp("remux.audioFormat"))">
+                    <option value="">No</option>
+                    <option value="flac">FLAC</option>
+                    <option value="lpcm">LPCM</option>
+                    <option value="aac">AAC</option>
+                    <option value="opus">Opus</option>
                 </select>
             </div>
+            @if (_audioFormat.Length > 0)
+            {
             <div class="form-row">
-                <span class="ui-toggle" @onclick="() => _renameAllTracks = !_renameAllTracks" @onmouseenter="@(() => SetFieldHelp("remux.rename"))">@(_renameAllTracks ? "[X]" : "[ ]") Rinomina tutte le tracce audio</span>
+                <span class="form-label">Audio@(_audioSourceFillEnabled ? "*" : ""):</span>
+                <select class="form-input" style="width: 14ch;" @bind="_audioProcessingScope" @onfocus="@(() => SetFieldHelp("remux.audioScope"))" @onmouseenter="@(() => SetFieldHelp("remux.audioScope"))">
+                    <option value="disabled">Disabilitata</option>
+                    <option value="lang">Lang</option>
+                    <option value="all">Tutti</option>
+                </select>
             </div>
+            }
+            @if (_audioFormat.Length > 0)
+            {
+                <div class="form-row">
+                    <span class="ui-toggle" @onclick="ToggleAudioSourceFill" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFill"))">@(_audioSourceFillEnabled ? "[X]" : "[ ]") Audio source fill</span>
+                </div>
+            }
+            @if (_audioFormat.Length > 0 && _audioSourceFillEnabled)
+            {
+            <div class="form-row">
+                <span class="form-label">Soglia*:</span>
+                <input class="form-input" style="width: 8ch;" @bind="_audioSourceFillThresholdMs" @onfocus="@(() => SetFieldHelp("remux.audioSourceFillThreshold"))" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillThreshold"))" /> <span style="margin-left: 0.5ch;">ms</span>
+            </div>
+            <div class="form-row">
+                <span class="form-label">Lingua source*:</span>
+                <input class="form-input" style="width: 10ch;" @bind="_audioSourceFillLanguage" @onfocus="@(() => SetFieldHelp("remux.audioSourceFillLang"))" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillLang"))" />
+            </div>
+            <div class="form-row">
+                <span class="form-label">Modalita*:</span>
+                <span class="ui-toggle" @onclick="() => _audioSourceFillStart = !_audioSourceFillStart" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillStart"))">@(_audioSourceFillStart ? "[X]" : "[ ]") Inizio</span>
+                <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioSourceFillEnd = !_audioSourceFillEnd" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillEnd"))">@(_audioSourceFillEnd ? "[X]" : "[ ]") Fine</span>
+                @if (_deepAnalysis)
+                {
+                    <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioSourceFillInsertSilence = !_audioSourceFillInsertSilence" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillInsert"))">@(_audioSourceFillInsertSilence ? "[X]" : "[ ]") Insert silence</span>
+                }
+            </div>
+            }
+            @if ((_audioFormat == "flac" || _audioFormat == "lpcm") && _audioProcessingScope != "disabled")
+            {
+            <div class="form-row">
+                <span class="ui-toggle" @onclick="() => _audioDownsample24To16 = !_audioDownsample24To16" @onmouseenter="@(() => SetFieldHelp("remux.audio24"))">@(_audioDownsample24To16 ? "[X]" : "[ ]") 24bit -> 16bit</span>
+            </div>
+            }
+            @if (_audioFormat.Length > 0 && _audioProcessingScope != "disabled")
+            {
+            <div class="form-row">
+                <span class="ui-toggle" @onclick="() => _audioPeakNormalize = !_audioPeakNormalize" @onmouseenter="@(() => SetFieldHelp("remux.audioNormalize"))">@(_audioPeakNormalize ? "[X]" : "[ ]") Normalizzazione</span>
+                @if (_audioPeakNormalize)
+                {
+                    <input class="form-input" style="width: 8ch;" @bind="_audioPeakTargetDb" @onfocus="@(() => SetFieldHelp("remux.audioNormalize"))" @onmouseenter="@(() => SetFieldHelp("remux.audioNormalize"))" />
+                    <span>dB</span>
+                }
+            </div>
+            }
+            <div class="form-row">
+                <span class="form-label">Rinomina audio:</span>
+                <select class="form-input" style="width: 14ch;" @bind="_audioRenameScope" @onfocus="@(() => SetFieldHelp("remux.rename"))" @onmouseenter="@(() => SetFieldHelp("remux.rename"))">
+                    <option value="disabled">No</option>
+                    <option value="lang">Lang</option>
+                    <option value="all">Tutti</option>
+                </select>
+            </div>
+
+            @* Post-Processing video *@
+            <div class="form-section">== Post-processing video ==</div>
             <div class="form-row">
                 <span class="form-label">Encoding video:</span>
                 <select class="form-input" style="width: 30ch;" @bind="_encodingProfile" @onfocus="@(() => SetFieldHelp("remux.encoding"))" @onmouseenter="@(() => SetFieldHelp("remux.encoding"))">
@@ -428,6 +473,11 @@
     private string _subDelay = "0";
 
     /// <summary>
+    /// Abilita UI audio source fill
+    /// </summary>
+    private bool _audioSourceFillEnabled;
+
+    /// <summary>
     /// Soglia audio source fill in ms (stringa per binding input)
     /// </summary>
     private string _audioSourceFillThresholdMs = "0";
@@ -463,14 +513,34 @@
     private string _extensions = "mkv";
 
     /// <summary>
-    /// Formato conversione: 0=No, 1=FLAC, 2=Opus
+    /// Formato audio post-processing
     /// </summary>
-    private int _convertFormat;
+    private string _audioFormat = "";
 
     /// <summary>
-    /// Flag: rinomina tutte le tracce audio
+    /// Tracce da processare nel formato audio scelto
     /// </summary>
-    private bool _renameAllTracks;
+    private string _audioProcessingScope = "disabled";
+
+    /// <summary>
+    /// Flag 24bit -> 16bit
+    /// </summary>
+    private bool _audioDownsample24To16;
+
+    /// <summary>
+    /// Flag peak normalization
+    /// </summary>
+    private bool _audioPeakNormalize;
+
+    /// <summary>
+    /// Target peak normalization
+    /// </summary>
+    private string _audioPeakTargetDb = "-1.0";
+
+    /// <summary>
+    /// Scope rinomina audio
+    /// </summary>
+    private string _audioRenameScope = "disabled";
 
     /// <summary>
     /// Nome profilo encoding selezionato, vuoto = nessuno
@@ -588,6 +658,11 @@
             _deepAnalysis = Options.DeepAnalysis;
             _audioDelay = Options.AudioDelay.ToString();
             _subDelay = Options.SubtitleDelay.ToString();
+            _audioSourceFillEnabled = Options.AudioSourceFillThresholdMs > 0 ||
+                Options.AudioSourceFillLanguage.Length > 0 ||
+                Options.AudioSourceFillStart ||
+                Options.AudioSourceFillEnd ||
+                Options.AudioSourceFillInsertSilence;
             _audioSourceFillThresholdMs = Options.AudioSourceFillThresholdMs.ToString();
             _audioSourceFillLanguage = Options.AudioSourceFillLanguage;
             _audioSourceFillStart = Options.AudioSourceFillStart;
@@ -596,11 +671,12 @@
             _matchPattern = Options.MatchPattern;
             _extensions = string.Join(",", Options.FileExtensions);
 
-            if (string.Equals(Options.ConvertFormat, "flac", StringComparison.OrdinalIgnoreCase)) { _convertFormat = 1; }
-            else if (string.Equals(Options.ConvertFormat, "opus", StringComparison.OrdinalIgnoreCase)) { _convertFormat = 2; }
-            else { _convertFormat = 0; }
-
-            _renameAllTracks = Options.RenameAllTracks;
+            _audioFormat = Options.AudioFormat;
+            _audioProcessingScope = Options.AudioProcessingScope;
+            _audioDownsample24To16 = Options.AudioDownsample24To16;
+            _audioPeakNormalize = Options.AudioPeakNormalize;
+            _audioPeakTargetDb = Options.AudioPeakTargetDb.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _audioRenameScope = Options.AudioRenameScope;
 
             _encodingProfile = Options.EncodingProfileName;
 
@@ -634,7 +710,8 @@
         Options opts = new Options();
         int audioDelay;
         int subDelay;
-        int audioSourceFillThresholdMs;
+        int audioSourceFillThresholdMs = 0;
+        double audioPeakTargetDb;
         string[] parts;
         string trimmed;
         OptionsValidationResult validation;
@@ -677,12 +754,15 @@
         opts.AudioDelay = audioDelay;
         int.TryParse(_subDelay, out subDelay);
         opts.SubtitleDelay = subDelay;
-        int.TryParse(_audioSourceFillThresholdMs, out audioSourceFillThresholdMs);
-        opts.AudioSourceFillThresholdMs = audioSourceFillThresholdMs;
-        opts.AudioSourceFillLanguage = _audioSourceFillLanguage.Trim();
-        opts.AudioSourceFillStart = _audioSourceFillStart;
-        opts.AudioSourceFillEnd = _audioSourceFillEnd;
-        opts.AudioSourceFillInsertSilence = _deepAnalysis && _audioSourceFillInsertSilence;
+        if (_audioSourceFillEnabled)
+        {
+            int.TryParse(_audioSourceFillThresholdMs, out audioSourceFillThresholdMs);
+            opts.AudioSourceFillThresholdMs = audioSourceFillThresholdMs;
+            opts.AudioSourceFillLanguage = _audioSourceFillLanguage.Trim();
+            opts.AudioSourceFillStart = _audioSourceFillStart;
+            opts.AudioSourceFillEnd = _audioSourceFillEnd;
+            opts.AudioSourceFillInsertSilence = _deepAnalysis && _audioSourceFillInsertSilence;
+        }
 
         opts.MatchPattern = _matchPattern;
 
@@ -695,12 +775,16 @@
             if (trimmed.Length > 0) { opts.FileExtensions.Add(trimmed); }
         }
 
-        // Formato conversione
-        if (_convertFormat == 1) { opts.ConvertFormat = "flac"; }
-        else if (_convertFormat == 2) { opts.ConvertFormat = "opus"; }
-        else { opts.ConvertFormat = ""; }
-
-        opts.RenameAllTracks = _renameAllTracks;
+        opts.AudioFormat = _audioFormat.Trim().ToLowerInvariant();
+        opts.AudioProcessingScope = opts.AudioFormat.Length > 0 ? _audioProcessingScope : "disabled";
+        opts.AudioDownsample24To16 = (opts.AudioFormat == "flac" || opts.AudioFormat == "lpcm") && opts.AudioProcessingScope != "disabled" && _audioDownsample24To16;
+        opts.AudioPeakNormalize = opts.AudioFormat.Length > 0 && opts.AudioProcessingScope != "disabled" && _audioPeakNormalize;
+        if (!double.TryParse(_audioPeakTargetDb, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out audioPeakTargetDb))
+        {
+            audioPeakTargetDb = -1.0;
+        }
+        opts.AudioPeakTargetDb = audioPeakTargetDb;
+        opts.AudioRenameScope = _audioRenameScope;
 
         // Path mkvmerge da AppSettings (gestito nel dialog Percorsi tool)
         opts.MkvMergePath = AppSettingsService.Instance.Settings.Tools.MkvMergePath.Length > 0 ? AppSettingsService.Instance.Settings.Tools.MkvMergePath : "mkvmerge";
@@ -790,6 +874,7 @@
     private bool ValidateInput()
     {
         List<string> errors = new List<string>();
+        int audioSourceFillThresholdMs = 0;
 
         if (!int.TryParse(_audioDelay, out _))
         {
@@ -801,9 +886,38 @@
             errors.Add("Delay sub: valore intero non valido");
         }
 
-        if (!int.TryParse(_audioSourceFillThresholdMs, out _))
+        if (_audioSourceFillEnabled && !int.TryParse(_audioSourceFillThresholdMs, out audioSourceFillThresholdMs))
         {
             errors.Add("Audio source: soglia intera non valida");
+        }
+        else if (_audioSourceFillEnabled && audioSourceFillThresholdMs <= 0)
+        {
+            errors.Add("Audio source: soglia obbligatoria e maggiore di 0");
+        }
+
+        if (_audioSourceFillEnabled && _audioSourceFillLanguage.Trim().Length == 0)
+        {
+            errors.Add("Audio source: lingua source obbligatoria");
+        }
+
+        if (_audioSourceFillEnabled && !_audioSourceFillStart && !_audioSourceFillEnd && !(_deepAnalysis && _audioSourceFillInsertSilence))
+        {
+            errors.Add("Audio source: selezionare almeno una modalita");
+        }
+
+        if (_audioSourceFillEnabled && _audioFormat.Length == 0)
+        {
+            errors.Add("Audio source: formato audio obbligatorio");
+        }
+
+        if (_audioSourceFillEnabled && _audioProcessingScope == "disabled")
+        {
+            errors.Add("Audio source: audio deve essere Lang o Tutti");
+        }
+
+        if (_audioFormat.Length > 0 && _audioProcessingScope != "disabled" && _audioPeakNormalize && !double.TryParse(_audioPeakTargetDb, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
+        {
+            errors.Add("Normalizzazione: target dB non valido");
         }
 
         if (errors.Count > 0)
@@ -1047,7 +1161,7 @@
         else if (key == "remux.deep")
         {
             _fieldHelpTitle = "Deep analysis";
-            _fieldHelpText = "Analisi completa per release con scene aggiunte/rimosse. Mutuamente esclusiva con Frame-sync.";
+            _fieldHelpText = "Analisi completa per release con scene aggiunte/rimosse. Mutuamente esclusiva con Frame-sync.\n\nSe trova solo un delay costante applica --sync senza post-processing audio. Se produce cut/insert e importi audio, serve un Formato audio per ricodificare le tracce toccate.";
         }
         else if (key == "remux.audioDelay")
         {
@@ -1061,18 +1175,23 @@
         }
         else if (key == "remux.audioSourceFill")
         {
-            _fieldHelpTitle = "Audio source";
-            _fieldHelpText = "Soglia unica in millisecondi per riempire parti mancanti usando una traccia audio gia' presente nel Source.\n\nNon e' un delay: quando una delle condizioni abilitate supera questa soglia, RemuxForge prende dal Source quello specifico segmento audio e lo concatena alla traccia importata dal file Lingua.\n\nLa traccia source scelta usa la lingua indicata in Lingua source. Se esistono piu' tracce della stessa lingua, preferisce stesso layout canali e poi bitrate piu' alto.";
+            _fieldHelpTitle = "Audio source fill";
+            _fieldHelpText = "Abilita il riempimento delle parti mancanti usando una traccia audio gia' presente nel Source.\n\nCompare solo dopo aver scelto un Formato audio. Quando e' attivo richiede Soglia, Lingua source, almeno una modalita e Audio impostato su Lang o Tutti.";
+        }
+        else if (key == "remux.audioSourceFillThreshold")
+        {
+            _fieldHelpTitle = "Soglia";
+            _fieldHelpText = "Obbligatoria con Audio source fill attivo. Quando una condizione abilitata supera questa soglia, RemuxForge prende dal Source quello specifico segmento audio e lo concatena alla traccia importata dal file Lingua.\n\nNon e' un delay.";
         }
         else if (key == "remux.audioSourceFillLang")
         {
             _fieldHelpTitle = "Lingua source";
-            _fieldHelpText = GetLanguageHelpText("Lingua della traccia audio Source da cui prendere i segmenti di riempimento. Obbligatoria quando Audio source e' maggiore di 0.");
+            _fieldHelpText = GetLanguageHelpText("Lingua della traccia audio Source da cui prendere i segmenti di riempimento. Obbligatoria con Audio source fill attivo.");
         }
         else if (key == "remux.audioSourceFillStart")
         {
             _fieldHelpTitle = "Inizio";
-            _fieldHelpText = "Applica il riempimento all'inizio del file.\n\nSe il delay audio iniziale positivo supera la soglia Audio source, RemuxForge prende dal Source i primi N millisecondi e li antepone alla traccia importata dal file Lingua.\n\nI sottotitoli importati non vengono concatenati: mantengono il delay calcolato.";
+            _fieldHelpText = "Applica il riempimento all'inizio del file.\n\nSe il delay audio iniziale positivo supera la soglia Audio source fill, RemuxForge prende dal Source i primi N millisecondi e li antepone alla traccia importata dal file Lingua.\n\nI sottotitoli importati non vengono concatenati: mantengono il delay calcolato.";
         }
         else if (key == "remux.audioSourceFillEnd")
         {
@@ -1082,7 +1201,7 @@
         else if (key == "remux.audioSourceFillInsert")
         {
             _fieldHelpTitle = "Insert silence";
-            _fieldHelpText = "Disponibile con Deep analysis.\n\nSe DeepAnalysis rileva una operazione INSERT_SILENCE maggiore della soglia Audio source, RemuxForge non inserisce silenzio: prende dal Source il segmento audio corrispondente e lo concatena alla traccia importata.";
+            _fieldHelpText = "Disponibile con Deep analysis.\n\nSe Deep analysis rileva una operazione INSERT_SILENCE maggiore della soglia Audio source fill, RemuxForge non inserisce silenzio: prende dal Source il segmento audio corrispondente e lo concatena alla traccia importata.";
         }
         else if (key == "remux.match")
         {
@@ -1094,15 +1213,30 @@
             _fieldHelpTitle = "Estensioni";
             _fieldHelpText = "Estensioni cercate nello scan. Default: mkv. Valori multipli separati da virgola.";
         }
-        else if (key == "remux.convert")
+        else if (key == "remux.audioFormat")
         {
-            _fieldHelpTitle = "Converti audio";
-            _fieldHelpText = "Converte tracce lossless in FLAC o Opus durante il merge. Alcuni codec object-based restano esclusi.";
+            _fieldHelpTitle = "Formato audio";
+            _fieldHelpText = "Formato finale per le tracce audio processate: FLAC, LPCM, AAC o Opus.\n\nAbilita le opzioni audio dipendenti. Obbligatorio per Audio source fill e per Deep analysis solo quando l'analisi produce operazioni che modificano audio.";
+        }
+        else if (key == "remux.audioScope")
+        {
+            _fieldHelpTitle = "Audio";
+            _fieldHelpText = "Sceglie quali tracce audio encodare nel formato selezionato: Lang o Tutti.\n\nObbligatorio con Audio source fill attivo. Disabilitata evita conversioni generiche; eventuali operazioni obbligatorie Deep analysis richiedono comunque il formato audio.";
+        }
+        else if (key == "remux.audio24")
+        {
+            _fieldHelpTitle = "24bit -> 16bit";
+            _fieldHelpText = "Riduce tracce 24-bit a 16-bit usando soxr VHQ e dither shibata. Disponibile solo per FLAC e LPCM.";
+        }
+        else if (key == "remux.audioNormalize")
+        {
+            _fieldHelpTitle = "Normalizzazione";
+            _fieldHelpText = "Peak normalization globale multicanale. Il target deve essere minore o uguale a 0 dB.";
         }
         else if (key == "remux.rename")
         {
-            _fieldHelpTitle = "Rinomina tracce";
-            _fieldHelpText = "Rinomina tutte le tracce audio nel risultato usando codec, layout canali e parametri audio.";
+            _fieldHelpTitle = "Rinomina audio";
+            _fieldHelpText = "Rinomina le tracce audio finali usando codec, layout canali e parametri effettivi. AAC e Opus non includono bit depth.";
         }
         else if (key == "remux.encoding")
         {
@@ -1272,6 +1406,25 @@
     }
 
     /// <summary>
+    /// Gestisce cambio formato audio e pulisce opzioni dipendenti non piu' applicabili
+    /// </summary>
+    private void OnAudioFormatChanged(ChangeEventArgs args)
+    {
+        _audioFormat = args.Value != null ? args.Value.ToString().Trim().ToLowerInvariant() : "";
+        if (_audioFormat.Length == 0)
+        {
+            _audioProcessingScope = "disabled";
+            _audioDownsample24To16 = false;
+            _audioPeakNormalize = false;
+            ResetAudioSourceFill();
+        }
+        else if (_audioFormat != "flac" && _audioFormat != "lpcm")
+        {
+            _audioDownsample24To16 = false;
+        }
+    }
+
+    /// <summary>
     /// Toggle frame-sync con mutua esclusione deep analysis
     /// </summary>
     private void ToggleFrameSync()
@@ -1293,6 +1446,36 @@
         {
             _frameSync = false;
         }
+
+        if (!_deepAnalysis)
+        {
+            _audioSourceFillInsertSilence = false;
+        }
+    }
+
+    /// <summary>
+    /// Toggle audio source fill e azzera lo stato nascosto quando viene disabilitato
+    /// </summary>
+    private void ToggleAudioSourceFill()
+    {
+        _audioSourceFillEnabled = !_audioSourceFillEnabled;
+        if (!_audioSourceFillEnabled)
+        {
+            ResetAudioSourceFill();
+        }
+    }
+
+    /// <summary>
+    /// Azzera opzioni audio source fill
+    /// </summary>
+    private void ResetAudioSourceFill()
+    {
+        _audioSourceFillEnabled = false;
+        _audioSourceFillThresholdMs = "0";
+        _audioSourceFillLanguage = "";
+        _audioSourceFillStart = false;
+        _audioSourceFillEnd = false;
+        _audioSourceFillInsertSilence = false;
     }
 
 }

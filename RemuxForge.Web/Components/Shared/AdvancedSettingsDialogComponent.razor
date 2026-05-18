@@ -26,7 +26,7 @@
             </AdvancedSettingsSection>
 
             <AdvancedSettingsSection Title="Timeouts">
-                <AdvancedSettingsFieldRow Label="TrackSplitFfmpegTimeoutMs:" Width="10ch" @bind-Value="_tsFfmpegTimeoutMs" />
+                <AdvancedSettingsFieldRow Label="SubtitleEditFfmpegTimeoutMs:" Width="10ch" @bind-Value="_subtitleEditFfmpegTimeoutMs" />
             </AdvancedSettingsSection>
 
         </div>
@@ -74,12 +74,12 @@
 
     #endregion
 
-    #region Campi TrackSplit
+    #region Campi SubtitleEdit
 
     /// <summary>
     /// Timeout comando ffmpeg (ms)
     /// </summary>
-    private string _tsFfmpegTimeoutMs = "";
+    private string _subtitleEditFfmpegTimeoutMs = "";
 
     #endregion
 
@@ -139,8 +139,8 @@
         _daSceneExtractTimeoutMs = adv.DeepAnalysis.SceneExtractTimeoutMs.ToString();
         _daGlobalVerifyPoints = adv.DeepAnalysis.GlobalVerifyPoints.ToString();
 
-        // TrackSplit — interi
-        _tsFfmpegTimeoutMs = adv.TrackSplit.FfmpegTimeoutMs.ToString();
+        // SubtitleEdit — interi
+        _subtitleEditFfmpegTimeoutMs = adv.SubtitleEdit.FfmpegTimeoutMs.ToString();
 
         // Ffmpeg — booleani
         _ffHardwareAcceleration = adv.Ffmpeg.HardwareAcceleration;
@@ -182,8 +182,8 @@
         if (int.TryParse(_daSceneExtractTimeoutMs, out intVal)) { adv.DeepAnalysis.SceneExtractTimeoutMs = intVal; }
         if (int.TryParse(_daGlobalVerifyPoints, out intVal)) { adv.DeepAnalysis.GlobalVerifyPoints = intVal; }
 
-        // Parsing TrackSplit — interi
-        if (int.TryParse(_tsFfmpegTimeoutMs, out intVal)) { adv.TrackSplit.FfmpegTimeoutMs = intVal; }
+        // Parsing SubtitleEdit — interi
+        if (int.TryParse(_subtitleEditFfmpegTimeoutMs, out intVal)) { adv.SubtitleEdit.FfmpegTimeoutMs = intVal; }
 
         // Parsing Ffmpeg — booleani
         adv.Ffmpeg.HardwareAcceleration = _ffHardwareAcceleration;
@@ -223,7 +223,7 @@
         AdvancedSettingsFieldValidator.ValidateIntRange(errors, "DeepAnalysis.GlobalVerifyPoints", _daGlobalVerifyPoints, 1, 1000);
         AdvancedSettingsFieldValidator.ValidateDoubleRange(errors, "DeepAnalysis.GlobalVerifyMinRatio", _daGlobalVerifyMinRatio, 0.0, 1.0);
 
-        AdvancedSettingsFieldValidator.ValidateIntRange(errors, "TrackSplit.FfmpegTimeoutMs", _tsFfmpegTimeoutMs, 1000, 3600000);
+        AdvancedSettingsFieldValidator.ValidateIntRange(errors, "SubtitleEdit.FfmpegTimeoutMs", _subtitleEditFfmpegTimeoutMs, 1000, 3600000);
 
         if (errors.Count > 0)
         {
