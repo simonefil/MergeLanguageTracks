@@ -72,6 +72,14 @@ namespace RemuxForge.Core.Media.Ffmpeg
         /// </summary>
         public void ExtractSegment(string filePath, int startMs, double durationSec, double targetFps, bool geometryCropToFourThree, out List<byte[]> frames, out double[] timestampsMs)
         {
+            this.ExtractSegment(filePath, startMs, durationSec, targetFps, geometryCropToFourThree, "", out frames, out timestampsMs);
+        }
+
+        /// <summary>
+        /// Estrae frame di un segmento video applicando un eventuale crop manuale prima dello scale
+        /// </summary>
+        public void ExtractSegment(string filePath, int startMs, double durationSec, double targetFps, bool geometryCropToFourThree, string manualCropPx, out List<byte[]> frames, out double[] timestampsMs)
+        {
             frames = new List<byte[]>();
             timestampsMs = new double[0];
             ProcessBinaryResult processResult;
@@ -130,7 +138,7 @@ namespace RemuxForge.Core.Media.Ffmpeg
                     args.Add("-fps_mode");
                     args.Add(useFpsFilter ? "vfr" : "passthrough");
 
-                    filterChain = this.BuildFilterChain(targetFps, geometryCropToFourThree, useFpsFilter, resolution);
+                    filterChain = this.BuildFilterChain(targetFps, geometryCropToFourThree, manualCropPx, useFpsFilter, resolution);
                     args.Add("-vf");
                     args.Add(filterChain);
                     args.Add("-f");
@@ -235,14 +243,30 @@ namespace RemuxForge.Core.Media.Ffmpeg
         /// <summary>
         /// Costruisce filter chain ffmpeg per normalizzare frame
         /// </summary>
-        private string BuildFilterChain(double targetFps, bool geometryCropToFourThree, bool useFpsFilter, string resolution)
+        private string BuildFilterChain(double targetFps, bool geometryCropToFourThree, string manualCropPx, bool useFpsFilter, string resolution)
         {
             string filterChain = "";
+            string manualCropFilter;
+            bool hasManualCrop;
+
             if (useFpsFilter)
             {
                 filterChain = "fps=fps=" + targetFps.ToString("F6", CultureInfo.InvariantCulture);
             }
-            if (geometryCropToFourThree)
+
+            hasManualCrop = this.TryBuildManualCropFilter(manualCropPx, out manualCropFilter);
+            if (hasManualCrop)
+            {
+                if (filterChain.Length > 0)
+                {
+                    filterChain = filterChain + "," + manualCropFilter;
+                }
+                else
+                {
+                    filterChain = manualCropFilter;
+                }
+            }
+            else if (geometryCropToFourThree)
             {
                 if (filterChain.Length > 0)
                 {
@@ -264,6 +288,37 @@ namespace RemuxForge.Core.Media.Ffmpeg
 
             filterChain = filterChain + ",showinfo";
             return filterChain;
+        }
+
+        /// <summary>
+        /// Costruisce il filtro crop manuale L:R:T:B se configurato
+        /// </summary>
+        /// <param name="manualCropPx">Crop manuale in pixel</param>
+        /// <param name="filter">Filtro ffmpeg risultante</param>
+        /// <returns>True se esiste un crop manuale non nullo</returns>
+        private bool TryBuildManualCropFilter(string manualCropPx, out string filter)
+        {
+            int left;
+            int right;
+            int top;
+            int bottom;
+
+            filter = "";
+            if (!Options.TryParseAnalysisCropPx(manualCropPx, out left, out right, out top, out bottom))
+            {
+                return false;
+            }
+
+            if (left == 0 && right == 0 && top == 0 && bottom == 0)
+            {
+                return false;
+            }
+
+            filter = "crop=iw-" + left.ToString(CultureInfo.InvariantCulture) + "-" + right.ToString(CultureInfo.InvariantCulture) +
+                ":ih-" + top.ToString(CultureInfo.InvariantCulture) + "-" + bottom.ToString(CultureInfo.InvariantCulture) +
+                ":" + left.ToString(CultureInfo.InvariantCulture) +
+                ":" + top.ToString(CultureInfo.InvariantCulture);
+            return true;
         }
 
         #endregion

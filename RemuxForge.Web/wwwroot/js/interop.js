@@ -194,6 +194,7 @@ function isTextSelectionAllowed(target) {
     }
 
     return target.closest('.log-panel') !== null
+        || target.closest('.detail-content') !== null
         || target.closest('input, textarea, select, [contenteditable="true"]') !== null;
 }
 
@@ -207,6 +208,7 @@ function isSelectionAllowed(selection) {
     }
     return node && node.closest
         && (node.closest('.log-panel') !== null
+            || node.closest('.detail-content') !== null
             || node.closest('input, textarea, select, [contenteditable="true"]') !== null);
 }
 

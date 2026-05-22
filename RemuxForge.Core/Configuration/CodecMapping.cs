@@ -203,6 +203,70 @@ namespace RemuxForge.Core.Configuration
         }
 
         /// <summary>
+        /// Verifica se il processing audio generico deve produrre un nuovo file
+        /// </summary>
+        /// <param name="track">Traccia da verificare</param>
+        /// <param name="options">Opzioni audio correnti</param>
+        /// <returns>True se serve renderizzare la traccia</returns>
+        public static bool RequiresGenericAudioRender(TrackInfo track, Options options)
+        {
+            bool result = false;
+
+            if (track == null || options == null || options.AudioFormat.Length == 0)
+            {
+                return result;
+            }
+
+            if (options.AudioPeakNormalize || options.AudioDownsample24To16)
+            {
+                result = true;
+            }
+            else if (!IsTargetAudioFormat(track, options.AudioFormat))
+            {
+                result = true;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Verifica se la traccia e' gia' nel formato audio target
+        /// </summary>
+        /// <param name="track">Traccia da verificare</param>
+        /// <param name="targetFormat">Formato target flac/lpcm/aac/opus</param>
+        /// <returns>True se il codec della traccia corrisponde al formato target</returns>
+        public static bool IsTargetAudioFormat(TrackInfo track, string targetFormat)
+        {
+            bool result = false;
+            string format;
+
+            if (track == null || track.Codec == null || targetFormat == null)
+            {
+                return result;
+            }
+
+            format = targetFormat.Trim().ToLowerInvariant();
+            if (format == "flac")
+            {
+                result = string.Equals(track.Codec, "FLAC", StringComparison.OrdinalIgnoreCase);
+            }
+            else if (format == "lpcm")
+            {
+                result = string.Equals(track.Codec, "PCM", StringComparison.OrdinalIgnoreCase);
+            }
+            else if (format == "aac")
+            {
+                result = string.Equals(track.Codec, "AAC", StringComparison.OrdinalIgnoreCase);
+            }
+            else if (format == "opus")
+            {
+                result = string.Equals(track.Codec, "Opus", StringComparison.OrdinalIgnoreCase);
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Verifica se una traccia e' lossless e convertibile (lossless ma non spaziale)
         /// </summary>
         /// <param name="track">Traccia da verificare</param>

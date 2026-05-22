@@ -15,8 +15,6 @@ namespace RemuxForge.Core.Media
         #region Costanti
 
         private const int BLACK_THRESHOLD = 18;
-        private const int MIN_CONTENT_AVG = 30;
-        private const int MIN_BORDER_CONTENT_CONTRAST = 12;
         private const int MIN_BORDER_MARGIN = 4;
         private const int MAX_AUTO_CROP_DIVISOR = 6;
         private const int SAMPLE_DURATION_MS = 1000;
@@ -76,24 +74,34 @@ namespace RemuxForge.Core.Media
         /// </summary>
         public void PrepareFile(string filePath, int durationMs, bool geometryCropToFourThree)
         {
+            this.PrepareFile(filePath, durationMs, geometryCropToFourThree, "");
+        }
+
+        /// <summary>
+        /// Prepara il profilo crop del file usando campioni distribuiti sulla durata completa
+        /// </summary>
+        public void PrepareFile(string filePath, int durationMs, bool geometryCropToFourThree, string manualCropPx)
+        {
             BorderCropProfile profile;
             List<byte[]> frames;
+            string cacheKey;
             if (string.IsNullOrEmpty(filePath))
             {
                 return;
             }
 
+            cacheKey = this.BuildCacheKey(filePath, geometryCropToFourThree, manualCropPx);
             lock (this._lock)
             {
-                if (this._cache.ContainsKey(filePath))
+                if (this._cache.ContainsKey(cacheKey))
                 {
                     return;
                 }
             }
 
-            frames = this.ExtractGlobalSampleFrames(filePath, durationMs, geometryCropToFourThree);
+            frames = this.ExtractGlobalSampleFrames(filePath, durationMs, geometryCropToFourThree, manualCropPx);
             profile = this.BuildProfile(frames);
-            this.StoreCropProfile(filePath, profile);
+            this.StoreCropProfile(cacheKey, profile);
 
             if (profile.Enabled)
             {
@@ -111,6 +119,14 @@ namespace RemuxForge.Core.Media
         /// </summary>
         public void Normalize(string filePath, List<byte[]> frames)
         {
+            this.Normalize(filePath, false, "", frames);
+        }
+
+        /// <summary>
+        /// Applica ai frame il profilo crop gia' calcolato per crop geometrico/manuale
+        /// </summary>
+        public void Normalize(string filePath, bool geometryCropToFourThree, string manualCropPx, List<byte[]> frames)
+        {
             BorderCropProfile profile;
             int width = this._videoSyncConfig.FrameWidth;
             int height = this._videoSyncConfig.FrameHeight;
@@ -120,7 +136,7 @@ namespace RemuxForge.Core.Media
                 return;
             }
 
-            profile = this.GetCachedCropProfile(filePath);
+            profile = this.GetCachedCropProfile(this.BuildCacheKey(filePath, geometryCropToFourThree, manualCropPx));
             if (profile == null || !profile.Enabled)
             {
                 return;
@@ -139,8 +155,9 @@ namespace RemuxForge.Core.Media
         /// <param name="filePath">File video da campionare</param>
         /// <param name="durationMs">Durata nota in millisecondi, oppure 0 per leggerla da ffmpeg</param>
         /// <param name="geometryCropToFourThree">Normalizzazione geometrica 4:3 da applicare ai campioni</param>
+        /// <param name="manualCropPx">Crop manuale L:R:T:B in pixel da applicare ai campioni</param>
         /// <returns>Frame grayscale campionati</returns>
-        private List<byte[]> ExtractGlobalSampleFrames(string filePath, int durationMs, bool geometryCropToFourThree)
+        private List<byte[]> ExtractGlobalSampleFrames(string filePath, int durationMs, bool geometryCropToFourThree, string manualCropPx)
         {
             List<byte[]> result = new List<byte[]>();
             int[] percentages = new int[] { 20, 40, 60, 80 };
@@ -170,7 +187,7 @@ namespace RemuxForge.Core.Media
                 if (startMs + SAMPLE_DURATION_MS > actualDurationMs) { startMs = actualDurationMs - SAMPLE_DURATION_MS; }
                 if (startMs < 0) { startMs = 0; }
 
-                extractor.ExtractSegment(filePath, startMs, SAMPLE_DURATION_MS / 1000.0, 1.0, geometryCropToFourThree, out frames, out _);
+                extractor.ExtractSegment(filePath, startMs, SAMPLE_DURATION_MS / 1000.0, 1.0, geometryCropToFourThree, manualCropPx, out frames, out _);
                 if (frames != null && frames.Count > 0)
                 {
                     result.Add(frames[0]);
@@ -242,14 +259,14 @@ namespace RemuxForge.Core.Media
                 lineMargins = new List<int>();
                 for (int i = 0; i < scanYs.Length; i++)
                 {
-                    // Scansioniamo tre righe per frame per evitare che un dettaglio locale condizioni il crop
-                    lineMargins.Add(this.MeasureVerticalLineMargin(frames[f], leftSide, width, scanYs[i], maxMargin));
+                    // Il minimo tra righe e campioni e' il bordo nero garantito, quindi evita over-crop su scene scure.
+                    lineMargins.Add(this.MeasureVerticalRawMargin(frames[f], leftSide, width, scanYs[i], maxMargin));
                 }
 
-                frameMargins.Add(this.StableMargin(lineMargins));
+                frameMargins.Add(this.MinimumStableMargin(lineMargins));
             }
 
-            return this.StableGlobalMargin(frameMargins);
+            return this.MinimumStableMargin(frameMargins);
         }
 
         /// <summary>
@@ -272,26 +289,26 @@ namespace RemuxForge.Core.Media
                 lineMargins = new List<int>();
                 for (int i = 0; i < scanXs.Length; i++)
                 {
-                    // Scansioniamo tre colonne per frame per verificare che il bordo non sia locale
-                    lineMargins.Add(this.MeasureHorizontalLineMargin(frames[f], topSide, width, height, scanXs[i], maxMargin));
+                    // Il minimo tra colonne e campioni e' il bordo nero garantito, quindi evita over-crop su scene scure.
+                    lineMargins.Add(this.MeasureHorizontalRawMargin(frames[f], topSide, width, height, scanXs[i], maxMargin));
                 }
 
-                frameMargins.Add(this.StableMargin(lineMargins));
+                frameMargins.Add(this.MinimumStableMargin(lineMargins));
             }
 
-            return this.StableGlobalMargin(frameMargins);
+            return this.MinimumStableMargin(frameMargins);
         }
 
         /// <summary>
-        /// Misura quanti pixel neri contigui ci sono su una riga da sinistra o destra
+        /// Misura quanti pixel neri contigui ci sono su una riga senza usare contrasto interno
         /// </summary>
         /// <param name="frame">Frame grayscale</param>
         /// <param name="leftSide">True per scansione da sinistra</param>
         /// <param name="width">Larghezza frame</param>
         /// <param name="y">Riga da analizzare</param>
         /// <param name="maxMargin">Limite massimo crop consentito</param>
-        /// <returns>Margine valido, oppure 0</returns>
-        private int MeasureVerticalLineMargin(byte[] frame, bool leftSide, int width, int y, int maxMargin)
+        /// <returns>Margine nero contiguo, oppure 0 se sotto soglia minima</returns>
+        private int MeasureVerticalRawMargin(byte[] frame, bool leftSide, int width, int y, int maxMargin)
         {
             int margin = 0;
             int start = leftSide ? 0 : width - 1;
@@ -304,8 +321,7 @@ namespace RemuxForge.Core.Media
                 x += step;
             }
 
-            // Un bordo e' valido solo se subito dopo esiste contenuto sufficientemente piu' luminoso
-            if (margin < MIN_BORDER_MARGIN || !this.HasVerticalContentContrast(frame, leftSide, width, y, margin))
+            if (margin < MIN_BORDER_MARGIN)
             {
                 margin = 0;
             }
@@ -314,7 +330,7 @@ namespace RemuxForge.Core.Media
         }
 
         /// <summary>
-        /// Misura quanti pixel neri contigui ci sono su una colonna dall'alto o dal basso
+        /// Misura quanti pixel neri contigui ci sono su una colonna senza usare contrasto interno
         /// </summary>
         /// <param name="frame">Frame grayscale</param>
         /// <param name="topSide">True per scansione dall'alto</param>
@@ -322,8 +338,8 @@ namespace RemuxForge.Core.Media
         /// <param name="height">Altezza frame</param>
         /// <param name="x">Colonna da analizzare</param>
         /// <param name="maxMargin">Limite massimo crop consentito</param>
-        /// <returns>Margine valido, oppure 0</returns>
-        private int MeasureHorizontalLineMargin(byte[] frame, bool topSide, int width, int height, int x, int maxMargin)
+        /// <returns>Margine nero contiguo, oppure 0 se sotto soglia minima</returns>
+        private int MeasureHorizontalRawMargin(byte[] frame, bool topSide, int width, int height, int x, int maxMargin)
         {
             int margin = 0;
             int start = topSide ? 0 : height - 1;
@@ -336,8 +352,7 @@ namespace RemuxForge.Core.Media
                 y += step;
             }
 
-            // Un bordo e' valido solo se subito dopo esiste contenuto sufficientemente piu' luminoso
-            if (margin < MIN_BORDER_MARGIN || !this.HasHorizontalContentContrast(frame, topSide, width, height, x, margin))
+            if (margin < MIN_BORDER_MARGIN)
             {
                 margin = 0;
             }
@@ -346,70 +361,13 @@ namespace RemuxForge.Core.Media
         }
 
         /// <summary>
-        /// Riduce le misure raccolte a un margine stabile usando soglia di presenza e tolleranza sulla mediana
+        /// Restituisce il minimo positivo tra misure valide: e' il crop nero garantito.
         /// </summary>
-        /// <param name="margins">Misure raccolte sui frame campione</param>
-        /// <returns>Margine stabile, oppure 0</returns>
-        private int StableMargin(List<int> margins)
+        /// <param name="margins">Misure raccolte</param>
+        /// <returns>Minimo stabile, oppure 0 se almeno una misura non conferma il bordo</returns>
+        private int MinimumStableMargin(List<int> margins)
         {
             int result = 0;
-            List<int> nonZero = new List<int>();
-            int median;
-            int tolerance;
-            int stableCount = 0;
-            int requiredCount;
-            if (margins == null || margins.Count == 0)
-            {
-                return result;
-            }
-
-            for (int i = 0; i < margins.Count; i++)
-            {
-                if (margins[i] >= MIN_BORDER_MARGIN)
-                {
-                    nonZero.Add(margins[i]);
-                }
-            }
-
-            // Almeno il 75% delle misure totali deve indicare un bordo reale
-            requiredCount = (margins.Count * 75 + 99) / 100;
-            if (nonZero.Count < requiredCount)
-            {
-                return result;
-            }
-
-            nonZero.Sort();
-            median = nonZero[nonZero.Count / 2];
-            tolerance = Math.Max(2, median / 10);
-
-            // La stabilita' richiede che le misure non oscillino troppo attorno alla mediana
-            for (int i = 0; i < nonZero.Count; i++)
-            {
-                if (Math.Abs(nonZero[i] - median) <= tolerance)
-                {
-                    stableCount++;
-                }
-            }
-
-            if (stableCount >= requiredCount)
-            {
-                result = median;
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Riduce i margini per-frame a un crop globale: ogni campione deve confermare il bordo
-        /// </summary>
-        /// <param name="margins">Margine stabile misurato per ogni frame campione</param>
-        /// <returns>Margine globale, oppure 0 se anche un campione non conferma</returns>
-        private int StableGlobalMargin(List<int> margins)
-        {
-            int result = 0;
-            int median;
-            int tolerance;
-            int stableCount = 0;
             if (margins == null || margins.Count == 0)
             {
                 return result;
@@ -419,77 +377,14 @@ namespace RemuxForge.Core.Media
             {
                 if (margins[i] < MIN_BORDER_MARGIN)
                 {
-                    return result;
+                    return 0;
                 }
-            }
 
-            margins.Sort();
-            median = margins[margins.Count / 2];
-            tolerance = Math.Max(2, median / 10);
-
-            for (int i = 0; i < margins.Count; i++)
-            {
-                if (Math.Abs(margins[i] - median) <= tolerance)
+                if (result == 0 || margins[i] < result)
                 {
-                    stableCount++;
+                    result = margins[i];
                 }
             }
-
-            if (stableCount == margins.Count)
-            {
-                result = median;
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Verifica che dopo il bordo verticale ci sia contenuto con contrasto sufficiente
-        /// </summary>
-        /// <param name="frame">Frame grayscale</param>
-        /// <param name="leftSide">True per lato sinistro</param>
-        /// <param name="width">Larghezza frame</param>
-        /// <param name="y">Riga analizzata</param>
-        /// <param name="margin">Margine misurato</param>
-        /// <returns>True se il margine non e' solo una scena scura</returns>
-        private bool HasVerticalContentContrast(byte[] frame, bool leftSide, int width, int y, int margin)
-        {
-            bool result;
-            int borderAvg;
-            int contentAvg;
-            int borderStart = leftSide ? Math.Max(0, margin - 4) : Math.Min(width - 4, width - margin);
-            int contentStart = leftSide ? margin : Math.Max(0, width - margin - 4);
-
-            // Confrontiamo una piccola fascia bordo con la fascia immediatamente interna
-            borderAvg = this.AverageHorizontalRun(frame, width, y, borderStart, 4);
-            contentAvg = this.AverageHorizontalRun(frame, width, y, contentStart, 4);
-            result = contentAvg >= MIN_CONTENT_AVG && contentAvg >= borderAvg + MIN_BORDER_CONTENT_CONTRAST;
-
-            return result;
-        }
-
-        /// <summary>
-        /// Verifica che dopo il bordo orizzontale ci sia contenuto con contrasto sufficiente
-        /// </summary>
-        /// <param name="frame">Frame grayscale</param>
-        /// <param name="topSide">True per lato superiore</param>
-        /// <param name="width">Larghezza frame</param>
-        /// <param name="height">Altezza frame</param>
-        /// <param name="x">Colonna analizzata</param>
-        /// <param name="margin">Margine misurato</param>
-        /// <returns>True se il margine non e' solo una scena scura</returns>
-        private bool HasHorizontalContentContrast(byte[] frame, bool topSide, int width, int height, int x, int margin)
-        {
-            bool result;
-            int borderAvg;
-            int contentAvg;
-            int borderStart = topSide ? Math.Max(0, margin - 4) : Math.Min(height - 4, height - margin);
-            int contentStart = topSide ? margin : Math.Max(0, height - margin - 4);
-
-            // Confrontiamo una piccola fascia bordo con la fascia immediatamente interna
-            borderAvg = this.AverageVerticalRun(frame, width, height, x, borderStart, 4);
-            contentAvg = this.AverageVerticalRun(frame, width, height, x, contentStart, 4);
-            result = contentAvg >= MIN_CONTENT_AVG && contentAvg >= borderAvg + MIN_BORDER_CONTENT_CONTRAST;
 
             return result;
         }
@@ -501,14 +396,14 @@ namespace RemuxForge.Core.Media
         /// <summary>
         /// Recupera il profilo crop calcolato per il file
         /// </summary>
-        /// <param name="filePath">File video</param>
+        /// <param name="cacheKey">Chiave cache del profilo</param>
         /// <returns>Profilo crop, oppure null</returns>
-        private BorderCropProfile GetCachedCropProfile(string filePath)
+        private BorderCropProfile GetCachedCropProfile(string cacheKey)
         {
             BorderCropProfile profile;
             lock (this._lock)
             {
-                this._cache.TryGetValue(filePath, out profile);
+                this._cache.TryGetValue(cacheKey, out profile);
             }
 
             return profile;
@@ -517,17 +412,29 @@ namespace RemuxForge.Core.Media
         /// <summary>
         /// Memorizza il profilo crop in cache per la durata dell'analisi corrente
         /// </summary>
-        /// <param name="filePath">File video</param>
+        /// <param name="cacheKey">Chiave cache del profilo</param>
         /// <param name="profile">Profilo da memorizzare</param>
-        private void StoreCropProfile(string filePath, BorderCropProfile profile)
+        private void StoreCropProfile(string cacheKey, BorderCropProfile profile)
         {
             lock (this._lock)
             {
-                if (!this._cache.ContainsKey(filePath))
+                if (!this._cache.ContainsKey(cacheKey))
                 {
-                    this._cache.Add(filePath, profile);
+                    this._cache.Add(cacheKey, profile);
                 }
             }
+        }
+
+        /// <summary>
+        /// Costruisce la chiave cache del profilo crop
+        /// </summary>
+        /// <param name="filePath">File video</param>
+        /// <param name="geometryCropToFourThree">True se i campioni includono crop geometrico 4:3</param>
+        /// <param name="manualCropPx">Crop manuale applicato ai campioni</param>
+        /// <returns>Chiave cache</returns>
+        private string BuildCacheKey(string filePath, bool geometryCropToFourThree, string manualCropPx)
+        {
+            return filePath + "|g=" + (geometryCropToFourThree ? "1" : "0") + "|m=" + Options.NormalizeAnalysisCropPx(manualCropPx);
         }
 
         /// <summary>
@@ -566,57 +473,6 @@ namespace RemuxForge.Core.Media
                 this.ResizeCropNearest(frames[i], output, width, height, profile.Left, profile.Top, profile.CropWidth, profile.CropHeight);
                 frames[i] = output;
             }
-        }
-
-        /// <summary>
-        /// Calcola la luminanza media di una sequenza orizzontale
-        /// </summary>
-        /// <param name="frame">Frame grayscale</param>
-        /// <param name="width">Larghezza frame</param>
-        /// <param name="y">Riga</param>
-        /// <param name="startX">Colonna iniziale</param>
-        /// <param name="count">Numero pixel da leggere</param>
-        /// <returns>Luminanza media, oppure 255 senza campioni</returns>
-        private int AverageHorizontalRun(byte[] frame, int width, int y, int startX, int count)
-        {
-            int endX = Math.Min(width, startX + count);
-            int sum = 0;
-            int samples = 0;
-            if (startX < 0) { startX = 0; }
-
-            for (int x = startX; x < endX; x++)
-            {
-                sum += frame[y * width + x];
-                samples++;
-            }
-
-            return samples > 0 ? sum / samples : 255;
-        }
-
-        /// <summary>
-        /// Calcola la luminanza media di una sequenza verticale
-        /// </summary>
-        /// <param name="frame">Frame grayscale</param>
-        /// <param name="width">Larghezza frame</param>
-        /// <param name="height">Altezza frame</param>
-        /// <param name="x">Colonna</param>
-        /// <param name="startY">Riga iniziale</param>
-        /// <param name="count">Numero pixel da leggere</param>
-        /// <returns>Luminanza media, oppure 255 senza campioni</returns>
-        private int AverageVerticalRun(byte[] frame, int width, int height, int x, int startY, int count)
-        {
-            int endY = Math.Min(height, startY + count);
-            int sum = 0;
-            int samples = 0;
-            if (startY < 0) { startY = 0; }
-
-            for (int y = startY; y < endY; y++)
-            {
-                sum += frame[y * width + x];
-                samples++;
-            }
-
-            return samples > 0 ? sum / samples : 255;
         }
 
         /// <summary>

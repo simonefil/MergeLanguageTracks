@@ -288,6 +288,7 @@ namespace RemuxForge.Core.Pipeline
                     if (success && this._opts.FrameSync && this._ffmpegPath.Length > 0)
                     {
                         this._frameSyncService = new FrameSyncService(this._ffmpegPath);
+                        this._frameSyncService.SetAnalysisCrop(this._opts.AnalysisCropSourcePx, this._opts.AnalysisCropLanguagePx);
                     }
 
                     // Log impostazioni conversione se attiva
@@ -984,6 +985,11 @@ namespace RemuxForge.Core.Pipeline
             for (int i = 0; i < request.SourceTracksToProcess.Count; i++)
             {
                 TrackInfo track = request.SourceTracksToProcess[i];
+                if (request.GenericSourceTrackIds.Contains(track.Id) && !CodecMapping.RequiresGenericAudioRender(track, request.Options))
+                {
+                    continue;
+                }
+
                 convertedSourceTracks[track.Id] = "<processed-audio:source-track-" + track.Id + ">";
                 processedSourceAudioInfo[track.Id] = this.CloneAudioInfoForDryRun(track, request.Options.AudioFormat);
             }
@@ -991,9 +997,31 @@ namespace RemuxForge.Core.Pipeline
             for (int i = 0; i < request.LangTracksToProcess.Count; i++)
             {
                 TrackInfo track = request.LangTracksToProcess[i];
+                if (request.GenericLangTrackIds.Contains(track.Id) &&
+                    !CodecMapping.RequiresGenericAudioRender(track, request.Options) &&
+                    !this.HasForcedDryRunLangAudioProcessing(request))
+                {
+                    continue;
+                }
+
                 convertedLangTracks[track.Id] = "<processed-audio:lang-track-" + track.Id + ">";
                 processedLangAudioInfo[track.Id] = this.CloneAudioInfoForDryRun(track, request.Options.AudioFormat);
             }
+        }
+
+        /// <summary>
+        /// True se dry-run deve mostrare un render lang non generico
+        /// </summary>
+        /// <param name="request">Richiesta audio corrente</param>
+        /// <returns>True se deep analysis o source fill possono richiedere un render lang</returns>
+        private bool HasForcedDryRunLangAudioProcessing(AudioProcessingRequest request)
+        {
+            bool deepAudioRequired = request.LangEditMap != null &&
+                request.LangEditMap.Operations != null &&
+                request.LangEditMap.Operations.Count > 0 &&
+                !request.Options.SubOnly;
+
+            return deepAudioRequired || request.Options.AudioSourceFillThresholdMs > 0;
         }
 
         /// <summary>

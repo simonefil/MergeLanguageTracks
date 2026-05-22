@@ -17,6 +17,7 @@ namespace RemuxForge.Core.Models
             this.DurationSec = 0.0;
             this.TargetFps = 0.0;
             this.GeometryCropToFourThree = false;
+            this.ManualAnalysisCropPx = "";
         }
 
         #endregion
@@ -49,6 +50,11 @@ namespace RemuxForge.Core.Models
         public bool GeometryCropToFourThree { get; set; }
 
         /// <summary>
+        /// Crop manuale di analisi nel formato L:R:T:B
+        /// </summary>
+        public string ManualAnalysisCropPx { get; set; }
+
+        /// <summary>
         /// Fine estrazione in millisecondi
         /// </summary>
         public double EndMs
@@ -72,7 +78,8 @@ namespace RemuxForge.Core.Models
                 this.StartMs == other.StartMs &&
                 System.Math.Abs(this.DurationSec - other.DurationSec) <= 0.0001 &&
                 System.Math.Abs(this.TargetFps - other.TargetFps) <= 0.0001 &&
-                this.GeometryCropToFourThree == other.GeometryCropToFourThree)
+                this.GeometryCropToFourThree == other.GeometryCropToFourThree &&
+                string.Equals(this.ManualAnalysisCropPx, other.ManualAnalysisCropPx, System.StringComparison.OrdinalIgnoreCase))
             {
                 result = true;
             }
@@ -91,6 +98,7 @@ namespace RemuxForge.Core.Models
                 string.Equals(this.FilePath, parent.FilePath, System.StringComparison.OrdinalIgnoreCase) &&
                 System.Math.Abs(this.TargetFps - parent.TargetFps) <= 0.0001 &&
                 this.GeometryCropToFourThree == parent.GeometryCropToFourThree &&
+                string.Equals(this.ManualAnalysisCropPx, parent.ManualAnalysisCropPx, System.StringComparison.OrdinalIgnoreCase) &&
                 this.StartMs >= parent.StartMs &&
                 this.EndMs <= parent.EndMs)
             {

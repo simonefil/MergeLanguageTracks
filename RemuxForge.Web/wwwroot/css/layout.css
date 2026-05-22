@@ -131,6 +131,12 @@ textarea {
     -webkit-user-select: text;
 }
 
+.detail-content,
+.detail-content * {
+    user-select: text;
+    -webkit-user-select: text;
+}
+
 /* Progress panel */
 .progress-panel {
     display: grid;

@@ -252,6 +252,36 @@ namespace RemuxForge.Core.Infrastructure
         }
 
         /// <summary>
+        /// Formatta una lista di tracce importate con indicazione processing coerente con le opzioni audio
+        /// </summary>
+        /// <param name="tracks">Lista tracce importate</param>
+        /// <param name="options">Opzioni correnti</param>
+        /// <param name="forceProcessing">True se deep/source-fill richiedono render anche fuori scope generico</param>
+        /// <returns>Stringa formattata o "-" se vuota</returns>
+        public static string FormatImportedTrackList(List<TrackInfo> tracks, Options options, bool forceProcessing)
+        {
+            string result = "-";
+
+            if (tracks != null && tracks.Count > 0)
+            {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < tracks.Count; i++)
+                {
+                    if (i > 0) { sb.Append(" | "); }
+                    sb.Append(FormatTrackCompact(tracks[i]));
+
+                    if (ShouldDisplayAudioProcessing(tracks[i], options, false, true, forceProcessing))
+                    {
+                        sb.Append(" -> ").Append(options.AudioFormat.ToUpperInvariant());
+                    }
+                }
+                result = sb.ToString();
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Estrae il DefaultDurationNs della prima traccia video trovata
         /// </summary>
         /// <param name="tracks">Lista tracce da esaminare</param>
@@ -324,6 +354,118 @@ namespace RemuxForge.Core.Infrastructure
             }
 
             string result = count > 0 ? sb.ToString() : "-";
+            return result;
+        }
+
+        /// <summary>
+        /// Costruisce la lista tracce audio risultato finale con indicazione processing coerente con le opzioni audio
+        /// </summary>
+        /// <param name="sourceTracks">Tracce sorgente audio</param>
+        /// <param name="keptIds">ID tracce sorgente mantenute</param>
+        /// <param name="importedTracks">Tracce importate</param>
+        /// <param name="options">Opzioni correnti</param>
+        /// <param name="filterActive">True se il filtro sorgente e' attivo</param>
+        /// <param name="hasMerge">True se il record importa tracce da un file lingua</param>
+        /// <param name="forceImportedProcessing">True se deep/source-fill richiedono render sulle tracce importate</param>
+        /// <returns>Stringa formattata del risultato</returns>
+        public static string FormatResultTrackList(List<TrackInfo> sourceTracks, List<int> keptIds, List<TrackInfo> importedTracks, Options options, bool filterActive, bool hasMerge, bool forceImportedProcessing)
+        {
+            StringBuilder sb = new StringBuilder();
+            int count = 0;
+
+            if (sourceTracks != null)
+            {
+                for (int i = 0; i < sourceTracks.Count; i++)
+                {
+                    if (filterActive && !keptIds.Contains(sourceTracks[i].Id))
+                    {
+                        continue;
+                    }
+
+                    if (count > 0) { sb.Append(" | "); }
+                    sb.Append(FormatTrackCompact(sourceTracks[i]));
+
+                    if (ShouldDisplayAudioProcessing(sourceTracks[i], options, true, hasMerge, false))
+                    {
+                        sb.Append(" -> ").Append(options.AudioFormat.ToUpperInvariant());
+                    }
+                    count++;
+                }
+            }
+
+            if (importedTracks != null)
+            {
+                for (int i = 0; i < importedTracks.Count; i++)
+                {
+                    if (count > 0) { sb.Append(" | "); }
+                    sb.Append(FormatTrackCompact(importedTracks[i]));
+
+                    if (ShouldDisplayAudioProcessing(importedTracks[i], options, false, hasMerge, forceImportedProcessing))
+                    {
+                        sb.Append(" -> ").Append(options.AudioFormat.ToUpperInvariant());
+                    }
+                    count++;
+                }
+            }
+
+            string result = count > 0 ? sb.ToString() : "-";
+            return result;
+        }
+
+        #endregion
+
+        #region Metodi privati
+
+        /// <summary>
+        /// True se la traccia deve mostrare indicazione di processing audio
+        /// </summary>
+        /// <param name="track">Traccia audio</param>
+        /// <param name="options">Opzioni correnti</param>
+        /// <param name="sourceTrack">True se la traccia arriva dal sorgente</param>
+        /// <param name="hasMerge">True se il record importa un file lingua</param>
+        /// <param name="forceProcessing">True se deep/source-fill richiedono render non generico</param>
+        /// <returns>True se va mostrato il formato target</returns>
+        private static bool ShouldDisplayAudioProcessing(TrackInfo track, Options options, bool sourceTrack, bool hasMerge, bool forceProcessing)
+        {
+            bool result = false;
+
+            if (track == null || options == null || options.AudioFormat.Length == 0 || CodecMapping.IsSpatialCodec(track))
+            {
+                return result;
+            }
+
+            if (forceProcessing)
+            {
+                result = true;
+            }
+            else if (IsTrackInGenericAudioScope(sourceTrack, hasMerge, options.AudioProcessingScope))
+            {
+                result = CodecMapping.RequiresGenericAudioRender(track, options);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// True se la traccia rientra nello scope audio generico configurato
+        /// </summary>
+        /// <param name="sourceTrack">True se la traccia arriva dal sorgente</param>
+        /// <param name="hasMerge">True se il record importa un file lingua</param>
+        /// <param name="audioScope">Scope audio configurato</param>
+        /// <returns>True se lo scope include la traccia</returns>
+        private static bool IsTrackInGenericAudioScope(bool sourceTrack, bool hasMerge, string audioScope)
+        {
+            bool result = false;
+
+            if (audioScope == "all")
+            {
+                result = true;
+            }
+            else if (audioScope == "lang")
+            {
+                result = !sourceTrack || !hasMerge;
+            }
+
             return result;
         }
 

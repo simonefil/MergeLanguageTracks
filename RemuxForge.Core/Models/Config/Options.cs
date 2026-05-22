@@ -37,6 +37,8 @@ namespace RemuxForge.Core.Models
             this.FrameSyncDiagnostics = false;
             this.DeepAnalysis = false;
             this.DeepAnalysisDiagnostics = false;
+            this.AnalysisCropSourcePx = "";
+            this.AnalysisCropLanguagePx = "";
             this.AudioCodec = new List<string>();
             this.SubOnly = false;
             this.AudioOnly = false;
@@ -156,6 +158,67 @@ namespace RemuxForge.Core.Models
             }
 
             return options;
+        }
+
+        /// <summary>
+        /// Parsa un crop analisi nel formato L:R:T:B in pixel
+        /// </summary>
+        /// <param name="value">Valore da parsare</param>
+        /// <param name="left">Pixel da tagliare a sinistra</param>
+        /// <param name="right">Pixel da tagliare a destra</param>
+        /// <param name="top">Pixel da tagliare in alto</param>
+        /// <param name="bottom">Pixel da tagliare in basso</param>
+        /// <returns>True se il valore e' vuoto o valido</returns>
+        public static bool TryParseAnalysisCropPx(string value, out int left, out int right, out int top, out int bottom)
+        {
+            bool result = true;
+            string trimmed = value != null ? value.Trim() : "";
+            string[] parts;
+
+            left = 0;
+            right = 0;
+            top = 0;
+            bottom = 0;
+
+            if (trimmed.Length == 0)
+            {
+                return result;
+            }
+
+            parts = trimmed.Split(':');
+            if (parts.Length != 4 ||
+                !int.TryParse(parts[0].Trim(), out left) ||
+                !int.TryParse(parts[1].Trim(), out right) ||
+                !int.TryParse(parts[2].Trim(), out top) ||
+                !int.TryParse(parts[3].Trim(), out bottom) ||
+                left < 0 || right < 0 || top < 0 || bottom < 0)
+            {
+                result = false;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Normalizza il crop analisi rimuovendo il valore no-op
+        /// </summary>
+        /// <param name="value">Valore crop L:R:T:B</param>
+        /// <returns>Stringa normalizzata, vuota se nessun crop</returns>
+        public static string NormalizeAnalysisCropPx(string value)
+        {
+            string result = value != null ? value.Trim() : "";
+            int left;
+            int right;
+            int top;
+            int bottom;
+
+            if (TryParseAnalysisCropPx(result, out left, out right, out top, out bottom) &&
+                left == 0 && right == 0 && top == 0 && bottom == 0)
+            {
+                result = "";
+            }
+
+            return result;
         }
 
         #endregion
@@ -384,6 +447,14 @@ namespace RemuxForge.Core.Models
                 {
                     options.ManualStretchFactor = value.Trim();
                     options.SpeedCorrectionMode = SPEED_CORRECTION_MANUAL;
+                }
+                else if (key == "analysis-crop-source-px" || key == "analysis-crop-source")
+                {
+                    options.AnalysisCropSourcePx = NormalizeAnalysisCropPx(value);
+                }
+                else if (key == "analysis-crop-lang-px" || key == "analysis-crop-language-px" || key == "analysis-crop-lang" || key == "analysis-crop-language")
+                {
+                    options.AnalysisCropLanguagePx = NormalizeAnalysisCropPx(value);
                 }
                 else if (key == "ac" || key == "audio-codec")
                 {
@@ -848,6 +919,16 @@ namespace RemuxForge.Core.Models
         /// Scrive diagnostica JSON per la deep analysis (--deep-analysis-diagnostics)
         /// </summary>
         public bool DeepAnalysisDiagnostics { get; set; }
+
+        /// <summary>
+        /// Crop manuale source per frame di analisi visuale, formato L:R:T:B in pixel
+        /// </summary>
+        public string AnalysisCropSourcePx { get; set; }
+
+        /// <summary>
+        /// Crop manuale lingua per frame di analisi visuale, formato L:R:T:B in pixel
+        /// </summary>
+        public string AnalysisCropLanguagePx { get; set; }
 
         /// <summary>
         /// Lista di codec audio da importare (-ac, --audio-codec). Solo le tracce con questi codec verranno importate

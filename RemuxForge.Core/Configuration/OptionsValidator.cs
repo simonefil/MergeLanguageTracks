@@ -69,6 +69,7 @@ namespace RemuxForge.Core.Configuration
             ValidateSpeedCorrection(options, result);
             ValidateAudioProcessing(options, needsMerge, result);
             ValidateAudioSourceFill(options, needsMerge, result);
+            ValidateAnalysisCrop(options, result);
             ValidateRegex(options.MatchPattern, result);
             ValidateExtensions(options, result);
             ValidateLanguages(options, needsMerge, result);
@@ -235,6 +236,29 @@ namespace RemuxForge.Core.Configuration
         private static bool IsValidScope(string value)
         {
             return value == "disabled" || value == "lang" || value == "all";
+        }
+
+        /// <summary>
+        /// Valida i crop manuali usati solo dal matching visuale
+        /// </summary>
+        /// <param name="options">Opzioni da validare</param>
+        /// <param name="result">Risultato validazione da aggiornare</param>
+        private static void ValidateAnalysisCrop(Options options, OptionsValidationResult result)
+        {
+            int left;
+            int right;
+            int top;
+            int bottom;
+
+            if (!Options.TryParseAnalysisCropPx(options.AnalysisCropSourcePx, out left, out right, out top, out bottom))
+            {
+                result.AddError("analysis-crop-source-px non valido: usare L:R:T:B con interi >= 0");
+            }
+
+            if (!Options.TryParseAnalysisCropPx(options.AnalysisCropLanguagePx, out left, out right, out top, out bottom))
+            {
+                result.AddError("analysis-crop-lang-px non valido: usare L:R:T:B con interi >= 0");
+            }
         }
 
         /// <summary>

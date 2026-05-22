@@ -196,6 +196,7 @@ namespace RemuxForge.Core.Pipeline
                     }
 
                     speedService = new SpeedCorrectionService(ffmpegPath);
+                    speedService.SetAnalysisCrop(this._opts.AnalysisCropSourcePx, this._opts.AnalysisCropLanguagePx);
                     ConsoleHelper.Progress(LogSection.Speed, 20, "Speed: stretch");
                     speedOk = speedService.FindDelayAndVerifyManual(record.SourceFilePath, record.LangFilePath, this._opts.ManualStretchFactor, sourceDurationMs);
                     record.SpeedCorrectionTimeMs = speedService.ExecutionTimeMs;
@@ -308,6 +309,7 @@ namespace RemuxForge.Core.Pipeline
                         sourceDurationMs = (int)(sourceInfo.ContainerDurationNs / 1000000);
 
                         speedService = new SpeedCorrectionService(ffmpegPath);
+                        speedService.SetAnalysisCrop(this._opts.AnalysisCropSourcePx, this._opts.AnalysisCropLanguagePx);
                         ConsoleHelper.Progress(LogSection.Speed, 20, "Speed: stretch");
                         speedOk = speedService.FindDelayAndVerify(record.SourceFilePath, record.LangFilePath, sourceDefaultDuration, langDefaultDuration, sourceDurationMs);
 
@@ -410,6 +412,7 @@ namespace RemuxForge.Core.Pipeline
                     {
                         deepTrackPolicy = this.BuildDeepAnalysisTrackPolicy(sourceInfo, langInfo);
                         DeepAnalysisService deepService = new DeepAnalysisService(ffmpegPath, this._toolPathResolver);
+                        deepService.SetAnalysisCrop(this._opts.AnalysisCropSourcePx, this._opts.AnalysisCropLanguagePx);
                         EditMap editMap = deepService.Analyze(record.SourceFilePath, record.LangFilePath, sourceDefaultDuration, langDefaultDuration, sourceDurationMs, deepManualStretchFactor, deepAllowAutoStretch, deepTrackPolicy);
 
                         record.DeepAnalysisTimeMs = deepService.AnalysisTimeMs;
@@ -570,6 +573,7 @@ namespace RemuxForge.Core.Pipeline
                         if (ffmpegPath.Length > 0 && sourceDefaultDuration > 0 && langDefaultDuration > 0)
                         {
                             speedService = new SpeedCorrectionService(ffmpegPath);
+                            speedService.SetAnalysisCrop(this._opts.AnalysisCropSourcePx, this._opts.AnalysisCropLanguagePx);
                             ConsoleHelper.Progress(LogSection.Speed, 20, "Speed: stretch");
                             speedOk = speedService.FindDelayAndVerify(record.SourceFilePath, record.LangFilePath, sourceDefaultDuration, langDefaultDuration, sourceDurationMs);
 

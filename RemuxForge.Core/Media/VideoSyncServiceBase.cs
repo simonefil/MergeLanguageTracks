@@ -45,6 +45,26 @@ namespace RemuxForge.Core.Media
         protected bool _geometryCropLanguageToFourThree;
 
         /// <summary>
+        /// Crop manuale source per analisi visuale nel formato L:R:T:B
+        /// </summary>
+        protected string _analysisCropSourcePx;
+
+        /// <summary>
+        /// Crop manuale lingua per analisi visuale nel formato L:R:T:B
+        /// </summary>
+        protected string _analysisCropLanguagePx;
+
+        /// <summary>
+        /// File sorgente dell'analisi corrente
+        /// </summary>
+        private string _analysisCropSourceFile;
+
+        /// <summary>
+        /// File lingua dell'analisi corrente
+        /// </summary>
+        private string _analysisCropLanguageFile;
+
+        /// <summary>
         /// Analyzer geometry video condiviso dal servizio
         /// </summary>
         private readonly VideoGeometryAnalyzer _geometryAnalyzer;
@@ -91,12 +111,31 @@ namespace RemuxForge.Core.Media
             this._ffmpegConfig = AppSettingsService.Instance.Settings.Advanced.Ffmpeg;
             this._geometryCropSourceToFourThree = false;
             this._geometryCropLanguageToFourThree = false;
+            this._analysisCropSourcePx = "";
+            this._analysisCropLanguagePx = "";
+            this._analysisCropSourceFile = "";
+            this._analysisCropLanguageFile = "";
             this._geometryAnalyzer = new VideoGeometryAnalyzer(this._ffmpegPath, this._ffmpegConfig, this._logSection);
             this._blackBorderNormalizer = new BlackBorderNormalizer(this._ffmpegPath, this._vsConfig, this._ffmpegConfig, this._logSection, this._geometryAnalyzer);
             this._sceneCutDetector = new SceneCutDetector(this._vsConfig);
             this._visualMetricCalculator = new VisualMetricCalculator(this._vsConfig);
             this._lastSourceGeometryInfo = null;
             this._lastLanguageGeometryInfo = null;
+        }
+
+        #endregion
+
+        #region Metodi pubblici
+
+        /// <summary>
+        /// Configura il crop manuale source/lang usato solo per l'analisi visuale
+        /// </summary>
+        /// <param name="sourceCropPx">Crop source nel formato L:R:T:B</param>
+        /// <param name="languageCropPx">Crop lingua nel formato L:R:T:B</param>
+        public void SetAnalysisCrop(string sourceCropPx, string languageCropPx)
+        {
+            this._analysisCropSourcePx = Options.NormalizeAnalysisCropPx(sourceCropPx);
+            this._analysisCropLanguagePx = Options.NormalizeAnalysisCropPx(languageCropPx);
         }
 
         #endregion
@@ -117,9 +156,29 @@ namespace RemuxForge.Core.Media
         /// <param name="timestampsMs">Array di timestamp assoluti in ms, uno per frame estratto (output)</param>
         protected void ExtractSegment(string filePath, int startMs, double durationSec, double targetFps, bool geometryCropToFourThree, out List<byte[]> frames, out double[] timestampsMs)
         {
+            string manualCropPx = this.ResolveManualAnalysisCrop(filePath);
+            this.ExtractSegment(filePath, startMs, durationSec, targetFps, geometryCropToFourThree, manualCropPx, out frames, out timestampsMs);
+        }
+
+        /// <summary>
+        /// Estrae frame di un segmento video applicando un eventuale crop manuale di analisi
+        /// </summary>
+        /// <param name="filePath">Percorso file video</param>
+        /// <param name="startMs">Inizio estrazione in millisecondi</param>
+        /// <param name="durationSec">Durata estrazione in secondi</param>
+        /// <param name="targetFps">FPS target per normalizzazione (0 = passthrough senza decimazione)</param>
+        /// <param name="geometryCropToFourThree">Se true, croppa il frame a 4:3 centrato prima dello scale (rimuove pillarbox)</param>
+        /// <param name="manualCropPx">Crop manuale L:R:T:B in pixel; se presente sostituisce il crop geometry 4:3</param>
+        /// <param name="frames">Lista frame grayscale estratti (output)</param>
+        /// <param name="timestampsMs">Array di timestamp assoluti in ms, uno per frame estratto (output)</param>
+        protected void ExtractSegment(string filePath, int startMs, double durationSec, double targetFps, bool geometryCropToFourThree, string manualCropPx, out List<byte[]> frames, out double[] timestampsMs)
+        {
             FrameExtractionService extractor = new FrameExtractionService(this._ffmpegPath, this._vsConfig, this._ffmpegConfig, this._logSection);
-            extractor.ExtractSegment(filePath, startMs, durationSec, targetFps, geometryCropToFourThree, out frames, out timestampsMs);
-            this.NormalizeBlackBorders(filePath, frames);
+            string normalizedManualCrop = Options.NormalizeAnalysisCropPx(manualCropPx);
+            bool effectiveGeometryCrop = this.UseGeometryCrop(geometryCropToFourThree, normalizedManualCrop);
+
+            extractor.ExtractSegment(filePath, startMs, durationSec, targetFps, effectiveGeometryCrop, normalizedManualCrop, out frames, out timestampsMs);
+            this.NormalizeBlackBorders(filePath, effectiveGeometryCrop, normalizedManualCrop, frames);
         }
 
         /// <summary>
@@ -216,30 +275,43 @@ namespace RemuxForge.Core.Media
         {
             VideoGeometryProfile sourceGeometry;
             VideoGeometryProfile languageGeometry;
+            string sourceManualCrop;
+            string languageManualCrop;
+            bool sourceGeometryCrop;
+            bool languageGeometryCrop;
             this._lastSourceGeometryInfo = null;
             this._lastLanguageGeometryInfo = null;
             this._geometryCropSourceToFourThree = false;
             this._geometryCropLanguageToFourThree = false;
+            this._analysisCropSourceFile = sourceFile;
+            this._analysisCropLanguageFile = languageFile;
             this._blackBorderNormalizer.Reset();
+
+            sourceManualCrop = this._analysisCropSourcePx;
+            languageManualCrop = this._analysisCropLanguagePx;
+            this.LogManualAnalysisCrop("source", sourceManualCrop);
+            this.LogManualAnalysisCrop("lang", languageManualCrop);
 
             sourceGeometry = this.AnalyzeVideoGeometry(sourceFile);
             languageGeometry = this.AnalyzeVideoGeometry(languageFile);
 
-            this._blackBorderNormalizer.PrepareFile(sourceFile, 0, false);
-            this._blackBorderNormalizer.PrepareFile(languageFile, 0, false);
+            this._blackBorderNormalizer.PrepareFile(sourceFile, 0, false, sourceManualCrop);
+            this._blackBorderNormalizer.PrepareFile(languageFile, 0, false, languageManualCrop);
 
             this.LogVideoGeometryComparison(sourceGeometry, languageGeometry);
-            this.ApplyGeometryDrivenCrop(sourceGeometry, languageGeometry);
+            this.ApplyGeometryDrivenCrop(sourceGeometry, languageGeometry, sourceManualCrop, languageManualCrop);
 
-            if (this._geometryCropSourceToFourThree || this._geometryCropLanguageToFourThree)
+            sourceGeometryCrop = this.UseGeometryCrop(this._geometryCropSourceToFourThree, sourceManualCrop);
+            languageGeometryCrop = this.UseGeometryCrop(this._geometryCropLanguageToFourThree, languageManualCrop);
+            if (sourceGeometryCrop || languageGeometryCrop)
             {
                 this._blackBorderNormalizer.Reset();
-                this._blackBorderNormalizer.PrepareFile(sourceFile, 0, this._geometryCropSourceToFourThree);
-                this._blackBorderNormalizer.PrepareFile(languageFile, 0, this._geometryCropLanguageToFourThree);
+                this._blackBorderNormalizer.PrepareFile(sourceFile, 0, sourceGeometryCrop, sourceManualCrop);
+                this._blackBorderNormalizer.PrepareFile(languageFile, 0, languageGeometryCrop, languageManualCrop);
             }
 
-            this._lastSourceGeometryInfo = this.BuildGeometryInfo(sourceGeometry, this._geometryCropSourceToFourThree);
-            this._lastLanguageGeometryInfo = this.BuildGeometryInfo(languageGeometry, this._geometryCropLanguageToFourThree);
+            this._lastSourceGeometryInfo = this.BuildGeometryInfo(sourceGeometry, sourceGeometryCrop, sourceManualCrop);
+            this._lastLanguageGeometryInfo = this.BuildGeometryInfo(languageGeometry, languageGeometryCrop, languageManualCrop);
         }
 
         /// <summary>
@@ -247,7 +319,9 @@ namespace RemuxForge.Core.Media
         /// </summary>
         /// <param name="sourceGeometry">Geometria sorgente</param>
         /// <param name="languageGeometry">Geometria lingua</param>
-        protected void ApplyGeometryDrivenCrop(VideoGeometryProfile sourceGeometry, VideoGeometryProfile languageGeometry)
+        /// <param name="sourceManualCropPx">Crop manuale source configurato</param>
+        /// <param name="languageManualCropPx">Crop manuale lingua configurato</param>
+        protected void ApplyGeometryDrivenCrop(VideoGeometryProfile sourceGeometry, VideoGeometryProfile languageGeometry, string sourceManualCropPx, string languageManualCropPx)
         {
             bool sourceFourThree = this.IsDisplayAspectFourThree(sourceGeometry);
             bool languageFourThree = this.IsDisplayAspectFourThree(languageGeometry);
@@ -263,13 +337,13 @@ namespace RemuxForge.Core.Media
                 return;
             }
 
-            if (sourceWide && languageFourThree && sourceSquare && sourceHasBorders)
+            if (sourceWide && languageFourThree && sourceSquare && sourceHasBorders && string.IsNullOrEmpty(sourceManualCropPx))
             {
                 this._geometryCropSourceToFourThree = true;
                 ConsoleHelper.Write(this._logSection, LogLevel.Notice, "  Geometry crop source 4:3 attivo: source wide/pillarbox vs lang 4:3");
             }
 
-            if (languageWide && sourceFourThree && languageSquare && languageHasBorders)
+            if (languageWide && sourceFourThree && languageSquare && languageHasBorders && string.IsNullOrEmpty(languageManualCropPx))
             {
                 this._geometryCropLanguageToFourThree = true;
                 ConsoleHelper.Write(this._logSection, LogLevel.Notice, "  Geometry crop lang 4:3 attivo: lang wide/pillarbox vs source 4:3");
@@ -332,10 +406,12 @@ namespace RemuxForge.Core.Media
         /// </summary>
         /// <param name="geometry">Profilo geometria interno</param>
         /// <param name="geometryCropToFourThree">True se crop 4:3 attivato dalla geometria</param>
+        /// <param name="manualCropPx">Crop manuale L:R:T:B in pixel</param>
         /// <returns>DTO diagnostico</returns>
-        protected FrameSyncGeometryInfo BuildGeometryInfo(VideoGeometryProfile geometry, bool geometryCropToFourThree)
+        protected FrameSyncGeometryInfo BuildGeometryInfo(VideoGeometryProfile geometry, bool geometryCropToFourThree, string manualCropPx)
         {
             FrameSyncGeometryInfo result = null;
+            string normalizedManualCrop = Options.NormalizeAnalysisCropPx(manualCropPx);
             if (geometry != null)
             {
                 result = new FrameSyncGeometryInfo();
@@ -354,8 +430,13 @@ namespace RemuxForge.Core.Media
                 result.CropRight = geometry.CropRight;
                 result.CropTop = geometry.CropTop;
                 result.CropBottom = geometry.CropBottom;
-                result.GeometryCropToFourThree = geometryCropToFourThree;
-                if (geometryCropToFourThree)
+                result.ManualAnalysisCropPx = normalizedManualCrop;
+                result.GeometryCropToFourThree = this.UseGeometryCrop(geometryCropToFourThree, normalizedManualCrop);
+                if (result.ManualAnalysisCropPx.Length > 0)
+                {
+                    result.CropMode = "manual_analysis_crop";
+                }
+                else if (result.GeometryCropToFourThree)
                 {
                     result.CropMode = "geometry_four_three";
                 }
@@ -380,7 +461,69 @@ namespace RemuxForge.Core.Media
         /// <param name="frames">Frame grayscale da normalizzare in-place</param>
         protected void NormalizeBlackBorders(string filePath, List<byte[]> frames)
         {
-            this._blackBorderNormalizer.Normalize(filePath, frames);
+            string manualCropPx = this.ResolveManualAnalysisCrop(filePath);
+            bool geometryCropToFourThree = this.UseGeometryCrop(false, manualCropPx);
+            this.NormalizeBlackBorders(filePath, geometryCropToFourThree, manualCropPx, frames);
+        }
+
+        /// <summary>
+        /// Rileva bordi neri stabili nel segmento e normalizza i frame usando la variante di crop applicata
+        /// </summary>
+        /// <param name="filePath">Percorso file, usato come chiave cache profilo</param>
+        /// <param name="geometryCropToFourThree">True se i frame sono stati estratti con crop geometry 4:3</param>
+        /// <param name="manualCropPx">Crop manuale L:R:T:B applicato ai frame</param>
+        /// <param name="frames">Frame grayscale da normalizzare in-place</param>
+        protected void NormalizeBlackBorders(string filePath, bool geometryCropToFourThree, string manualCropPx, List<byte[]> frames)
+        {
+            this._blackBorderNormalizer.Normalize(filePath, geometryCropToFourThree, manualCropPx, frames);
+        }
+
+        /// <summary>
+        /// Risolve il crop manuale configurato per il file dell'analisi corrente
+        /// </summary>
+        /// <param name="filePath">File video</param>
+        /// <returns>Crop L:R:T:B o stringa vuota</returns>
+        protected string ResolveManualAnalysisCrop(string filePath)
+        {
+            string result = "";
+
+            if (!string.IsNullOrEmpty(filePath))
+            {
+                if (string.Equals(filePath, this._analysisCropSourceFile, StringComparison.OrdinalIgnoreCase))
+                {
+                    result = this._analysisCropSourcePx;
+                }
+                else if (string.Equals(filePath, this._analysisCropLanguageFile, StringComparison.OrdinalIgnoreCase))
+                {
+                    result = this._analysisCropLanguagePx;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Restituisce true se il crop geometry puo' restare attivo con il crop manuale corrente
+        /// </summary>
+        /// <param name="geometryCropToFourThree">Flag crop geometry richiesto</param>
+        /// <param name="manualCropPx">Crop manuale normalizzato o raw</param>
+        /// <returns>True se usare il crop geometry</returns>
+        protected bool UseGeometryCrop(bool geometryCropToFourThree, string manualCropPx)
+        {
+            return geometryCropToFourThree && Options.NormalizeAnalysisCropPx(manualCropPx).Length == 0;
+        }
+
+        /// <summary>
+        /// Logga il crop manuale di analisi quando configurato
+        /// </summary>
+        /// <param name="role">Ruolo del file</param>
+        /// <param name="manualCropPx">Crop manuale normalizzato</param>
+        private void LogManualAnalysisCrop(string role, string manualCropPx)
+        {
+            if (!string.IsNullOrEmpty(manualCropPx))
+            {
+                ConsoleHelper.Write(this._logSection, LogLevel.Notice, "  Analysis crop " + role + " attivo: " + manualCropPx + " px");
+            }
         }
 
         /// <summary>

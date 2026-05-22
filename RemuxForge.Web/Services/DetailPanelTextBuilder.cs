@@ -17,8 +17,9 @@ namespace RemuxForge.Web.Services
         /// Costruisce il testo dettaglio per il record selezionato
         /// </summary>
         /// <param name="record">Record selezionato</param>
+        /// <param name="options">Opzioni correnti</param>
         /// <returns>Stringa con dettaglio completo</returns>
-        public string Build(FileProcessingRecord record)
+        public string Build(FileProcessingRecord record, Options options)
         {
             string result = "";
             StringBuilder sb;
@@ -32,7 +33,7 @@ namespace RemuxForge.Web.Services
             this.AppendHeader(sb, record);
             this.AppendSourceFile(sb, record);
             this.AppendLanguageFile(sb, record);
-            this.AppendTracks(sb, record);
+            this.AppendTracks(sb, record, options);
             this.AppendSync(sb, record);
             this.AppendErrors(sb, record);
             this.AppendProcessingTimes(sb, record);
@@ -82,13 +83,18 @@ namespace RemuxForge.Web.Services
         /// <summary>
         /// Aggiunge tracce sorgente, importate e risultato finale
         /// </summary>
-        private void AppendTracks(StringBuilder sb, FileProcessingRecord record)
+        private void AppendTracks(StringBuilder sb, FileProcessingRecord record, Options options)
         {
             bool filterAudio;
             bool filterSub;
+            bool hasMerge;
+            bool forceImportedAudioProcessing;
             sb.Append("\nTRACCE SORGENTE\n");
             sb.Append("  Audio: ").Append(Utils.FormatTrackList(record.SourceAudioTracks)).Append('\n');
             sb.Append("  Sub:   ").Append(Utils.FormatTrackList(record.SourceSubTracks)).Append('\n');
+
+            hasMerge = record.LangFilePath.Length > 0;
+            forceImportedAudioProcessing = this.HasForcedImportedAudioProcessing(record, options);
 
             if (record.KeptSourceAudioIds.Count > 0 || record.KeptSourceSubIds.Count > 0)
             {
@@ -100,7 +106,7 @@ namespace RemuxForge.Web.Services
             if (record.ImportedAudioTracks.Count > 0 || record.ImportedSubTracks.Count > 0)
             {
                 sb.Append("\nTRACCE DA IMPORTARE\n");
-                sb.Append("  Audio: ").Append(Utils.FormatImportedTrackList(record.ImportedAudioTracks, record.DisplayAudioFormat)).Append('\n');
+                sb.Append("  Audio: ").Append(Utils.FormatImportedTrackList(record.ImportedAudioTracks, options, forceImportedAudioProcessing)).Append('\n');
                 sb.Append("  Sub:   ").Append(Utils.FormatTrackList(record.ImportedSubTracks)).Append('\n');
             }
 
@@ -109,9 +115,32 @@ namespace RemuxForge.Web.Services
             if (record.ImportedAudioTracks.Count > 0 || record.ImportedSubTracks.Count > 0 || filterAudio || filterSub)
             {
                 sb.Append("\nRISULTATO FINALE\n");
-                sb.Append("  Audio: ").Append(Utils.FormatResultTrackList(record.SourceAudioTracks, record.KeptSourceAudioIds, record.ImportedAudioTracks, record.DisplayAudioFormat, filterAudio)).Append('\n');
+                sb.Append("  Audio: ").Append(Utils.FormatResultTrackList(record.SourceAudioTracks, record.KeptSourceAudioIds, record.ImportedAudioTracks, options, filterAudio, hasMerge, forceImportedAudioProcessing)).Append('\n');
                 sb.Append("  Sub:   ").Append(Utils.FormatResultTrackList(record.SourceSubTracks, record.KeptSourceSubIds, record.ImportedSubTracks, "", filterSub)).Append('\n');
             }
+        }
+
+        /// <summary>
+        /// True se deep analysis o source fill possono forzare render audio sulle tracce importate
+        /// </summary>
+        /// <param name="record">Record selezionato</param>
+        /// <param name="options">Opzioni correnti</param>
+        /// <returns>True se il processing importato non e' solo conversione generica</returns>
+        private bool HasForcedImportedAudioProcessing(FileProcessingRecord record, Options options)
+        {
+            bool deepAudioRequired;
+
+            if (options == null || options.AudioFormat.Length == 0)
+            {
+                return false;
+            }
+
+            deepAudioRequired = record.DeepAnalysisApplied &&
+                record.DeepAnalysisMap != null &&
+                record.DeepAnalysisMap.Operations.Count > 0 &&
+                !options.SubOnly;
+
+            return deepAudioRequired || options.AudioSourceFillThresholdMs > 0;
         }
 
         /// <summary>

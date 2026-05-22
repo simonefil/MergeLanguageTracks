@@ -85,7 +85,7 @@
                                     SelectedIndices="@_selectedIndices"
                                     OnRowSelected="SelectRow"
                                     OnContextMenu="ShowContextMenu" />
-            <DetailPanelComponent Record="@_selectedRecord" />
+            <DetailPanelComponent Record="@_selectedRecord" Options="@Orchestrator.CurrentOptions" />
         </div>
     }
 

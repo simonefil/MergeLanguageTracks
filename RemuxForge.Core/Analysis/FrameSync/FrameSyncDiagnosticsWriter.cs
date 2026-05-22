@@ -243,7 +243,7 @@ namespace RemuxForge.Core.Analysis.FrameSync
         {
             using (StreamWriter writer = new StreamWriter(filePath, false))
             {
-                writer.WriteLine("episode,role,file_path,width,height,sar_num,sar_den,dar_num,dar_den,display_width,display_height,display_aspect,has_black_border_crop,crop_left,crop_right,crop_top,crop_bottom,geometry_crop_to_four_three,crop_mode");
+                writer.WriteLine("episode,role,file_path,width,height,sar_num,sar_den,dar_num,dar_den,display_width,display_height,display_aspect,has_black_border_crop,crop_left,crop_right,crop_top,crop_bottom,geometry_crop_to_four_three,manual_analysis_crop_px,crop_mode");
                 this.WriteGeometryCsvRow(writer, record, "source", record.FrameSyncResult.SourceGeometry);
                 this.WriteGeometryCsvRow(writer, record, "language", record.FrameSyncResult.LanguageGeometry);
             }
@@ -369,6 +369,8 @@ namespace RemuxForge.Core.Analysis.FrameSync
             writer.Write(geometry.CropBottom.ToString(CultureInfo.InvariantCulture));
             writer.Write(',');
             writer.Write(geometry.GeometryCropToFourThree ? "true" : "false");
+            writer.Write(',');
+            writer.Write(this.EscapeCsv(geometry.ManualAnalysisCropPx));
             writer.Write(',');
             writer.WriteLine(this.EscapeCsv(geometry.CropMode));
         }

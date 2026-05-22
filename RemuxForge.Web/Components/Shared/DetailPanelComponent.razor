@@ -12,6 +12,11 @@
     [Parameter] public FileProcessingRecord Record { get; set; }
 
     /// <summary>
+    /// Opzioni correnti per calcolare il processing audio visualizzato
+    /// </summary>
+    [Parameter] public Options Options { get; set; }
+
+    /// <summary>
     /// Builder testo dettaglio episodio
     /// </summary>
     private DetailPanelTextBuilder _builder = new DetailPanelTextBuilder();
@@ -22,6 +27,6 @@
     /// <returns>Stringa con dettaglio completo</returns>
     private string BuildDetail()
     {
-        return this._builder.Build(Record);
+        return this._builder.Build(Record, Options);
     }
 }

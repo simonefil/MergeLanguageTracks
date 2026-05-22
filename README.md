@@ -259,6 +259,8 @@ RemuxForge.Cli --mode remux -s "D:\Serie.ENG" -l "D:\Serie.ITA" -t ita -d "D:\Ou
 | | --speed-correction | Modalita' correzione velocita': off, auto, manual. Default: off |
 | | --stretch-factor | Fattore fisso per speed-correction manual, esempio 25025/24000 |
 | | --no-speed-correction | Compatibilita': disattiva la correzione velocita' |
+| | --analysis-crop-source-px | Crop manuale Source per analisi visuale, formato `L:R:T:B` |
+| | --analysis-crop-lang-px | Crop manuale Lingua per analisi visuale, formato `L:R:T:B` |
 | -ad | --audio-delay | Delay manuale in ms per l'audio (sommato a frame-sync/speed se attivi) |
 | -sd | --subtitle-delay | Delay manuale in ms per i sottotitoli |
 | | --audio-source-fill-threshold-ms | Soglia in ms per riempire audio importato con segmenti audio source |
@@ -352,6 +354,14 @@ Attivabile con **-fs** da CLI o dal checkbox nella configurazione WebUI.
 Quando abilitato in configurazione, il fingerprint audio globale puo' confermare o bocciare candidati deboli. Non sostituisce la verifica video e non trasforma Frame-Sync in una correzione di tagli.
 
 Frame-Sync non applica cut o insert. Se il drift cambia durante l'episodio, il risultato viene scartato e serve la Deep Analysis.
+
+### Crop Analisi Manuale
+
+Il crop manuale serve solo al matching visuale di Frame-Sync, Speed Correction e Deep Analysis. Non modifica il video finale e non viene passato a mkvmerge.
+
+Da CLI si configura con `--analysis-crop-source-px L:R:T:B` e `--analysis-crop-lang-px L:R:T:B`. In WebUI sono i campi `Crop src` e `Crop lang` nella sezione Sincronizzazione. I quattro valori sono pixel sul frame originale prima dello scale: sinistra, destra, alto, basso. Vuoto o `0:0:0:0` disabilita il crop.
+
+Quando un crop manuale e' impostato su uno dei due lati, sostituisce per quel lato il crop geometry 4:3 automatico durante l'analisi. L'autocrop dei bordi neri puo' ancora normalizzare i frame gia' croppati per il matching.
 
 ### Deep Analysis
 

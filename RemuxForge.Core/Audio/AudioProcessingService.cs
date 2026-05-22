@@ -229,6 +229,12 @@ namespace RemuxForge.Core.Audio
                 result.Success = true;
                 return result;
             }
+            else if (!CodecMapping.RequiresGenericAudioRender(job.Track, request.Options))
+            {
+                result.Success = true;
+                ConsoleHelper.Write(LogSection.Conv, LogLevel.Notice, "  Audio track " + job.Track.Id + " gia' in formato " + request.Options.AudioFormat.ToUpperInvariant() + ", processing saltato");
+                return result;
+            }
             else
             {
                 if (!this.ProcessSimple(request, job.IsSource ? request.SourceFilePath : request.LanguageFilePath, job.Track, outputFile, result))

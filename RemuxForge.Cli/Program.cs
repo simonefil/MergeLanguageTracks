@@ -258,6 +258,10 @@ REMUX - SYNC:
         --speed-correction <m>   Correzione velocita': off, auto, manual (default: off)
         --stretch-factor <f>     Stretch manuale per mkvmerge --sync (es: 25000/24000)
         --no-speed-correction    Alias per --speed-correction off
+        --analysis-crop-source-px <L:R:T:B>
+                                 Crop manuale source solo per analisi visuale
+        --analysis-crop-lang-px <L:R:T:B>
+                                 Crop manuale lingua solo per analisi visuale
   -ad,  --audio-delay <ms>       Delay manuale audio in ms (sommato a sync auto)
   -sd,  --subtitle-delay <ms>    Delay manuale sottotitoli in ms
         --audio-source-fill-threshold-ms <ms>
@@ -488,6 +492,10 @@ NOTE:
             {
                 ConsoleHelper.Write(LogSection.Config, LogLevel.Text, "  Stretch manuale:    " + opts.ManualStretchFactor);
             }
+            if (opts.AnalysisCropSourcePx.Length > 0 || opts.AnalysisCropLanguagePx.Length > 0)
+            {
+                ConsoleHelper.Write(LogSection.Config, LogLevel.Text, "  Crop analisi:       source=" + FormatAnalysisCrop(opts.AnalysisCropSourcePx) + ", lang=" + FormatAnalysisCrop(opts.AnalysisCropLanguagePx));
+            }
 
             if (opts.DeepAnalysis)
             {
@@ -574,6 +582,16 @@ NOTE:
             if (opts.AudioSourceFillEnd) { modes.Add(Options.AUDIO_SOURCE_FILL_END); }
             if (opts.AudioSourceFillInsertSilence) { modes.Add(Options.AUDIO_SOURCE_FILL_INSERT_SILENCE); }
             return string.Join(",", modes);
+        }
+
+        /// <summary>
+        /// Formatta un crop di analisi opzionale
+        /// </summary>
+        /// <param name="cropPx">Crop nel formato L:R:T:B</param>
+        /// <returns>Crop o off</returns>
+        private static string FormatAnalysisCrop(string cropPx)
+        {
+            return cropPx.Length > 0 ? cropPx : "off";
         }
 
         /// <summary>

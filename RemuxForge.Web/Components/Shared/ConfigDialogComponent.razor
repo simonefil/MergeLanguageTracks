@@ -173,6 +173,12 @@
                 <span class="ui-toggle" @onclick="ToggleDeepAnalysis" @onmouseenter="@(() => SetFieldHelp("remux.deep"))">@(_deepAnalysis ? "[X]" : "[ ]") Deep analysis (analisi completa)</span>
             </div>
             <div class="form-row">
+                <span class="form-label">Crop src:</span>
+                <input class="form-input" style="width: 18ch;" @bind="_analysisCropSourcePx" placeholder="L:R:T:B" @onfocus="@(() => SetFieldHelp("remux.cropSource"))" @onmouseenter="@(() => SetFieldHelp("remux.cropSource"))" />
+                <span style="margin-left: 2ch;">lang</span>
+                <input class="form-input" style="width: 18ch;" @bind="_analysisCropLanguagePx" placeholder="L:R:T:B" @onfocus="@(() => SetFieldHelp("remux.cropLang"))" @onmouseenter="@(() => SetFieldHelp("remux.cropLang"))" />
+            </div>
+            <div class="form-row">
                 <span class="form-label">Delay audio:</span>
                 <input class="form-input" style="width: 8ch;" @bind="_audioDelay" @onfocus="@(() => SetFieldHelp("remux.audioDelay"))" @onmouseenter="@(() => SetFieldHelp("remux.audioDelay"))" /> <span style="margin-left: 0.5ch;">ms</span>
             </div>
@@ -463,6 +469,16 @@
     private bool _deepAnalysis;
 
     /// <summary>
+    /// Crop manuale source per analisi visuale
+    /// </summary>
+    private string _analysisCropSourcePx = "";
+
+    /// <summary>
+    /// Crop manuale lingua per analisi visuale
+    /// </summary>
+    private string _analysisCropLanguagePx = "";
+
+    /// <summary>
     /// Delay audio in ms (stringa per binding input)
     /// </summary>
     private string _audioDelay = "0";
@@ -656,6 +672,8 @@
             _manualStretchFactor = Options.ManualStretchFactor;
             _frameSync = Options.FrameSync;
             _deepAnalysis = Options.DeepAnalysis;
+            _analysisCropSourcePx = Options.AnalysisCropSourcePx;
+            _analysisCropLanguagePx = Options.AnalysisCropLanguagePx;
             _audioDelay = Options.AudioDelay.ToString();
             _subDelay = Options.SubtitleDelay.ToString();
             _audioSourceFillEnabled = Options.AudioSourceFillThresholdMs > 0 ||
@@ -749,6 +767,8 @@
         opts.ManualStretchFactor = _manualStretchFactor.Trim();
         opts.FrameSync = _frameSync;
         opts.DeepAnalysis = _deepAnalysis;
+        opts.AnalysisCropSourcePx = Options.NormalizeAnalysisCropPx(_analysisCropSourcePx);
+        opts.AnalysisCropLanguagePx = Options.NormalizeAnalysisCropPx(_analysisCropLanguagePx);
 
         int.TryParse(_audioDelay, out audioDelay);
         opts.AudioDelay = audioDelay;
@@ -913,6 +933,16 @@
         if (_audioSourceFillEnabled && _audioProcessingScope == "disabled")
         {
             errors.Add("Audio source: audio deve essere Lang o Tutti");
+        }
+
+        if (!Options.TryParseAnalysisCropPx(_analysisCropSourcePx, out _, out _, out _, out _))
+        {
+            errors.Add("Crop source: formato L:R:T:B non valido");
+        }
+
+        if (!Options.TryParseAnalysisCropPx(_analysisCropLanguagePx, out _, out _, out _, out _))
+        {
+            errors.Add("Crop lang: formato L:R:T:B non valido");
         }
 
         if (_audioFormat.Length > 0 && _audioProcessingScope != "disabled" && _audioPeakNormalize && !double.TryParse(_audioPeakTargetDb, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
@@ -1162,6 +1192,16 @@
         {
             _fieldHelpTitle = "Deep analysis";
             _fieldHelpText = "Analisi completa per release con scene aggiunte/rimosse. Mutuamente esclusiva con Frame-sync.\n\nSe trova solo un delay costante applica --sync senza post-processing audio. Se produce cut/insert e importi audio, serve un Formato audio per ricodificare le tracce toccate.";
+        }
+        else if (key == "remux.cropSource")
+        {
+            _fieldHelpTitle = "Crop src";
+            _fieldHelpText = "Crop manuale applicato solo ai frame del Source usati per matching visuale.\n\nFormato: L:R:T:B in pixel sul frame originale prima dello scale. Vuoto o 0:0:0:0 disabilita. Non croppa l'output finale.";
+        }
+        else if (key == "remux.cropLang")
+        {
+            _fieldHelpTitle = "Crop lang";
+            _fieldHelpText = "Crop manuale applicato solo ai frame Lingua usati per matching visuale.\n\nFormato: L:R:T:B in pixel sul frame originale prima dello scale. Vuoto o 0:0:0:0 disabilita. Non croppa l'output finale.";
         }
         else if (key == "remux.audioDelay")
         {

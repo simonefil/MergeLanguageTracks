@@ -15,6 +15,7 @@ namespace RemuxForge.Core.Models
             this.FilePath = "";
             this.SarNum = 1;
             this.SarDen = 1;
+            this.ManualAnalysisCropPx = "";
             this.CropMode = "none";
         }
 
@@ -101,6 +102,11 @@ namespace RemuxForge.Core.Models
         /// True se la geometria suggerisce normalizzazione 4:3
         /// </summary>
         public bool GeometryCropToFourThree { get; set; }
+
+        /// <summary>
+        /// Crop manuale di analisi applicato nel formato L:R:T:B
+        /// </summary>
+        public string ManualAnalysisCropPx { get; set; }
 
         /// <summary>
         /// Descrizione modalita' crop applicata

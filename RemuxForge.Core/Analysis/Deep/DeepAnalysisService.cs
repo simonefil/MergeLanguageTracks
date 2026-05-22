@@ -503,8 +503,8 @@ namespace RemuxForge.Core.Analysis.Deep
             maxOffsetMs = (int)Math.Ceiling(languageExtractDurationSec * 1000.0) - sourceStartMs;
             ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Start guard: ricerca visuale iniziale source start " + (sourceStartMs / 1000.0).ToString("F3", CultureInfo.InvariantCulture) + "s, durata " + sourceExtractDurationSec.ToString("F0", CultureInfo.InvariantCulture) + "s/lang " + languageExtractDurationSec.ToString("F0", CultureInfo.InvariantCulture) + "s, range " + minOffsetMs + "ms.." + maxOffsetMs + "ms");
 
-            this.ExtractDeepSegment(sourceFile, sourceStartMs, sourceExtractDurationSec, INITIAL_VISUAL_GUARD_FPS, this._geometryCropSourceToFourThree, out sourceFrames, out sourceTimestampsMs);
-            this.ExtractDeepSegment(langFile, 0, languageExtractDurationSec, INITIAL_VISUAL_GUARD_FPS, this._geometryCropLanguageToFourThree, out langFrames, out langTimestampsMs);
+            this.ExtractDeepSegment(sourceFile, sourceStartMs, sourceExtractDurationSec, INITIAL_VISUAL_GUARD_FPS, this._geometryCropSourceToFourThree, this._analysisCropSourcePx, out sourceFrames, out sourceTimestampsMs);
+            this.ExtractDeepSegment(langFile, 0, languageExtractDurationSec, INITIAL_VISUAL_GUARD_FPS, this._geometryCropLanguageToFourThree, this._analysisCropLanguagePx, out langFrames, out langTimestampsMs);
             if (sourceFrames == null || langFrames == null || sourceFrames.Count < 20 || langFrames.Count < 20)
             {
                 return result;
@@ -665,7 +665,7 @@ namespace RemuxForge.Core.Analysis.Deep
                 sourceStartSec = 0.0;
             }
 
-            this.ExtractDeepSegment(sourceFile, (int)Math.Round(sourceStartSec * 1000.0), durationSec, targetFps, this._geometryCropSourceToFourThree, out sourceFrames, out sourceTs);
+            this.ExtractDeepSegment(sourceFile, (int)Math.Round(sourceStartSec * 1000.0), durationSec, targetFps, this._geometryCropSourceToFourThree, this._analysisCropSourcePx, out sourceFrames, out sourceTs);
             if (sourceFrames == null || sourceFrames.Count == 0)
             {
                 anchor.RejectReason = "frame source insufficienti";
@@ -679,7 +679,7 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             languageWideDurationSec = durationSec + ((searchRadiusMs * 2.0) / 1000.0);
-            this.ExtractDeepSegment(langFile, (int)Math.Round(languageWideStartSec * 1000.0), languageWideDurationSec, targetFps, this._geometryCropLanguageToFourThree, out languageFrames, out languageTs);
+            this.ExtractDeepSegment(langFile, (int)Math.Round(languageWideStartSec * 1000.0), languageWideDurationSec, targetFps, this._geometryCropLanguageToFourThree, this._analysisCropLanguagePx, out languageFrames, out languageTs);
             if (languageFrames == null || languageFrames.Count == 0)
             {
                 anchor.RejectReason = "frame language insufficienti";
@@ -956,9 +956,9 @@ namespace RemuxForge.Core.Analysis.Deep
             if (langStartNew < 0.0) { langStartNew = 0.0; }
 
             // Estrae frame nativi per non perdere i PTS reali nei source VFR
-            this.ExtractDeepSegment(sourceFile, (int)(searchStartSrc * 1000), duration, 0.0, this._geometryCropSourceToFourThree, out srcFrames, out sourceTimestampsMs);
-            this.ExtractDeepSegment(langFile, (int)(langStartOld * 1000), duration, 0.0, this._geometryCropLanguageToFourThree, out langOldFrames, out langOldTimestampsMs);
-            this.ExtractDeepSegment(langFile, (int)(langStartNew * 1000), duration, 0.0, this._geometryCropLanguageToFourThree, out langNewFrames, out langNewTimestampsMs);
+            this.ExtractDeepSegment(sourceFile, (int)(searchStartSrc * 1000), duration, 0.0, this._geometryCropSourceToFourThree, this._analysisCropSourcePx, out srcFrames, out sourceTimestampsMs);
+            this.ExtractDeepSegment(langFile, (int)(langStartOld * 1000), duration, 0.0, this._geometryCropLanguageToFourThree, this._analysisCropLanguagePx, out langOldFrames, out langOldTimestampsMs);
+            this.ExtractDeepSegment(langFile, (int)(langStartNew * 1000), duration, 0.0, this._geometryCropLanguageToFourThree, this._analysisCropLanguagePx, out langNewFrames, out langNewTimestampsMs);
 
             if (srcFrames.Count < minSideFrames || langOldFrames.Count < minSideFrames || langNewFrames.Count < minSideFrames)
             {
@@ -1716,7 +1716,7 @@ namespace RemuxForge.Core.Analysis.Deep
             double nearestOldDistMs;
             double ssimOld;
             // Estrai frame source a fps nativo nella finestra (passthrough)
-            this.ExtractDeepSegment(sourceFile, (int)(scanStart * 1000), scanDuration, 0.0, this._geometryCropSourceToFourThree, out srcFrames, out sourceTimestampsMs);
+            this.ExtractDeepSegment(sourceFile, (int)(scanStart * 1000), scanDuration, 0.0, this._geometryCropSourceToFourThree, this._analysisCropSourcePx, out srcFrames, out sourceTimestampsMs);
             if (srcFrames.Count < 4 || sourceTimestampsMs.Length < 4) { return result; }
 
             // Posizione lang col vecchio offset
@@ -1725,7 +1725,7 @@ namespace RemuxForge.Core.Analysis.Deep
             if (langStartOld < 0.0) { langStartOld = 0.0; }
 
             // Estrae il vecchio offset: questa conferma lineare cerca il primo punto dove old smette di funzionare
-            this.ExtractDeepSegment(langFile, (int)(langStartOld * 1000), scanDuration, 0.0, this._geometryCropLanguageToFourThree, out langOldFrames, out langOldTimestampsMs);
+            this.ExtractDeepSegment(langFile, (int)(langStartOld * 1000), scanDuration, 0.0, this._geometryCropLanguageToFourThree, this._analysisCropLanguagePx, out langOldFrames, out langOldTimestampsMs);
 
             if (langOldFrames.Count < 4 || langOldTimestampsMs.Length < 4) { return result; }
 
@@ -1791,10 +1791,18 @@ namespace RemuxForge.Core.Analysis.Deep
         /// </summary>
         private void ExtractDeepSegment(string filePath, int startMs, double durationSec, double targetFps, bool geometryCropToFourThree, out List<byte[]> frames, out double[] timestampsMs)
         {
+            this.ExtractDeepSegment(filePath, startMs, durationSec, targetFps, geometryCropToFourThree, this.ResolveManualAnalysisCrop(filePath), out frames, out timestampsMs);
+        }
+
+        /// <summary>
+        /// Wrapper diagnostico per estrazioni frame DeepAnalysis con crop manuale esplicito
+        /// </summary>
+        private void ExtractDeepSegment(string filePath, int startMs, double durationSec, double targetFps, bool geometryCropToFourThree, string manualCropPx, out List<byte[]> frames, out double[] timestampsMs)
+        {
             Stopwatch stopwatch = new Stopwatch();
 
             stopwatch.Start();
-            base.ExtractSegment(filePath, startMs, durationSec, targetFps, geometryCropToFourThree, out frames, out timestampsMs);
+            base.ExtractSegment(filePath, startMs, durationSec, targetFps, geometryCropToFourThree, manualCropPx, out frames, out timestampsMs);
             stopwatch.Stop();
 
             lock (this._performanceDiagnosticsLock)
