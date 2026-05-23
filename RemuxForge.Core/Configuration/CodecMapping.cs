@@ -211,13 +211,16 @@ namespace RemuxForge.Core.Configuration
         public static bool RequiresGenericAudioRender(TrackInfo track, Options options)
         {
             bool result = false;
+            bool downsampleRequired;
 
             if (track == null || options == null || options.AudioFormat.Length == 0)
             {
                 return result;
             }
 
-            if (options.AudioPeakNormalize || options.AudioDownsample24To16)
+            downsampleRequired = options.AudioDownsample24To16 && (track.BitsPerSample <= 0 || track.BitsPerSample > 16);
+
+            if (options.AudioPeakNormalize || downsampleRequired)
             {
                 result = true;
             }
