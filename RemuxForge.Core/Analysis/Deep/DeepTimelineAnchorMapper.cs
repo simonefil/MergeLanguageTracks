@@ -24,7 +24,7 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="searchStepMs">Passo ricerca offset</param>
         /// <param name="anchor">Anchor diagnostico prodotto</param>
         /// <returns>True se il probe produce un anchor valido o diagnosticabile</returns>
-        public delegate bool VisualAnchorProbe(string sourceFile, string langFile, double sourceCenterSec, int searchRadiusMs, int searchStepMs, out DeepAnalysisTimelineAnchorDiagnostic anchor);
+        public delegate bool VisualAnchorProbe(string sourceFile, string langFile, double sourceCenterSec, int searchRadiusMs, int searchStepMs, double inverseRatio, out DeepAnalysisTimelineAnchorDiagnostic anchor);
 
         #endregion
 
@@ -77,7 +77,7 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <summary>
         /// Prova a costruire una timeline a offset costanti usando anchor video
         /// </summary>
-        public DeepTimelineMapResult Build(string sourceFile, string langFile, int sourceDurationMs)
+        public DeepTimelineMapResult Build(string sourceFile, string langFile, int sourceDurationMs, double inverseRatio)
         {
             DeepTimelineMapResult result = new DeepTimelineMapResult();
             MkvFileInfo sourceInfo;
@@ -117,7 +117,7 @@ namespace RemuxForge.Core.Analysis.Deep
 
             result.Diagnostic.AnchorMode = "video";
             result.Diagnostic.TrackLanguage = "video";
-            if (!this.BuildVisualAnchors(sourceFile, langFile, sourceDurationSec, searchRadiusMs, result.Diagnostic))
+            if (!this.BuildVisualAnchors(sourceFile, langFile, sourceDurationSec, searchRadiusMs, inverseRatio, result.Diagnostic))
             {
                 result.RejectReason = "anchor video insufficienti";
                 result.Diagnostic.Status = "Rejected";
@@ -125,7 +125,7 @@ namespace RemuxForge.Core.Analysis.Deep
                 return result;
             }
 
-            this.DensifyVisualTransitionAnchors(sourceFile, langFile, sourceDurationSec, searchRadiusMs, result.Diagnostic);
+            this.DensifyVisualTransitionAnchors(sourceFile, langFile, sourceDurationSec, searchRadiusMs, inverseRatio, result.Diagnostic);
 
             acceptedAnchors = this.GetAcceptedAnchors(result.Diagnostic.Anchors);
             result.Diagnostic.AcceptedAnchorCount = acceptedAnchors.Count;
@@ -194,7 +194,7 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="searchRadiusMs">Raggio ricerca</param>
         /// <param name="diagnostic">Diagnostica timeline da aggiornare</param>
         /// <returns>True se la scansione visuale e' stata avviata</returns>
-        private bool BuildVisualAnchors(string sourceFile, string langFile, double sourceDurationSec, int searchRadiusMs, DeepAnalysisTimelineMapDiagnostic diagnostic)
+        private bool BuildVisualAnchors(string sourceFile, string langFile, double sourceDurationSec, int searchRadiusMs, double inverseRatio, DeepAnalysisTimelineMapDiagnostic diagnostic)
         {
             bool result = false;
             double centerSec = ANCHOR_WINDOW_SEC / 2.0;
@@ -213,7 +213,7 @@ namespace RemuxForge.Core.Analysis.Deep
                 centerSec += VIDEO_ANCHOR_STEP_SEC;
             }
 
-            anchors = this.BuildVisualAnchorsParallel(sourceFile, langFile, centers, searchRadiusMs, "anchor video non conclusivo");
+            anchors = this.BuildVisualAnchorsParallel(sourceFile, langFile, centers, searchRadiusMs, inverseRatio, "anchor video non conclusivo");
             diagnostic.Anchors.AddRange(anchors);
 
             result = true;
@@ -228,7 +228,7 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="sourceDurationSec">Durata source</param>
         /// <param name="searchRadiusMs">Raggio ricerca</param>
         /// <param name="diagnostic">Diagnostica timeline da aggiornare</param>
-        private void DensifyVisualTransitionAnchors(string sourceFile, string langFile, double sourceDurationSec, int searchRadiusMs, DeepAnalysisTimelineMapDiagnostic diagnostic)
+        private void DensifyVisualTransitionAnchors(string sourceFile, string langFile, double sourceDurationSec, int searchRadiusMs, double inverseRatio, DeepAnalysisTimelineMapDiagnostic diagnostic)
         {
             List<DeepAnalysisTimelineAnchorDiagnostic> baseAccepted = this.GetAcceptedAnchors(diagnostic.Anchors);
             List<double> centers = new List<double>();
@@ -286,7 +286,7 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             centers.Sort();
-            denseAnchors = this.BuildVisualAnchorsParallel(sourceFile, langFile, centers, searchRadiusMs, "anchor video dense non conclusivo");
+            denseAnchors = this.BuildVisualAnchorsParallel(sourceFile, langFile, centers, searchRadiusMs, inverseRatio, "anchor video dense non conclusivo");
             diagnostic.Anchors.AddRange(denseAnchors);
             diagnostic.Anchors.Sort(delegate (DeepAnalysisTimelineAnchorDiagnostic left, DeepAnalysisTimelineAnchorDiagnostic right)
             {
@@ -303,7 +303,7 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <param name="searchRadiusMs">Raggio ricerca</param>
         /// <param name="rejectReason">Motivo da assegnare agli anchor non conclusivi</param>
         /// <returns>Array anchor ordinato come i centri in input</returns>
-        private DeepAnalysisTimelineAnchorDiagnostic[] BuildVisualAnchorsParallel(string sourceFile, string langFile, List<double> centers, int searchRadiusMs, string rejectReason)
+        private DeepAnalysisTimelineAnchorDiagnostic[] BuildVisualAnchorsParallel(string sourceFile, string langFile, List<double> centers, int searchRadiusMs, double inverseRatio, string rejectReason)
         {
             DeepAnalysisTimelineAnchorDiagnostic[] result = new DeepAnalysisTimelineAnchorDiagnostic[centers.Count];
             ParallelOptions options = new ParallelOptions();
@@ -313,7 +313,7 @@ namespace RemuxForge.Core.Analysis.Deep
             {
                 // Ogni slot dell'array e' scritto da una sola iterazione, quindi non serve lock
                 DeepAnalysisTimelineAnchorDiagnostic anchor;
-                if (this._visualAnchorProbe(sourceFile, langFile, centers[i], searchRadiusMs, VIDEO_SEARCH_STEP_MS, out anchor))
+                if (this._visualAnchorProbe(sourceFile, langFile, centers[i], searchRadiusMs, VIDEO_SEARCH_STEP_MS, inverseRatio, out anchor))
                 {
                     result[i] = anchor;
                 }

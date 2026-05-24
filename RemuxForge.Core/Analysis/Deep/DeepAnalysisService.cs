@@ -227,7 +227,7 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             DeepTimelineAnchorMapper timelineAnchorMapper = new DeepTimelineAnchorMapper(mkvMergePath, this.BuildVisualTimelineAnchor);
-            timelineMap = timelineAnchorMapper.Build(sourceFile, langFile, sourceDurationMs);
+            timelineMap = timelineAnchorMapper.Build(sourceFile, langFile, sourceDurationMs, inverseRatio);
             diagnostics.Timing.TimelineMapMs = stopwatch.ElapsedMilliseconds - phaseStartMs;
             if (timelineMap != null && timelineMap.Diagnostic != null)
             {
@@ -257,7 +257,7 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             regions = timelineMap.Regions;
-            this.ApplyInitialVisualGuard(sourceFile, langFile, sourceDurationMs, regions, out visualStartOffsetMs, out visualStartEndSec, out visualStartMse, out visualStartSecondMse);
+            this.ApplyInitialVisualGuard(sourceFile, langFile, sourceDurationMs, regions, inverseRatio, out visualStartOffsetMs, out visualStartEndSec, out visualStartMse, out visualStartSecondMse);
 
             acceptedAnchors = timelineMap.Diagnostic.AcceptedAnchorCount;
             initialAlignment = new DeepAnalysisInitialAlignmentDiagnostic();
@@ -412,7 +412,7 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <summary>
         /// Impedisce alla timeline video di estendere all'inizio un plateau non confermato dal contenuto
         /// </summary>
-        private void ApplyInitialVisualGuard(string sourceFile, string langFile, int sourceDurationMs, List<OffsetRegion> regions, out int visualStartOffsetMs, out double visualStartEndSec, out double visualStartMse, out double visualStartSecondMse)
+        private void ApplyInitialVisualGuard(string sourceFile, string langFile, int sourceDurationMs, List<OffsetRegion> regions, double inverseRatio, out int visualStartOffsetMs, out double visualStartEndSec, out double visualStartMse, out double visualStartSecondMse)
         {
             int timelineOffsetMs;
             double visualStartLocalSecondMse;
@@ -431,7 +431,7 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             timelineOffsetMs = (int)Math.Round(regions[0].OffsetMs);
-            if (!this.TryFindInitialVisualGuardOffset(sourceFile, langFile, sourceDurationSec, timelineOffsetMs, out visualStartOffsetMs, out visualStartEndSec, out visualStartMse, out visualStartSecondMse, out visualStartLocalSecondMse, out timelineMse, out visualStartBorderCandidate))
+            if (!this.TryFindInitialVisualGuardOffset(sourceFile, langFile, sourceDurationSec, timelineOffsetMs, inverseRatio, out visualStartOffsetMs, out visualStartEndSec, out visualStartMse, out visualStartSecondMse, out visualStartLocalSecondMse, out timelineMse, out visualStartBorderCandidate))
             {
                 visualStartOffsetMs = int.MinValue;
                 return;
@@ -464,7 +464,7 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <summary>
         /// Cerca il miglior offset visuale sui primi secondi, dove sigla/logo iniziale non devono ereditare plateau successivi
         /// </summary>
-        private bool TryFindInitialVisualGuardOffset(string sourceFile, string langFile, double sourceDurationSec, int timelineOffsetMs, out int offsetMs, out double guardEndSec, out double bestMse, out double secondMse, out double localSecondMse, out double timelineMse, out bool borderCandidate)
+        private bool TryFindInitialVisualGuardOffset(string sourceFile, string langFile, double sourceDurationSec, int timelineOffsetMs, double inverseRatio, out int offsetMs, out double guardEndSec, out double bestMse, out double secondMse, out double localSecondMse, out double timelineMse, out bool borderCandidate)
         {
             bool result = false;
             FrameSyncConfig frameSyncConfig = AppSettingsService.Instance.Settings.Advanced.FrameSync;
@@ -512,13 +512,13 @@ namespace RemuxForge.Core.Analysis.Deep
 
             for (int candidateOffsetMs = minOffsetMs; candidateOffsetMs <= maxOffsetMs; candidateOffsetMs += INITIAL_VISUAL_GUARD_SEARCH_STEP_MS)
             {
-                double languageStartMs = sourceStartMs - candidateOffsetMs;
+                double languageStartMs = (sourceStartMs - candidateOffsetMs) * inverseRatio;
                 if (languageStartMs < 0.0)
                 {
                     continue;
                 }
 
-                double mse = this.ComputeTimestampMatchedMseAtStart(sourceFrames, sourceTimestampsMs, langFrames, langTimestampsMs, languageStartMs, INITIAL_VISUAL_GUARD_FPS);
+                double mse = this.ComputeTimestampMatchedMseAtStart(sourceFrames, sourceTimestampsMs, langFrames, langTimestampsMs, languageStartMs, INITIAL_VISUAL_GUARD_FPS, inverseRatio);
                 if (double.IsPositiveInfinity(mse))
                 {
                     continue;
@@ -560,10 +560,10 @@ namespace RemuxForge.Core.Analysis.Deep
                 }
             }
 
-            double timelineLanguageStartMs = sourceStartMs - timelineOffsetMs;
+            double timelineLanguageStartMs = (sourceStartMs - timelineOffsetMs) * inverseRatio;
             if (timelineLanguageStartMs >= 0.0)
             {
-                timelineMse = this.ComputeTimestampMatchedMseAtStart(sourceFrames, sourceTimestampsMs, langFrames, langTimestampsMs, timelineLanguageStartMs, INITIAL_VISUAL_GUARD_FPS);
+                timelineMse = this.ComputeTimestampMatchedMseAtStart(sourceFrames, sourceTimestampsMs, langFrames, langTimestampsMs, timelineLanguageStartMs, INITIAL_VISUAL_GUARD_FPS, inverseRatio);
             }
 
             if (double.IsPositiveInfinity(bestMse) || double.IsPositiveInfinity(secondMse) || double.IsPositiveInfinity(localSecondMse))
@@ -638,7 +638,7 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <summary>
         /// Costruisce un anchor timeline via confronto visuale distribuito
         /// </summary>
-        private bool BuildVisualTimelineAnchor(string sourceFile, string langFile, double sourceCenterSec, int searchRadiusMs, int searchStepMs, out DeepAnalysisTimelineAnchorDiagnostic anchor)
+        private bool BuildVisualTimelineAnchor(string sourceFile, string langFile, double sourceCenterSec, int searchRadiusMs, int searchStepMs, double inverseRatio, out DeepAnalysisTimelineAnchorDiagnostic anchor)
         {
             bool result = false;
             double durationSec = 4.0;
@@ -672,13 +672,13 @@ namespace RemuxForge.Core.Analysis.Deep
                 return result;
             }
 
-            languageWideStartSec = sourceStartSec - (searchRadiusMs / 1000.0);
+            languageWideStartSec = (sourceStartSec - (searchRadiusMs / 1000.0)) * inverseRatio;
             if (languageWideStartSec < 0.0)
             {
                 languageWideStartSec = 0.0;
             }
 
-            languageWideDurationSec = durationSec + ((searchRadiusMs * 2.0) / 1000.0);
+            languageWideDurationSec = (durationSec + ((searchRadiusMs * 2.0) / 1000.0)) * inverseRatio;
             this.ExtractDeepSegment(langFile, (int)Math.Round(languageWideStartSec * 1000.0), languageWideDurationSec, targetFps, this._geometryCropLanguageToFourThree, this._analysisCropLanguagePx, out languageFrames, out languageTs);
             if (languageFrames == null || languageFrames.Count == 0)
             {
@@ -688,13 +688,13 @@ namespace RemuxForge.Core.Analysis.Deep
 
             for (int offsetMs = -searchRadiusMs; offsetMs <= searchRadiusMs; offsetMs += searchStepMs)
             {
-                double languageStartSec = sourceStartSec - (offsetMs / 1000.0);
+                double languageStartSec = (sourceStartSec - (offsetMs / 1000.0)) * inverseRatio;
                 if (languageStartSec < 0.0)
                 {
                     continue;
                 }
 
-                double mse = this.ComputeTimestampMatchedMseAtStart(sourceFrames, sourceTs, languageFrames, languageTs, languageStartSec * 1000.0, targetFps);
+                double mse = this.ComputeTimestampMatchedMseAtStart(sourceFrames, sourceTs, languageFrames, languageTs, languageStartSec * 1000.0, targetFps, inverseRatio);
                 if (mse < bestMse)
                 {
                     secondMse = bestMse;
@@ -734,7 +734,7 @@ namespace RemuxForge.Core.Analysis.Deep
         /// <summary>
         /// Calcola MSE medio tra frame source e una finestra language larga, usando uno start language candidato
         /// </summary>
-        private double ComputeTimestampMatchedMseAtStart(List<byte[]> srcFrames, double[] srcTimestampsMs, List<byte[]> langFrames, double[] langTimestampsMs, double languageStartMs, double targetFps)
+        private double ComputeTimestampMatchedMseAtStart(List<byte[]> srcFrames, double[] srcTimestampsMs, List<byte[]> langFrames, double[] langTimestampsMs, double languageStartMs, double targetFps, double languageRelativeScale)
         {
             double total = 0.0;
             int count = 0;
@@ -748,7 +748,7 @@ namespace RemuxForge.Core.Analysis.Deep
             for (int i = 0; i < srcFrames.Count && i < srcTimestampsMs.Length; i++)
             {
                 double sourceRelativeMs = srcTimestampsMs[i] - srcTimestampsMs[0];
-                double targetLangMs = languageStartMs + sourceRelativeMs;
+                double targetLangMs = languageStartMs + (sourceRelativeMs * languageRelativeScale);
                 int languageIndex = NearestTimestampIndex(langTimestampsMs, targetLangMs);
                 if (languageIndex < 0 || languageIndex >= langFrames.Count)
                 {
