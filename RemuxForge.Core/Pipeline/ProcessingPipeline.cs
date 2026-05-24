@@ -715,13 +715,13 @@ namespace RemuxForge.Core.Pipeline
                     else if (this._opts.DryRun)
                     {
                         this.AddDryRunAudioPlaceholders(audioRequest, convertedSourceTracks, convertedLangTracks, processedSourceAudioInfo, processedLangAudioInfo);
-                        if (convertedSourceTracks.Count > 0 && sourceTracks != null)
+                        if (convertedSourceTracks.Count > 0)
                         {
-                            for (int i = 0; i < sourceTracks.Count; i++)
+                            foreach (int sourceTrackId in convertedSourceTracks.Keys)
                             {
-                                if (string.Equals(sourceTracks[i].Type, "audio", StringComparison.OrdinalIgnoreCase) && !sourceAudioIds.Contains(sourceTracks[i].Id))
+                                if (!sourceAudioIds.Contains(sourceTrackId))
                                 {
-                                    sourceAudioIds.Add(sourceTracks[i].Id);
+                                    sourceAudioIds.Add(sourceTrackId);
                                 }
                             }
                         }
@@ -740,13 +740,13 @@ namespace RemuxForge.Core.Pipeline
                             effectiveAudioDelay = audioResult.EffectiveAudioDelayMs;
                             record.AudioDelayApplied = effectiveAudioDelay;
 
-                            if (convertedSourceTracks.Count > 0 && sourceTracks != null)
+                            if (convertedSourceTracks.Count > 0)
                             {
-                                for (int i = 0; i < sourceTracks.Count; i++)
+                                foreach (int sourceTrackId in convertedSourceTracks.Keys)
                                 {
-                                    if (string.Equals(sourceTracks[i].Type, "audio", StringComparison.OrdinalIgnoreCase) && !sourceAudioIds.Contains(sourceTracks[i].Id))
+                                    if (!sourceAudioIds.Contains(sourceTrackId))
                                     {
-                                        sourceAudioIds.Add(sourceTracks[i].Id);
+                                        sourceAudioIds.Add(sourceTrackId);
                                     }
                                 }
                             }
