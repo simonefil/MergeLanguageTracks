@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 
 namespace RemuxForge.Core.Analysis.Deep
 {
@@ -45,6 +46,11 @@ namespace RemuxForge.Core.Analysis.Deep
         private const double LOCAL_TIMELINE_CUT_FORWARD_SEC = 30.0;
         private const double LOCAL_SSIM_CLEAR_MARGIN = 0.015;
         private const double LOCAL_SSIM_TIE_MARGIN = 0.005;
+        private const double TAIL_GAP_MIN_UNSUPPORTED_SEC = 180.0;
+        private const int TAIL_GAP_MIN_DELTA_MS = 5000;
+        private const double TAIL_GAP_SCAN_STEP_SEC = 30.0;
+        private const double TAIL_GAP_SCAN_MARGIN_SEC = 60.0;
+        private const double TAIL_GAP_MIN_IMPROVEMENT = 1.45;
 
         #endregion
 
@@ -257,6 +263,7 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             regions = timelineMap.Regions;
+            this.TryRecoverUnsupportedTailGap(sourceFile, langFile, sourceDurationMs, inverseRatio, regions, timelineMap);
             this.ApplyInitialVisualGuard(sourceFile, langFile, sourceDurationMs, regions, inverseRatio, out visualStartOffsetMs, out visualStartEndSec, out visualStartMse, out visualStartSecondMse);
 
             acceptedAnchors = timelineMap.Diagnostic.AcceptedAnchorCount;
@@ -582,6 +589,206 @@ namespace RemuxForge.Core.Analysis.Deep
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Recupera gap di coda quando la timeline estende l'ultimo plateau oltre l'ultimo supporto visuale.
+        /// </summary>
+        private bool TryRecoverUnsupportedTailGap(string sourceFile, string langFile, int sourceDurationMs, double inverseRatio, List<OffsetRegion> regions, DeepTimelineMapResult timelineMap)
+        {
+            bool result = false;
+            OffsetRegion lastRegion;
+            OffsetRegion tailRegion;
+            double sourceDurationSec = sourceDurationMs / 1000.0;
+            double unsupportedTailSec;
+            double stretchRatio;
+            int langDurationMs;
+            int expectedTailOffsetMs;
+            int deltaMs;
+            double crossoverSec;
+
+            if (regions == null || regions.Count == 0 || sourceDurationMs <= 0 || Math.Abs(inverseRatio) < 0.000001)
+            {
+                return result;
+            }
+
+            lastRegion = regions[regions.Count - 1];
+            unsupportedTailSec = sourceDurationSec - lastRegion.SupportEndSrcSec;
+            if (unsupportedTailSec < TAIL_GAP_MIN_UNSUPPORTED_SEC)
+            {
+                return result;
+            }
+
+            langDurationMs = this.ResolveMediaDurationMs(langFile);
+            if (langDurationMs <= 0)
+            {
+                return result;
+            }
+
+            stretchRatio = 1.0 / inverseRatio;
+            expectedTailOffsetMs = sourceDurationMs - (int)Math.Round(langDurationMs * stretchRatio);
+            deltaMs = expectedTailOffsetMs - (int)Math.Round(lastRegion.OffsetMs);
+            if (deltaMs < TAIL_GAP_MIN_DELTA_MS)
+            {
+                return result;
+            }
+
+            if (!this.TryFindTailGapCrossover(sourceFile, langFile, lastRegion, sourceDurationSec, lastRegion.OffsetMs / 1000.0, expectedTailOffsetMs / 1000.0, inverseRatio, out crossoverSec))
+            {
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Tail gap recovery non conclusivo: coda non supportata " + unsupportedTailSec.ToString("F0", CultureInfo.InvariantCulture) + "s, delta atteso " + deltaMs.ToString(CultureInfo.InvariantCulture) + "ms");
+                return result;
+            }
+
+            if (crossoverSec <= lastRegion.StartSrcSec + 1.0 || crossoverSec >= sourceDurationSec - 1.0)
+            {
+                return result;
+            }
+
+            lastRegion.EndSrcSec = crossoverSec;
+            tailRegion = new OffsetRegion();
+            tailRegion.StartSrcSec = crossoverSec;
+            tailRegion.EndSrcSec = sourceDurationSec;
+            tailRegion.SupportStartSrcSec = crossoverSec;
+            tailRegion.SupportEndSrcSec = sourceDurationSec;
+            tailRegion.OffsetMs = expectedTailOffsetMs;
+            tailRegion.MatchCount = 1;
+            regions.Add(tailRegion);
+
+            if (timelineMap != null && timelineMap.Diagnostic != null)
+            {
+                DeepAnalysisTimelinePlateauDiagnostic plateau = new DeepAnalysisTimelinePlateauDiagnostic();
+                plateau.Index = timelineMap.Diagnostic.Plateaus.Count;
+                plateau.StartSrcSec = crossoverSec;
+                plateau.EndSrcSec = sourceDurationSec;
+                plateau.OffsetMs = expectedTailOffsetMs;
+                plateau.AnchorCount = 1;
+                plateau.AverageScore = 0.0;
+                timelineMap.Diagnostic.Plateaus.Add(plateau);
+                timelineMap.Diagnostic.PlateauCount = timelineMap.Diagnostic.Plateaus.Count;
+            }
+
+            ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Tail gap recovery: coda non supportata " + unsupportedTailSec.ToString("F0", CultureInfo.InvariantCulture) + "s, offset " + lastRegion.OffsetMs.ToString(CultureInfo.InvariantCulture) + "ms -> " + expectedTailOffsetMs.ToString(CultureInfo.InvariantCulture) + "ms da " + crossoverSec.ToString("F1", CultureInfo.InvariantCulture) + "s");
+            result = true;
+            return result;
+        }
+
+        /// <summary>
+        /// Cerca il primo punto di coda dove il nuovo offset stimato batte chiaramente quello esteso dalla timeline.
+        /// </summary>
+        private bool TryFindTailGapCrossover(string sourceFile, string langFile, OffsetRegion lastRegion, double sourceDurationSec, double oldOffsetSec, double newOffsetSec, double inverseRatio, out double crossoverSec)
+        {
+            bool result = false;
+            double scanStartSec = lastRegion.SupportEndSrcSec + TAIL_GAP_SCAN_STEP_SEC;
+            double scanEndSec = sourceDurationSec - TAIL_GAP_SCAN_MARGIN_SEC;
+            double bestCenterSec = -1.0;
+            double bestRatio = 0.0;
+            double oldMse;
+            double oldSsim;
+            double newMse;
+            double newSsim;
+            double ratio;
+            int consecutiveWins = 0;
+
+            crossoverSec = 0.0;
+            if (scanStartSec >= scanEndSec)
+            {
+                return result;
+            }
+
+            for (double centerSec = scanStartSec; centerSec <= scanEndSec; centerSec += TAIL_GAP_SCAN_STEP_SEC)
+            {
+                if (!this._visualFrameAnalyzer.TryComputeLocalVisualScoreAt(sourceFile, langFile, centerSec, oldOffsetSec, inverseRatio, 1.0, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree, out oldMse, out oldSsim))
+                {
+                    consecutiveWins = 0;
+                    continue;
+                }
+                if (!this._visualFrameAnalyzer.TryComputeLocalVisualScoreAt(sourceFile, langFile, centerSec, newOffsetSec, inverseRatio, 1.0, this._geometryCropSourceToFourThree, this._geometryCropLanguageToFourThree, out newMse, out newSsim))
+                {
+                    consecutiveWins = 0;
+                    continue;
+                }
+
+                ratio = this.ComputeSafeImprovementRatio(oldMse, newMse);
+                if (ratio >= TAIL_GAP_MIN_IMPROVEMENT || (newSsim > oldSsim + LOCAL_SSIM_CLEAR_MARGIN && ratio > 1.10))
+                {
+                    consecutiveWins++;
+                    if (ratio > bestRatio)
+                    {
+                        bestRatio = ratio;
+                        bestCenterSec = centerSec;
+                    }
+
+                    if (consecutiveWins >= 2)
+                    {
+                        crossoverSec = centerSec - TAIL_GAP_SCAN_STEP_SEC;
+                        result = true;
+                        break;
+                    }
+                }
+                else
+                {
+                    consecutiveWins = 0;
+                }
+            }
+
+            if (!result && bestCenterSec > 0.0 && bestRatio >= TAIL_GAP_MIN_IMPROVEMENT * 2.0)
+            {
+                crossoverSec = bestCenterSec;
+                result = true;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Legge la durata container via ffmpeg, utile quando mkvmerge non la espone per AVI.
+        /// </summary>
+        private int ResolveMediaDurationMs(string filePath)
+        {
+            ProcessResult processResult;
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            {
+                return 0;
+            }
+
+            processResult = ProcessRunner.Run(this._ffmpegPath, new string[] { "-hide_banner", "-i", filePath });
+            return this.ParseFfmpegDurationMs(processResult.Stderr.Length > 0 ? processResult.Stderr : processResult.Stdout);
+        }
+
+        /// <summary>
+        /// Estrae la durata dal formato ffmpeg "Duration: HH:MM:SS.xx".
+        /// </summary>
+        private int ParseFfmpegDurationMs(string output)
+        {
+            int marker;
+            int end;
+            string value;
+            TimeSpan duration;
+            if (output == null)
+            {
+                return 0;
+            }
+
+            marker = output.IndexOf("Duration:", StringComparison.OrdinalIgnoreCase);
+            if (marker < 0)
+            {
+                return 0;
+            }
+
+            marker += "Duration:".Length;
+            end = output.IndexOf(",", marker, StringComparison.Ordinal);
+            if (end <= marker)
+            {
+                return 0;
+            }
+
+            value = output.Substring(marker, end - marker).Trim();
+            if (TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out duration))
+            {
+                return (int)Math.Round(duration.TotalMilliseconds);
+            }
+
+            return 0;
         }
 
         /// <summary>

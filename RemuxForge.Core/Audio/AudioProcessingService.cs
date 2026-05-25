@@ -1,3 +1,4 @@
+using RemuxForge.Core.Analysis.Speed;
 using RemuxForge.Core.Configuration;
 using RemuxForge.Core.Infrastructure;
 using RemuxForge.Core.Media.Mkv;
@@ -202,9 +203,9 @@ namespace RemuxForge.Core.Audio
                     result.ErrorMessage = "Audio source fill fallito: nessuna traccia source in lingua " + request.Options.AudioSourceFillLanguage + " per lang track " + job.Track.Id;
                     return result;
                 }
-                if (fillPlan != null && fillPlan.HasWork && (sourceFillTrack == null || job.Track == null || sourceFillTrack.Channels != job.Track.Channels || AudioChannelHelper.GetChannelLayout(sourceFillTrack.Channels) != AudioChannelHelper.GetChannelLayout(job.Track.Channels)))
+                if (fillPlan != null && fillPlan.HasWork && (sourceFillTrack == null || job.Track == null))
                 {
-                    result.ErrorMessage = "Audio source fill fallito: layout/canali incompatibili tra source track " + sourceFillTrack.Id + " e lang track " + job.Track.Id;
+                    result.ErrorMessage = "Audio source fill fallito: tracce non valide per lang track " + job.Track.Id;
                     return result;
                 }
             }
@@ -387,7 +388,7 @@ namespace RemuxForge.Core.Audio
                 args = this.BuildSourceFillArgs(request, sourceTrack, langTrack, plan, outputFile, false);
             }
 
-            if (plan.StartFillMs > 0)
+            if (plan.StartFillMs > 0 || plan.MaterializesExternalSync)
             {
                 result.BypassAudioDelay = true;
             }
@@ -554,6 +555,11 @@ namespace RemuxForge.Core.Audio
                 // Delay positivo: l'inizio mancante viene preso dalla traccia source
                 segments.Add(new AudioFilterSegment(0, sourceTrack.Id, 0, plan.StartFillMs, false));
             }
+            else if (plan.InitialSilenceMs > 0)
+            {
+                // Se lo stretch viene materializzato nel render, anche il delay va incorporato nel file.
+                segments.Add(new AudioFilterSegment(1, langTrack.Id, 0, plan.InitialSilenceMs, true));
+            }
 
             plan.InsertOperations.Sort((a, b) => a.LangTimestampMs.CompareTo(b.LangTimestampMs));
             for (int i = 0; i < plan.InsertOperations.Count; i++)
@@ -562,14 +568,29 @@ namespace RemuxForge.Core.Audio
                 if (operation.LangTimestampMs > currentLangMs)
                 {
                     // Mantiene lang fino al gap rilevato dalla deep-analysis
-                    segments.Add(new AudioFilterSegment(1, langTrack.Id, currentLangMs, operation.LangTimestampMs, false));
+                    segments.Add(new AudioFilterSegment(1, langTrack.Id, currentLangMs, operation.LangTimestampMs, false, plan.LangTempo));
                 }
-                // Nel gap usa lo stesso intervallo temporale della source invece di generare silenzio
-                segments.Add(new AudioFilterSegment(0, sourceTrack.Id, operation.SourceTimestampMs, operation.SourceTimestampMs + operation.DurationMs, false));
-                currentLangMs = operation.LangTimestampMs;
+
+                if (string.Equals(operation.Type, EditOperation.INSERT_SILENCE, StringComparison.Ordinal))
+                {
+                    if (options.AudioSourceFillInsertSilence && operation.DurationMs > options.AudioSourceFillThresholdMs)
+                    {
+                        // Nei gap grandi usa lo stesso intervallo temporale della source invece di generare silenzio.
+                        segments.Add(new AudioFilterSegment(0, sourceTrack.Id, operation.SourceTimestampMs, operation.SourceTimestampMs + operation.DurationMs, false));
+                    }
+                    else
+                    {
+                        segments.Add(new AudioFilterSegment(1, langTrack.Id, 0, operation.DurationMs, true));
+                    }
+                    currentLangMs = operation.LangTimestampMs;
+                }
+                else if (string.Equals(operation.Type, EditOperation.CUT_SEGMENT, StringComparison.Ordinal))
+                {
+                    currentLangMs = operation.LangTimestampMs + operation.DurationMs;
+                }
             }
 
-            segments.Add(new AudioFilterSegment(1, langTrack.Id, currentLangMs, -1, false));
+            segments.Add(new AudioFilterSegment(1, langTrack.Id, currentLangMs, -1, false, plan.LangTempo));
 
             if (plan.EndFillMs > 0 && plan.SourceDurationMs > plan.EndFillMs)
             {
@@ -611,7 +632,12 @@ namespace RemuxForge.Core.Audio
                     {
                         filter += ":end=" + (segment.EndMs / 1000.0).ToString("F3", CultureInfo.InvariantCulture);
                     }
-                    filter += ",asetpts=PTS-STARTPTS,aformat=sample_fmts=flt[" + label + "];";
+                    filter += ",asetpts=PTS-STARTPTS";
+                    if (Math.Abs(segment.Tempo - 1.0) > 0.0001)
+                    {
+                        filter += ",atempo=" + segment.Tempo.ToString("F8", CultureInfo.InvariantCulture);
+                    }
+                    filter += ",aformat=sample_fmts=flt:sample_rates=" + sampleRate + ":channel_layouts=" + layout + "[" + label + "];";
                 }
                 concatInputs += "[" + label + "]";
             }
@@ -1006,24 +1032,35 @@ namespace RemuxForge.Core.Audio
         private AudioSourceFillPlan BuildSourceFillPlan(AudioProcessingRequest request, TrackInfo sourceTrack, TrackInfo langTrack)
         {
             AudioSourceFillPlan result = new AudioSourceFillPlan();
-            List<EditOperation> fillInsertOperations = this.GetFillInsertOperations(request.LangEditMap, request.Options);
+            List<EditOperation> editOperations = this.GetSourceFillEditOperations(request.LangEditMap);
             int sourceDurationMs = this.ResolveTrackDurationMs(request.SourceInfo, sourceTrack);
+            double stretchRatio = this.ResolveStretchRatio(request);
             if (sourceDurationMs <= 0)
             {
                 sourceDurationMs = this.ResolveVideoDurationMs(request.SourceInfo);
             }
             int langDurationMs = this.ResolveTrackDurationMs(request.LangInfo, langTrack);
+            if (langDurationMs <= 0)
+            {
+                langDurationMs = this.ResolveMediaDurationMs(request.LanguageFilePath);
+            }
+
+            result.StretchRatio = stretchRatio;
+            result.LangTempo = Math.Abs(stretchRatio - 1.0) > 0.0001 ? 1.0 / stretchRatio : 1.0;
+            result.InitialSilenceMs = Math.Abs(stretchRatio - 1.0) > 0.0001 && request.EffectiveAudioDelayMs > 0 ? request.EffectiveAudioDelayMs : 0;
 
             if (request.Options.AudioSourceFillStart && request.EffectiveAudioDelayMs > request.Options.AudioSourceFillThresholdMs)
             {
                 // Il delay globale resta a mkvmerge solo se non materializziamo l'audio iniziale dalla source
                 result.StartFillMs = request.EffectiveAudioDelayMs;
+                result.InitialSilenceMs = 0;
             }
 
             if (request.Options.AudioSourceFillEnd && sourceDurationMs > 0 && langDurationMs > 0)
             {
                 // La coda source serve quando la traccia lang, dopo delay, non copre tutta la durata source
-                int endFillMs = sourceDurationMs - (langDurationMs + request.EffectiveAudioDelayMs);
+                int renderedLangDurationMs = (int)Math.Round(langDurationMs * stretchRatio) + Math.Max(request.EffectiveAudioDelayMs, 0) + this.ComputeEditMapDurationDeltaMs(editOperations);
+                int endFillMs = sourceDurationMs - renderedLangDurationMs;
                 if (endFillMs > request.Options.AudioSourceFillThresholdMs)
                 {
                     result.EndFillMs = endFillMs;
@@ -1031,12 +1068,78 @@ namespace RemuxForge.Core.Audio
                 }
             }
 
-            for (int i = 0; i < fillInsertOperations.Count; i++)
+            for (int i = 0; i < editOperations.Count; i++)
             {
-                result.InsertOperations.Add(fillInsertOperations[i]);
+                result.InsertOperations.Add(editOperations[i]);
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Risolve lo stretch applicato alla traccia language.
+        /// </summary>
+        private double ResolveStretchRatio(AudioProcessingRequest request)
+        {
+            double result = 1.0;
+            string normalized;
+            if (request != null && request.Record != null && request.Record.StretchFactor.Length > 0)
+            {
+                SpeedCorrectionService.TryParseStretchFactor(request.Record.StretchFactor, out result, out normalized);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Legge la durata container via ffmpeg quando mkvmerge non la espone, tipico degli AVI.
+        /// </summary>
+        private int ResolveMediaDurationMs(string filePath)
+        {
+            ProcessResult processResult;
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            {
+                return 0;
+            }
+
+            processResult = ProcessRunner.Run(this._ffmpegPath, new string[] { "-hide_banner", "-i", filePath });
+            return this.ParseFfmpegDurationMs(processResult.Stderr.Length > 0 ? processResult.Stderr : processResult.Stdout);
+        }
+
+        /// <summary>
+        /// Estrae la durata dal formato ffmpeg "Duration: HH:MM:SS.xx".
+        /// </summary>
+        private int ParseFfmpegDurationMs(string output)
+        {
+            int marker;
+            int end;
+            string value;
+            TimeSpan duration;
+            if (output == null)
+            {
+                return 0;
+            }
+
+            marker = output.IndexOf("Duration:", StringComparison.OrdinalIgnoreCase);
+            if (marker < 0)
+            {
+                return 0;
+            }
+
+            marker += "Duration:".Length;
+            end = output.IndexOf(",", marker, StringComparison.Ordinal);
+            if (end <= marker)
+            {
+                return 0;
+            }
+
+            value = output.Substring(marker, end - marker).Trim();
+            if (TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out duration))
+            {
+                return (int)Math.Round(duration.TotalMilliseconds);
+            }
+
+            return 0;
         }
 
         /// <summary>
@@ -1045,10 +1148,10 @@ namespace RemuxForge.Core.Audio
         /// <param name="editMap">Mappa operazioni deep-analysis</param>
         /// <param name="options">Opzioni correnti</param>
         /// <returns>Lista operazioni INSERT_SILENCE eleggibili per source fill</returns>
-        private List<EditOperation> GetFillInsertOperations(EditMap editMap, Options options)
+        private List<EditOperation> GetSourceFillEditOperations(EditMap editMap)
         {
             List<EditOperation> result = new List<EditOperation>();
-            if (!options.AudioSourceFillInsertSilence || editMap == null || editMap.Operations == null)
+            if (editMap == null || editMap.Operations == null)
             {
                 return result;
             }
@@ -1056,9 +1159,35 @@ namespace RemuxForge.Core.Audio
             for (int i = 0; i < editMap.Operations.Count; i++)
             {
                 EditOperation operation = editMap.Operations[i];
-                if (string.Equals(operation.Type, EditOperation.INSERT_SILENCE, StringComparison.Ordinal) && operation.DurationMs > options.AudioSourceFillThresholdMs)
+                if (string.Equals(operation.Type, EditOperation.INSERT_SILENCE, StringComparison.Ordinal) || string.Equals(operation.Type, EditOperation.CUT_SEGMENT, StringComparison.Ordinal))
                 {
                     result.Add(operation);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Calcola quanto l'EditMap cambia la durata della traccia renderizzata.
+        /// </summary>
+        private int ComputeEditMapDurationDeltaMs(List<EditOperation> operations)
+        {
+            int result = 0;
+            if (operations == null)
+            {
+                return result;
+            }
+
+            for (int i = 0; i < operations.Count; i++)
+            {
+                if (string.Equals(operations[i].Type, EditOperation.INSERT_SILENCE, StringComparison.Ordinal))
+                {
+                    result += operations[i].DurationMs;
+                }
+                else if (string.Equals(operations[i].Type, EditOperation.CUT_SEGMENT, StringComparison.Ordinal))
+                {
+                    result -= operations[i].DurationMs;
                 }
             }
 
@@ -1319,6 +1448,9 @@ namespace RemuxForge.Core.Audio
             public AudioSourceFillPlan()
             {
                 this.InsertOperations = new List<EditOperation>();
+                this.StretchRatio = 1.0;
+                this.LangTempo = 1.0;
+                this.InitialSilenceMs = 0;
             }
 
             /// <summary>
@@ -1337,6 +1469,21 @@ namespace RemuxForge.Core.Audio
             public int SourceDurationMs { get; set; }
 
             /// <summary>
+            /// Fattore stretch da materializzare sui segmenti language
+            /// </summary>
+            public double StretchRatio { get; set; }
+
+            /// <summary>
+            /// Tempo ffmpeg corrispondente allo stretch richiesto
+            /// </summary>
+            public double LangTempo { get; set; }
+
+            /// <summary>
+            /// Silenzio iniziale da materializzare quando il sync esterno viene bypassato
+            /// </summary>
+            public int InitialSilenceMs { get; set; }
+
+            /// <summary>
             /// Operazioni insert silence da sostituire con audio source
             /// </summary>
             public List<EditOperation> InsertOperations { get; set; }
@@ -1347,6 +1494,14 @@ namespace RemuxForge.Core.Audio
             public bool HasWork
             {
                 get { return this.StartFillMs > 0 || this.EndFillMs > 0 || this.InsertOperations.Count > 0; }
+            }
+
+            /// <summary>
+            /// True se il render incorpora delay/stretch e il merge non deve riapplicare --sync
+            /// </summary>
+            public bool MaterializesExternalSync
+            {
+                get { return this.InitialSilenceMs > 0 || Math.Abs(this.StretchRatio - 1.0) > 0.0001; }
             }
         }
 
@@ -1363,13 +1518,21 @@ namespace RemuxForge.Core.Audio
             /// <param name="startMs">Inizio segmento in ms</param>
             /// <param name="endMs">Fine segmento in ms, oppure -1 per coda</param>
             /// <param name="isSilence">True se il segmento e' silenzio generato</param>
-            public AudioFilterSegment(int inputIndex, int trackId, int startMs, int endMs, bool isSilence)
+            public AudioFilterSegment(int inputIndex, int trackId, int startMs, int endMs, bool isSilence) : this(inputIndex, trackId, startMs, endMs, isSilence, 1.0)
+            {
+            }
+
+            /// <summary>
+            /// Costruttore segmento audio per filtro concat con tempo esplicito
+            /// </summary>
+            public AudioFilterSegment(int inputIndex, int trackId, int startMs, int endMs, bool isSilence, double tempo)
             {
                 this.InputIndex = inputIndex;
                 this.TrackId = trackId;
                 this.StartMs = startMs;
                 this.EndMs = endMs;
                 this.IsSilence = isSilence;
+                this.Tempo = tempo;
             }
 
             /// <summary>
@@ -1396,6 +1559,11 @@ namespace RemuxForge.Core.Audio
             /// True se il segmento e' silenzio generato
             /// </summary>
             public bool IsSilence { get; set; }
+
+            /// <summary>
+            /// Tempo ffmpeg da applicare al segmento
+            /// </summary>
+            public double Tempo { get; set; }
         }
 
         #endregion
