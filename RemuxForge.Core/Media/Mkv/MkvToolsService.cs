@@ -146,16 +146,26 @@ namespace RemuxForge.Core.Media.Mkv
         public bool IsLanguageMatch(TrackInfo track, string language)
         {
             bool match = false;
+            string trackLanguage;
+            string requestedLanguage;
+
+            if (track == null || language == null)
+            {
+                return match;
+            }
+
+            trackLanguage = track.Language.Length > 0 ? track.Language : "und";
+            requestedLanguage = language.Trim();
 
             // Verifica lingua ISO 639-2
-            if (string.Equals(track.Language, language, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(trackLanguage, requestedLanguage, StringComparison.OrdinalIgnoreCase))
             {
                 match = true;
             }
             // Verifica tag IETF
             else if (track.LanguageIetf.Length > 0)
             {
-                if (track.LanguageIetf.StartsWith(language, StringComparison.OrdinalIgnoreCase) || string.Equals(track.LanguageIetf, language, StringComparison.OrdinalIgnoreCase))
+                if (track.LanguageIetf.StartsWith(requestedLanguage, StringComparison.OrdinalIgnoreCase) || string.Equals(track.LanguageIetf, requestedLanguage, StringComparison.OrdinalIgnoreCase))
                 {
                     match = true;
                 }
