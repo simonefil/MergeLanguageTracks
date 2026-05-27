@@ -51,6 +51,11 @@ namespace RemuxForge.Core.Analysis.Deep
         private const double TAIL_GAP_SCAN_STEP_SEC = 30.0;
         private const double TAIL_GAP_SCAN_MARGIN_SEC = 60.0;
         private const double TAIL_GAP_MIN_IMPROVEMENT = 1.45;
+        private const double TAIL_GAP_FRAME_SEARCH_MARGIN_SEC = 60.0;
+        private const int TAIL_GAP_FRAME_CONFIRM_FRAMES = 6;
+        private const int TAIL_GAP_FRAME_MIN_VOTES = 4;
+        private const double TAIL_GAP_FRAME_MATCH_SSIM = 0.72;
+        private const double TAIL_GAP_FRAME_MISMATCH_SSIM = 0.55;
 
         #endregion
 
@@ -605,7 +610,12 @@ namespace RemuxForge.Core.Analysis.Deep
             int langDurationMs;
             int expectedTailOffsetMs;
             int deltaMs;
+            int recoveredTailOffsetMs;
+            int recoveredDeltaMs;
             double crossoverSec;
+            double postGapSupportSec;
+            double frameBoundarySec;
+            double recoveredTailOffsetSec;
 
             if (regions == null || regions.Count == 0 || sourceDurationMs <= 0 || Math.Abs(inverseRatio) < 0.000001)
             {
@@ -633,12 +643,32 @@ namespace RemuxForge.Core.Analysis.Deep
                 return result;
             }
 
-            if (!this.TryFindTailGapCrossover(sourceFile, langFile, lastRegion, sourceDurationSec, lastRegion.OffsetMs / 1000.0, expectedTailOffsetMs / 1000.0, inverseRatio, out crossoverSec))
+            if (!this.TryFindTailGapCrossover(sourceFile, langFile, lastRegion, sourceDurationSec, lastRegion.OffsetMs / 1000.0, expectedTailOffsetMs / 1000.0, inverseRatio, out postGapSupportSec))
             {
                 ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Tail gap recovery non conclusivo: coda non supportata " + unsupportedTailSec.ToString("F0", CultureInfo.InvariantCulture) + "s, delta atteso " + deltaMs.ToString(CultureInfo.InvariantCulture) + "ms");
                 return result;
             }
 
+            if (!this.TryEstimateTailGapPostOffset(sourceFile, langFile, postGapSupportSec, expectedTailOffsetMs / 1000.0, inverseRatio, out recoveredTailOffsetSec))
+            {
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Tail gap recovery non conclusivo: offset locale post-gap non stimabile");
+                return result;
+            }
+
+            recoveredTailOffsetMs = (int)Math.Round(recoveredTailOffsetSec * 1000.0);
+            recoveredDeltaMs = recoveredTailOffsetMs - (int)Math.Round(lastRegion.OffsetMs);
+            if (recoveredDeltaMs < TAIL_GAP_MIN_DELTA_MS)
+            {
+                return result;
+            }
+
+            if (!this.TryFindTailGapFrameBoundary(sourceFile, langFile, lastRegion.OffsetMs / 1000.0, recoveredTailOffsetSec, inverseRatio, postGapSupportSec, recoveredDeltaMs / 1000.0, sourceDurationSec, out frameBoundarySec))
+            {
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Tail gap recovery non conclusivo: boundary frame-perfect non trovato attorno a " + (postGapSupportSec - (recoveredDeltaMs / 1000.0)).ToString("F1", CultureInfo.InvariantCulture) + "s");
+                return result;
+            }
+
+            crossoverSec = frameBoundarySec;
             if (crossoverSec <= lastRegion.StartSrcSec + 1.0 || crossoverSec >= sourceDurationSec - 1.0)
             {
                 return result;
@@ -649,8 +679,8 @@ namespace RemuxForge.Core.Analysis.Deep
             tailRegion.StartSrcSec = crossoverSec;
             tailRegion.EndSrcSec = sourceDurationSec;
             tailRegion.SupportStartSrcSec = crossoverSec;
-            tailRegion.SupportEndSrcSec = sourceDurationSec;
-            tailRegion.OffsetMs = expectedTailOffsetMs;
+            tailRegion.SupportEndSrcSec = Math.Max(crossoverSec, postGapSupportSec);
+            tailRegion.OffsetMs = recoveredTailOffsetMs;
             tailRegion.MatchCount = 1;
             regions.Add(tailRegion);
 
@@ -659,15 +689,317 @@ namespace RemuxForge.Core.Analysis.Deep
                 DeepAnalysisTimelinePlateauDiagnostic plateau = new DeepAnalysisTimelinePlateauDiagnostic();
                 plateau.Index = timelineMap.Diagnostic.Plateaus.Count;
                 plateau.StartSrcSec = crossoverSec;
-                plateau.EndSrcSec = sourceDurationSec;
-                plateau.OffsetMs = expectedTailOffsetMs;
+                plateau.EndSrcSec = Math.Max(crossoverSec, postGapSupportSec);
+                plateau.OffsetMs = recoveredTailOffsetMs;
                 plateau.AnchorCount = 1;
                 plateau.AverageScore = 0.0;
                 timelineMap.Diagnostic.Plateaus.Add(plateau);
                 timelineMap.Diagnostic.PlateauCount = timelineMap.Diagnostic.Plateaus.Count;
             }
 
-            ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Tail gap recovery: coda non supportata " + unsupportedTailSec.ToString("F0", CultureInfo.InvariantCulture) + "s, offset " + lastRegion.OffsetMs.ToString(CultureInfo.InvariantCulture) + "ms -> " + expectedTailOffsetMs.ToString(CultureInfo.InvariantCulture) + "ms da " + crossoverSec.ToString("F1", CultureInfo.InvariantCulture) + "s");
+            ConsoleHelper.Write(LogSection.Deep, LogLevel.Notice, "  Tail gap recovery: coda non supportata " + unsupportedTailSec.ToString("F0", CultureInfo.InvariantCulture) + "s, offset " + lastRegion.OffsetMs.ToString(CultureInfo.InvariantCulture) + "ms -> " + recoveredTailOffsetMs.ToString(CultureInfo.InvariantCulture) + "ms da " + crossoverSec.ToString("F3", CultureInfo.InvariantCulture) + "s (boundary frame, supporto " + postGapSupportSec.ToString("F1", CultureInfo.InvariantCulture) + "s, atteso " + expectedTailOffsetMs.ToString(CultureInfo.InvariantCulture) + "ms)");
+            result = true;
+            return result;
+        }
+
+        /// <summary>
+        /// Stima l'offset locale dopo il gap su frame nativi, invece di derivarlo dalla durata totale file.
+        /// </summary>
+        private bool TryEstimateTailGapPostOffset(string sourceFile, string langFile, double supportSrcSec, double expectedOffsetSec, double inverseRatio, out double offsetSec)
+        {
+            bool result = false;
+            double windowStartSec = Math.Max(0.0, supportSrcSec - 8.0);
+            double durationSec = 16.0;
+            double searchRadiusSec = 5.0;
+            double stepSec = 1.0 / 24.0;
+            double bestMse = double.MaxValue;
+            double secondMse = double.MaxValue;
+            double bestOffsetSec = expectedOffsetSec;
+            List<byte[]> sourceFrames;
+            double[] sourceTimestampsMs;
+            List<byte[]> langFrames;
+            double[] langTimestampsMs;
+
+            offsetSec = 0.0;
+            this.ExtractDeepSegment(sourceFile, (int)Math.Round(windowStartSec * 1000.0), durationSec, 0.0, this._geometryCropSourceToFourThree, this._analysisCropSourcePx, out sourceFrames, out sourceTimestampsMs);
+            if (sourceFrames.Count < 8 || sourceTimestampsMs.Length < 8)
+            {
+                return result;
+            }
+
+            double langStartSec = windowStartSec - expectedOffsetSec - searchRadiusSec;
+            if (Math.Abs(inverseRatio - 1.0) > 0.0001)
+            {
+                langStartSec *= inverseRatio;
+            }
+            if (langStartSec < 0.0) { langStartSec = 0.0; }
+
+            this.ExtractDeepSegment(langFile, (int)Math.Round(langStartSec * 1000.0), durationSec + (searchRadiusSec * 2.0) + 2.0, 0.0, this._geometryCropLanguageToFourThree, this._analysisCropLanguagePx, out langFrames, out langTimestampsMs);
+            if (langFrames.Count < 8 || langTimestampsMs.Length < 8)
+            {
+                return result;
+            }
+
+            for (double candidateOffsetSec = expectedOffsetSec - searchRadiusSec; candidateOffsetSec <= expectedOffsetSec + searchRadiusSec; candidateOffsetSec += stepSec)
+            {
+                double mse = this.ComputeTailGapOffsetMse(sourceFrames, sourceTimestampsMs, langFrames, langTimestampsMs, candidateOffsetSec, inverseRatio, 125.0);
+                if (mse <= 0.0 || mse >= double.MaxValue)
+                {
+                    continue;
+                }
+
+                if (mse < bestMse)
+                {
+                    secondMse = bestMse;
+                    bestMse = mse;
+                    bestOffsetSec = candidateOffsetSec;
+                }
+                else if (mse < secondMse)
+                {
+                    secondMse = mse;
+                }
+            }
+
+            if (bestMse < double.MaxValue && (secondMse >= double.MaxValue || bestMse <= secondMse * 0.98 || bestMse < 200.0))
+            {
+                offsetSec = bestOffsetSec;
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Tail gap offset locale: " + (offsetSec * 1000.0).ToString("F0", CultureInfo.InvariantCulture) + "ms vicino a src " + supportSrcSec.ToString("F1", CultureInfo.InvariantCulture) + "s (mse=" + bestMse.ToString("F1", CultureInfo.InvariantCulture) + ")");
+                result = true;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// MSE medio per un offset candidato nella finestra post-gap.
+        /// </summary>
+        private double ComputeTailGapOffsetMse(List<byte[]> sourceFrames, double[] sourceTimestampsMs, List<byte[]> langFrames, double[] langTimestampsMs, double offsetSec, double inverseRatio, double toleranceMs)
+        {
+            double total = 0.0;
+            int count = 0;
+            for (int i = 0; i < sourceFrames.Count; i++)
+            {
+                double targetLangMs = sourceTimestampsMs[i] - (offsetSec * 1000.0);
+                if (Math.Abs(inverseRatio - 1.0) > 0.0001)
+                {
+                    targetLangMs *= inverseRatio;
+                }
+
+                int langIndex = NearestTimestampIndex(langTimestampsMs, targetLangMs);
+                if (langIndex < 0 || langIndex >= langFrames.Count)
+                {
+                    continue;
+                }
+
+                if (Math.Abs(langTimestampsMs[langIndex] - targetLangMs) > toleranceMs)
+                {
+                    continue;
+                }
+
+                total += this.ComputeMse(sourceFrames[i], langFrames[langIndex]);
+                count++;
+            }
+
+            if (count < 6)
+            {
+                return double.MaxValue;
+            }
+
+            return total / count;
+        }
+
+        /// <summary>
+        /// Localizza l'inizio del gap su frame nativi: il vecchio offset deve combaciare prima,
+        /// divergere subito dopo, e il nuovo offset deve combaciare dopo la durata gap.
+        /// </summary>
+        private bool TryFindTailGapFrameBoundary(string sourceFile, string langFile, double oldOffsetSec, double newOffsetSec, double inverseRatio, double postGapSupportSec, double gapDurationSec, double sourceDurationSec, out double boundarySec)
+        {
+            bool result = false;
+            double approximateBoundarySec = postGapSupportSec - gapDurationSec;
+            double searchStartSec = approximateBoundarySec - TAIL_GAP_FRAME_SEARCH_MARGIN_SEC;
+            double searchEndSec = approximateBoundarySec + TAIL_GAP_FRAME_SEARCH_MARGIN_SEC;
+            double extractEndSec;
+            double durationSec;
+            double langOldStartSec;
+            double langNewStartSec;
+            double langDurationSec;
+            double toleranceMs = 125.0;
+            List<byte[]> sourceFrames;
+            double[] sourceTimestampsMs;
+            List<byte[]> langOldFrames;
+            double[] langOldTimestampsMs;
+            List<byte[]> langNewFrames;
+            double[] langNewTimestampsMs;
+
+            boundarySec = 0.0;
+            if (searchStartSec < 0.0) { searchStartSec = 0.0; }
+            if (searchEndSec > sourceDurationSec - 1.0) { searchEndSec = sourceDurationSec - 1.0; }
+            extractEndSec = Math.Min(sourceDurationSec - 1.0, searchEndSec + gapDurationSec + 2.0);
+            durationSec = extractEndSec - searchStartSec;
+            if (durationSec <= gapDurationSec || searchEndSec <= searchStartSec)
+            {
+                return result;
+            }
+
+            this.ExtractDeepSegment(sourceFile, (int)Math.Round(searchStartSec * 1000.0), durationSec, 0.0, this._geometryCropSourceToFourThree, this._analysisCropSourcePx, out sourceFrames, out sourceTimestampsMs);
+            if (sourceFrames.Count < TAIL_GAP_FRAME_CONFIRM_FRAMES * 3 || sourceTimestampsMs.Length < TAIL_GAP_FRAME_CONFIRM_FRAMES * 3)
+            {
+                return result;
+            }
+
+            langOldStartSec = searchStartSec - oldOffsetSec;
+            langNewStartSec = searchStartSec - newOffsetSec;
+            if (Math.Abs(inverseRatio - 1.0) > 0.0001)
+            {
+                langOldStartSec *= inverseRatio;
+                langNewStartSec *= inverseRatio;
+            }
+            if (langOldStartSec < 0.0) { langOldStartSec = 0.0; }
+            if (langNewStartSec < 0.0) { langNewStartSec = 0.0; }
+
+            langDurationSec = durationSec + 2.0;
+            this.ExtractDeepSegment(langFile, (int)Math.Round(langOldStartSec * 1000.0), langDurationSec, 0.0, this._geometryCropLanguageToFourThree, this._analysisCropLanguagePx, out langOldFrames, out langOldTimestampsMs);
+            this.ExtractDeepSegment(langFile, (int)Math.Round(langNewStartSec * 1000.0), langDurationSec, 0.0, this._geometryCropLanguageToFourThree, this._analysisCropLanguagePx, out langNewFrames, out langNewTimestampsMs);
+            if (langOldFrames.Count < TAIL_GAP_FRAME_CONFIRM_FRAMES || langNewFrames.Count < TAIL_GAP_FRAME_CONFIRM_FRAMES)
+            {
+                return result;
+            }
+
+            for (int i = TAIL_GAP_FRAME_CONFIRM_FRAMES; i < sourceFrames.Count - TAIL_GAP_FRAME_CONFIRM_FRAMES; i++)
+            {
+                double candidateSec = sourceTimestampsMs[i] / 1000.0;
+                int beforeMatches;
+                int afterMismatches;
+                int postMatches;
+
+                if (candidateSec < searchStartSec || candidateSec > searchEndSec)
+                {
+                    continue;
+                }
+
+                beforeMatches = this.CountTailGapOldMatches(sourceFrames, sourceTimestampsMs, langOldFrames, langOldTimestampsMs, i - TAIL_GAP_FRAME_CONFIRM_FRAMES, i, oldOffsetSec, inverseRatio, toleranceMs);
+                if (beforeMatches < TAIL_GAP_FRAME_MIN_VOTES)
+                {
+                    continue;
+                }
+
+                afterMismatches = this.CountTailGapOldMismatches(sourceFrames, sourceTimestampsMs, langOldFrames, langOldTimestampsMs, i, i + TAIL_GAP_FRAME_CONFIRM_FRAMES, oldOffsetSec, inverseRatio, toleranceMs);
+                if (afterMismatches < TAIL_GAP_FRAME_MIN_VOTES)
+                {
+                    continue;
+                }
+
+                postMatches = this.CountTailGapNewMatches(sourceFrames, sourceTimestampsMs, langNewFrames, langNewTimestampsMs, candidateSec + gapDurationSec, newOffsetSec, inverseRatio, toleranceMs);
+                if (postMatches < TAIL_GAP_FRAME_MIN_VOTES)
+                {
+                    continue;
+                }
+
+                boundarySec = candidateSec;
+                ConsoleHelper.Write(LogSection.Deep, LogLevel.Debug, "  Tail gap frame boundary: src " + boundarySec.ToString("F3", CultureInfo.InvariantCulture) + "s, old-before " + beforeMatches.ToString(CultureInfo.InvariantCulture) + "/" + TAIL_GAP_FRAME_CONFIRM_FRAMES.ToString(CultureInfo.InvariantCulture) + ", old-after mismatch " + afterMismatches.ToString(CultureInfo.InvariantCulture) + "/" + TAIL_GAP_FRAME_CONFIRM_FRAMES.ToString(CultureInfo.InvariantCulture) + ", new-post " + postMatches.ToString(CultureInfo.InvariantCulture) + "/" + TAIL_GAP_FRAME_CONFIRM_FRAMES.ToString(CultureInfo.InvariantCulture));
+                result = true;
+                return result;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Conta frame source che combaciano col vecchio offset.
+        /// </summary>
+        private int CountTailGapOldMatches(List<byte[]> sourceFrames, double[] sourceTimestampsMs, List<byte[]> langFrames, double[] langTimestampsMs, int startIndex, int endIndex, double offsetSec, double inverseRatio, double toleranceMs)
+        {
+            int result = 0;
+            for (int i = startIndex; i < endIndex && i < sourceFrames.Count; i++)
+            {
+                double ssim;
+                if (this.TryScoreTailGapFrame(sourceFrames[i], sourceTimestampsMs[i], langFrames, langTimestampsMs, offsetSec, inverseRatio, toleranceMs, out ssim) &&
+                    ssim >= TAIL_GAP_FRAME_MATCH_SSIM)
+                {
+                    result++;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Conta frame source che non combaciano piu' col vecchio offset.
+        /// </summary>
+        private int CountTailGapOldMismatches(List<byte[]> sourceFrames, double[] sourceTimestampsMs, List<byte[]> langFrames, double[] langTimestampsMs, int startIndex, int endIndex, double offsetSec, double inverseRatio, double toleranceMs)
+        {
+            int result = 0;
+            for (int i = startIndex; i < endIndex && i < sourceFrames.Count; i++)
+            {
+                double ssim;
+                if (this.TryScoreTailGapFrame(sourceFrames[i], sourceTimestampsMs[i], langFrames, langTimestampsMs, offsetSec, inverseRatio, toleranceMs, out ssim) &&
+                    ssim <= TAIL_GAP_FRAME_MISMATCH_SSIM)
+                {
+                    result++;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Conta frame source post-gap che combaciano col nuovo offset.
+        /// </summary>
+        private int CountTailGapNewMatches(List<byte[]> sourceFrames, double[] sourceTimestampsMs, List<byte[]> langFrames, double[] langTimestampsMs, double sourceStartSec, double offsetSec, double inverseRatio, double toleranceMs)
+        {
+            int result = 0;
+            int startIndex = NearestTimestampIndex(sourceTimestampsMs, sourceStartSec * 1000.0);
+            if (startIndex < 0)
+            {
+                return result;
+            }
+
+            for (int i = startIndex; i < sourceFrames.Count && result < TAIL_GAP_FRAME_CONFIRM_FRAMES; i++)
+            {
+                double ssim;
+                if (this.TryScoreTailGapFrame(sourceFrames[i], sourceTimestampsMs[i], langFrames, langTimestampsMs, offsetSec, inverseRatio, toleranceMs, out ssim) &&
+                    ssim >= TAIL_GAP_FRAME_MATCH_SSIM)
+                {
+                    result++;
+                }
+                else if (sourceTimestampsMs[i] - sourceTimestampsMs[startIndex] > 1000.0)
+                {
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Calcola SSIM tra un frame source e il frame lang corrispondente all'offset dato.
+        /// </summary>
+        private bool TryScoreTailGapFrame(byte[] sourceFrame, double sourceTimestampMs, List<byte[]> langFrames, double[] langTimestampsMs, double offsetSec, double inverseRatio, double toleranceMs, out double ssim)
+        {
+            bool result = false;
+            double targetLangMs = sourceTimestampMs - (offsetSec * 1000.0);
+            int langIndex;
+            double distanceMs;
+
+            ssim = 0.0;
+            if (Math.Abs(inverseRatio - 1.0) > 0.0001)
+            {
+                targetLangMs *= inverseRatio;
+            }
+
+            langIndex = NearestTimestampIndex(langTimestampsMs, targetLangMs);
+            if (langIndex < 0 || langIndex >= langFrames.Count)
+            {
+                return result;
+            }
+
+            distanceMs = Math.Abs(langTimestampsMs[langIndex] - targetLangMs);
+            if (distanceMs > toleranceMs)
+            {
+                return result;
+            }
+
+            ssim = this.ComputeSsim(sourceFrame, langFrames[langIndex]);
             result = true;
             return result;
         }

@@ -203,6 +203,18 @@ namespace RemuxForge.Core.Analysis.Deep
                 refineMethod = "";
                 bestCrossover = -1.0;
 
+                if (timelineMode &&
+                    newOffsetSec > oldOffsetSec &&
+                    durationMs > 1500 &&
+                    regions[r + 1].MatchCount <= 1 &&
+                    Math.Abs(regions[r].EndSrcSec - regions[r + 1].StartSrcSec) <= 0.001)
+                {
+                    // Le regioni di tail recovery possono arrivare gia' con un boundary frame-confirmed.
+                    // In quel caso il primo match post-gap e' troppo tardo per l'operazione INSERT.
+                    bestCrossover = regions[r + 1].StartSrcSec;
+                    refineMethod = "frame-boundary";
+                }
+
                 if (bestCrossover < 0.0)
                 {
                     // Primo fallback visuale: confronto differenziale tra vecchio e nuovo offset
