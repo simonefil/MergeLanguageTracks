@@ -1,5 +1,6 @@
 using RemuxForge.Core.Configuration;
 using RemuxForge.Core.Infrastructure;
+using RemuxForge.Core.Localization;
 using RemuxForge.Core.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -52,6 +53,7 @@ namespace RemuxForge.Web
 
             // Inizializza impostazioni applicazione
             AppSettingsService.Instance.Initialize();
+            AppText.Initialize("", AppSettingsService.Instance.Settings.Ui.Language);
             ToolPathResolverService toolPathResolver = new ToolPathResolverService(AppSettingsService.Instance.ConfigFolder);
             string mkvMergePath;
             string mkvExtractPath;

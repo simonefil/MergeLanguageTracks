@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using RemuxForge.Core.Infrastructure;
+using RemuxForge.Core.Localization;
 using RemuxForge.Core.Models;
 
 namespace RemuxForge.Core.Splitting
@@ -156,25 +157,25 @@ namespace RemuxForge.Core.Splitting
             // Validazione mutua esclusione fra pattern e ranges
             if (!string.IsNullOrEmpty(args.Pattern) && !string.IsNullOrEmpty(args.Ranges))
             {
-                throw new ArgumentException("--pattern and --ranges are mutually exclusive.");
+                throw new ArgumentException(AppText.T("split.patternRangesExclusive"));
             }
 
             // Scorciatoie e opzioni full non si combinano
             if (shortcuts.Count > 0 && others.Count > 0)
             {
-                throw new ArgumentException("[" + string.Join(", ", shortcuts) + "] cannot combine with [" + string.Join(", ", others) + "].");
+                throw new ArgumentException(AppText.F("split.optionsCannotCombine", string.Join(", ", shortcuts), string.Join(", ", others)));
             }
 
             // --split-at non si combina con --trim-*
             if (!string.IsNullOrEmpty(args.SplitAt) && (!string.IsNullOrEmpty(args.TrimStart) || !string.IsNullOrEmpty(args.TrimEnd)))
             {
-                throw new ArgumentException("--split-at cannot combine with --trim-start/--trim-end.");
+                throw new ArgumentException(AppText.T("split.splitAtTrimExclusive"));
             }
 
             // --chapters-each non si combina con nessuna altra scorciatoia
             if (args.ChaptersEach && (!string.IsNullOrEmpty(args.SplitAt) || !string.IsNullOrEmpty(args.TrimStart) || !string.IsNullOrEmpty(args.TrimEnd)))
             {
-                throw new ArgumentException("--chapters-each cannot combine with other shortcuts.");
+                throw new ArgumentException(AppText.T("split.chaptersEachShortcutExclusive"));
             }
 
             // Trasformazione di --split-at in sequenza di range (0-T1,T1-T2,...,Tn-END)
@@ -188,7 +189,7 @@ namespace RemuxForge.Core.Splitting
                 }
                 if (tokens.Count == 0)
                 {
-                    throw new ArgumentException("--split-at is empty.");
+                    throw new ArgumentException(AppText.T("split.splitAtEmpty"));
                 }
 
                 // Check di duplicati e range
@@ -201,20 +202,20 @@ namespace RemuxForge.Core.Splitting
 
                     if (!seen.Add(key))
                     {
-                        throw new ArgumentException("--split-at duplicate point '" + tok + "'.");
+                        throw new ArgumentException(AppText.F("split.splitAtDuplicate", tok));
                     }
                     if (parsed.isFrame)
                     {
                         if (parsed.val <= 0 || parsed.val >= totalFrames)
                         {
-                            throw new ArgumentException("--split-at frame " + parsed.val + " out of range [1.." + (totalFrames - 1) + "].");
+                            throw new ArgumentException(AppText.F("split.splitAtFrameOutOfRange", parsed.val, totalFrames - 1));
                         }
                     }
                     else
                     {
                         if (parsed.val <= 0 || parsed.val >= duration)
                         {
-                            throw new ArgumentException("--split-at time '" + tok + "' out of range.");
+                            throw new ArgumentException(AppText.F("split.splitAtTimeOutOfRange", tok));
                         }
                     }
                 }
@@ -279,12 +280,12 @@ namespace RemuxForge.Core.Splitting
                 r = rangeTokens[i].Trim();
                 if (r.Length == 0)
                 {
-                    throw new ArgumentException("Range " + (i + 1) + ": empty");
+                    throw new ArgumentException(AppText.F("split.rangeEmpty", i + 1));
                 }
                 dash = r.IndexOf('-');
                 if (dash < 0)
                 {
-                    throw new ArgumentException("Range " + (i + 1) + ": expected 'T1-T2', got '" + r + "'");
+                    throw new ArgumentException(AppText.F("split.rangeExpected", i + 1, r));
                 }
                 t1Str = r.Substring(0, dash);
                 t2Str = r.Substring(dash + 1);
@@ -296,21 +297,21 @@ namespace RemuxForge.Core.Splitting
                 // Clamping di start negativi
                 if (startF < 0)
                 {
-                    ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, "  WARN range " + (i + 1) + ": start clamped from " + startF + " to 0");
+                    ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, AppText.F("split.warnRangeStartClamped", i + 1, startF));
                     startF = 0;
                 }
 
                 // Clamping di end oltre EOF
                 if (endF > totalFrames)
                 {
-                    ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, "  WARN range " + (i + 1) + ": end clamped from " + endF + " to " + totalFrames);
+                    ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, AppText.F("split.warnRangeEndClamped", i + 1, endF, totalFrames));
                     endF = totalFrames;
                 }
 
                 // Start già oltre EOF: clampato all'ultimo frame
                 if (startF >= totalFrames)
                 {
-                    ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, "  WARN range " + (i + 1) + ": start past EOF, clamped to last frame");
+                    ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, AppText.F("split.warnRangeStartPastEof", i + 1));
                     startF = totalFrames - 1;
                     endF = totalFrames;
                 }
@@ -318,7 +319,7 @@ namespace RemuxForge.Core.Splitting
                 // Range vuoti o invertiti sono errori hard
                 if (startF >= endF)
                 {
-                    throw new ArgumentException("Range " + (i + 1) + " empty or inverted: start_frame=" + startF + ", end_frame=" + endF);
+                    throw new ArgumentException(AppText.F("split.rangeEmptyOrInverted", i + 1, startF, endF));
                 }
                 result.Add((startF, endF));
             }
@@ -340,7 +341,7 @@ namespace RemuxForge.Core.Splitting
             {
                 if (sorted[i + 1].Item1 < sorted[i].Item2)
                 {
-                    ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, "  WARN overlapping ranges detected");
+                    ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, AppText.T("split.warnOverlappingRanges"));
                     return;
                 }
             }
@@ -386,7 +387,7 @@ namespace RemuxForge.Core.Splitting
             {
                 if (chapters == null || chapters.Count == 0)
                 {
-                    throw new ArgumentException("--chapters-each requires the file to have chapters.");
+                    throw new ArgumentException(AppText.T("split.chaptersEachRequiresChapters"));
                 }
                 nCh = chapters.Count;
                 segments = new List<MkvSplitSegment>(nCh);
@@ -447,7 +448,7 @@ namespace RemuxForge.Core.Splitting
             if (string.IsNullOrEmpty(args.Pattern))
             {
                 PrintNoModeSelected(chapters, nCh);
-                throw new ArgumentException("No split mode selected.");
+                throw new ArgumentException(AppText.T("split.noModeSelectedShort"));
             }
 
             pattern = ParsePattern(args.Pattern);
@@ -457,10 +458,10 @@ namespace RemuxForge.Core.Splitting
             for (int i = 0; i < pattern.Length; i++) { sum += pattern[i]; }
             if (sum != nCh)
             {
-                throw new ArgumentException("Pattern sums to " + sum + " but file has " + nCh + " chapters.");
+                throw new ArgumentException(AppText.F("split.patternSumMismatch", sum, nCh));
             }
 
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Info, "Pattern: [" + string.Join(",", pattern) + "], " + pattern.Length + " episodes");
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Info, AppText.F("split.patternSummary", string.Join(",", pattern), pattern.Length));
             ConsoleHelper.Write(LogSection.Split, LogLevel.Text, "");
 
             // Costruzione degli episodi secondo il pattern di capitoli
@@ -499,12 +500,12 @@ namespace RemuxForge.Core.Splitting
         /// <param name="nCh">Numero di capitoli del sorgente.</param>
         private static void PrintNoModeSelected(List<MkvSplitChapter> chapters, int nCh)
         {
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "ERROR: no split mode selected. Use --pattern, --ranges, --split-at, --trim-start/--trim-end, or --chapters-each.");
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "File has " + nCh + " chapters:");
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Error, AppText.T("split.noModeSelected"));
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Error, AppText.F("split.fileHasChapters", nCh));
             for (int i = 0; i < nCh; i++)
             {
                 string chName = chapters[i].Name ?? string.Empty;
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "  " + (i + 1).ToString("D3", CultureInfo.InvariantCulture) + ". " + chapters[i].TsStr + "  " + chName);
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, AppText.F("split.chapterLine", i + 1, chapters[i].TsStr, chName));
             }
         }
 
@@ -764,7 +765,7 @@ namespace RemuxForge.Core.Splitting
                 oldEnd = s + seg.FrameCount;
                 if (newS.Value >= oldEnd)
                 {
-                    ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, "  WARN snap would eat the whole segment " + seg.Num + ", skipping.");
+                    ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, AppText.F("split.warnSnapEatSegment", seg.Num));
                     continue;
                 }
 
@@ -778,10 +779,10 @@ namespace RemuxForge.Core.Splitting
             // Log delle modifiche e warning in caso di overlap creati dallo snap
             if (changed.Count > 0)
             {
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Info, "Snap applied:");
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Info, AppText.T("split.snapApplied"));
                 foreach ((int num, int oldS, int newS) ch in changed)
                 {
-                    ConsoleHelper.Write(LogSection.Split, LogLevel.Text, "  seg " + ch.num + ": start_frame " + ch.oldS + " -> " + ch.newS + " (delta " + (ch.newS - ch.oldS) + ")");
+                    ConsoleHelper.Write(LogSection.Split, LogLevel.Text, AppText.F("split.snapSegment", ch.num, ch.oldS, ch.newS, ch.newS - ch.oldS));
                 }
                 boundaries = new List<(int, int, int)>();
                 foreach (MkvSplitSegment x in segments)
@@ -793,7 +794,7 @@ namespace RemuxForge.Core.Splitting
                 {
                     if (boundaries[i + 1].start < boundaries[i].end)
                     {
-                        ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, "  WARN segments " + boundaries[i].num + " and " + boundaries[i + 1].num + " overlap after snap.");
+                        ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, AppText.F("split.warnSnapOverlap", boundaries[i].num, boundaries[i + 1].num));
                         break;
                     }
                 }

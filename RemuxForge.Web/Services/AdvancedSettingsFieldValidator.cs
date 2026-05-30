@@ -1,3 +1,4 @@
+using RemuxForge.Core.Localization;
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -23,11 +24,11 @@ namespace RemuxForge.Web.Services
             int value;
             if (!int.TryParse(text, out value))
             {
-                errors.Add(fieldName + ": valore intero non valido");
+                errors.Add(AppText.F("web.advanced.validation.invalidInt", fieldName));
             }
             else if (value < min || value > max)
             {
-                errors.Add(fieldName + ": deve essere tra " + min + " e " + max);
+                errors.Add(AppText.F("web.advanced.validation.range", fieldName, min, max));
             }
         }
 
@@ -44,11 +45,11 @@ namespace RemuxForge.Web.Services
             double value;
             if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
             {
-                errors.Add(fieldName + ": valore numerico non valido");
+                errors.Add(AppText.F("web.advanced.validation.invalidNumber", fieldName));
             }
             else if (value < min || value > max)
             {
-                errors.Add(fieldName + ": deve essere tra " + min.ToString(CultureInfo.InvariantCulture) + " e " + max.ToString(CultureInfo.InvariantCulture));
+                errors.Add(AppText.F("web.advanced.validation.range", fieldName, min.ToString(CultureInfo.InvariantCulture), max.ToString(CultureInfo.InvariantCulture)));
             }
         }
 

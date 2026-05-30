@@ -23,7 +23,9 @@
                        OnShowInfo="ShowInfo"
                        OnShowPipeline="ShowPipeline"
                        OnThemeChanged="ChangeTheme"
+                       OnLanguageChanged="ChangeLanguage"
                        CurrentTheme="@_currentTheme"
+                       CurrentLanguage="@_currentLanguage"
                        CurrentMode="@_currentMode" />
 
     <div class="mode-switch">
@@ -37,11 +39,11 @@
     {
         <div class="panels-area">
             <div class="rf-panel">
-                <div class="rf-panel-title">Input</div>
+                <div class="rf-panel-title">@AppText.T("web.dashboard.input")</div>
                 <div class="rf-panel-body split-input-body">
                     <table class="episode-table split-table">
                         <thead>
-                            <tr><th>File</th><th>Status</th></tr>
+                            <tr><th>@AppText.T("web.dashboard.file")</th><th>@AppText.T("web.dashboard.status")</th></tr>
                         </thead>
                         <tbody>
                             @for (int i = 0; i < _splitRecords.Count; i++)
@@ -58,19 +60,19 @@
                 </div>
             </div>
             <div class="rf-panel">
-                <div class="rf-panel-title">Dettaglio file</div>
+                <div class="rf-panel-title">@AppText.T("web.dashboard.fileDetail")</div>
                 <div class="rf-panel-body detail-content">
                     @if (_selectedSplitRecord == null)
                     {
-                        <div class="empty-detail">Nessun file selezionato</div>
+                        <div class="empty-detail">@AppText.T("web.dashboard.noFileSelected")</div>
                     }
                     else
                     {
-                        <div><span class="detail-label">File:</span> @_selectedSplitRecord.InputFile</div>
-                        <div><span class="detail-label">Stato:</span> @_selectedSplitRecord.Status</div>
+                        <div><span class="detail-label">@AppText.T("web.dashboard.fileLabel")</span> @_selectedSplitRecord.InputFile</div>
+                        <div><span class="detail-label">@AppText.T("web.dashboard.statusLabel")</span> @_selectedSplitRecord.Status</div>
                         @if (_selectedSplitRecord.ErrorMessage.Length > 0)
                         {
-                            <div><span class="detail-label">Errore:</span> @_selectedSplitRecord.ErrorMessage</div>
+                            <div><span class="detail-label">@AppText.T("web.dashboard.errorLabel")</span> @_selectedSplitRecord.ErrorMessage</div>
                         }
                     }
                 </div>

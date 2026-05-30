@@ -1,7 +1,7 @@
 <div class="rf-panel">
-    <div class="rf-panel-title">Dettaglio</div>
+    <div class="rf-panel-title">@AppText.T("web.detail.title")</div>
     <div class="rf-panel-body">
-        <div class="detail-content">@(Record != null ? BuildDetail() : "Selezionare un episodio.")</div>
+        <div class="detail-content">@(Record != null ? BuildDetail() : AppText.T("web.detail.selectEpisode"))</div>
     </div>
 </div>
 

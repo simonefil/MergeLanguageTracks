@@ -1,75 +1,75 @@
 <div class="dialog-overlay visible" @onclick="OnClose">
     <div class="dialog-box config-dialog-box" @onclick:stopPropagation="true">
-        <div class="dialog-title">Configurazione</div>
+        <div class="dialog-title">@AppText.T("web.config.title")</div>
         <div class="dialog-body config-dialog-body">
             <div class="config-form-pane">
             @if (_isSplitMode)
             {
                 @* Sorgente Split *@
-                <div class="form-section">== Sorgente Split ==</div>
+                <div class="form-section">@AppText.T("web.config.section.splitSource")</div>
                 <div class="form-row">
-                    <span class="form-label">Source*:</span>
+                    <span class="form-label">@AppText.T("web.config.label.sourceRequired")</span>
                     <input class="form-input" @bind="_splitSource" @onfocus="@(() => SetFieldHelp("split.source"))" @onmouseenter="@(() => SetFieldHelp("split.source"))" />
                     <span class="btn-browse" @onclick="() => BrowseSplit(10, true, true)">[ .. ]</span>
                 </div>
                 <div class="form-row">
-                    <span class="form-label">Output:</span>
+                    <span class="form-label">@AppText.T("web.config.label.output")</span>
                     <input class="form-input" @bind="_splitOutputDir" @onfocus="@(() => SetFieldHelp("split.output"))" @onmouseenter="@(() => SetFieldHelp("split.output"))" />
                     <span class="btn-browse" @onclick="() => BrowseSplit(11, false, true)">[ .. ]</span>
                 </div>
                 <div class="form-row">
-                    <span class="form-label">Source raw:</span>
+                    <span class="form-label">@AppText.T("web.config.label.sourceRaw")</span>
                     <input class="form-input" @bind="_splitSourceRaw" @onfocus="@(() => SetFieldHelp("split.sourceRaw"))" @onmouseenter="@(() => SetFieldHelp("split.sourceRaw"))" />
                     <span class="btn-browse" @onclick="() => BrowseSplit(12, true, false)">[ .. ]</span>
                 </div>
                 <div class="form-row">
-                    <span class="ui-toggle" @onclick="() => _recursive = !_recursive" @onmouseenter="@(() => SetFieldHelp("split.recursive"))">@(_recursive ? "[X]" : "[ ]") Ricorsivo</span>
-                    <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _splitForce = !_splitForce" @onmouseenter="@(() => SetFieldHelp("split.force"))">@(_splitForce ? "[X]" : "[ ]") Force</span>
-                    <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _splitDryRun = !_splitDryRun" @onmouseenter="@(() => SetFieldHelp("split.dryRun"))">@(_splitDryRun ? "[X]" : "[ ]") Dry-run</span>
+                    <span class="ui-toggle" @onclick="() => _recursive = !_recursive" @onmouseenter="@(() => SetFieldHelp("split.recursive"))">@(_recursive ? "[X]" : "[ ]") @AppText.T("web.config.toggle.recursive")</span>
+                    <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _splitForce = !_splitForce" @onmouseenter="@(() => SetFieldHelp("split.force"))">@(_splitForce ? "[X]" : "[ ]") @AppText.T("web.config.toggle.force")</span>
+                    <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _splitDryRun = !_splitDryRun" @onmouseenter="@(() => SetFieldHelp("split.dryRun"))">@(_splitDryRun ? "[X]" : "[ ]") @AppText.T("web.config.toggle.dryRun")</span>
                 </div>
 
                 @* Modalita taglio *@
-                <div class="form-section">== Taglio ==</div>
+                <div class="form-section">@AppText.T("web.config.section.cutting")</div>
                 <div class="form-row">
-                    <span class="form-label">Modalita*:</span>
+                    <span class="form-label">@AppText.T("web.config.label.modeRequired")</span>
                     <select class="form-input" style="width: 22ch;" @bind="_splitCutMode" @onfocus="@(() => SetFieldHelp("split.mode"))" @onmouseenter="@(() => SetFieldHelp("split.mode"))">
-                        <option value="">(scegliere)</option>
-                        <option value="@SPLIT_CUT_PATTERN">Pattern capitoli</option>
-                        <option value="@SPLIT_CUT_RANGES">Ranges</option>
-                        <option value="@SPLIT_CUT_SPLIT_AT">Split at</option>
-                        <option value="@SPLIT_CUT_TRIM">Trim</option>
-                        <option value="@SPLIT_CUT_CHAPTERS_EACH">Chapters each</option>
+                        <option value="">@AppText.T("web.common.choose")</option>
+                        <option value="@SPLIT_CUT_PATTERN">@AppText.T("web.config.option.chapterPattern")</option>
+                        <option value="@SPLIT_CUT_RANGES">@AppText.T("web.config.option.ranges")</option>
+                        <option value="@SPLIT_CUT_SPLIT_AT">@AppText.T("web.config.option.splitAt")</option>
+                        <option value="@SPLIT_CUT_TRIM">@AppText.T("web.config.option.trim")</option>
+                        <option value="@SPLIT_CUT_CHAPTERS_EACH">@AppText.T("web.config.option.chaptersEach")</option>
                     </select>
                 </div>
                 @if (_splitCutMode == SPLIT_CUT_PATTERN)
                 {
                     <div class="form-row">
-                        <span class="form-label">Pattern*:</span>
+                        <span class="form-label">@AppText.T("web.config.label.patternRequired")</span>
                         <input class="form-input" @bind="_splitPattern" placeholder="5,5,5" @onfocus="@(() => SetFieldHelp("split.pattern"))" @onmouseenter="@(() => SetFieldHelp("split.pattern"))" />
                     </div>
                 }
                 else if (_splitCutMode == SPLIT_CUT_RANGES)
                 {
                     <div class="form-row">
-                        <span class="form-label">Ranges*:</span>
+                        <span class="form-label">@AppText.T("web.config.label.rangesRequired")</span>
                         <input class="form-input" @bind="_splitRanges" placeholder="0-00:24:00.000,00:24:00.000-END" @onfocus="@(() => SetFieldHelp("split.ranges"))" @onmouseenter="@(() => SetFieldHelp("split.ranges"))" />
                     </div>
                 }
                 else if (_splitCutMode == SPLIT_CUT_SPLIT_AT)
                 {
                     <div class="form-row">
-                        <span class="form-label">Split at*:</span>
+                        <span class="form-label">@AppText.T("web.config.label.splitAtRequired")</span>
                         <input class="form-input" @bind="_splitAt" placeholder="00:24:00.000" @onfocus="@(() => SetFieldHelp("split.splitAt"))" @onmouseenter="@(() => SetFieldHelp("split.splitAt"))" />
                     </div>
                 }
                 else if (_splitCutMode == SPLIT_CUT_TRIM)
                 {
                     <div class="form-row">
-                        <span class="form-label">Trim start:</span>
+                        <span class="form-label">@AppText.T("web.config.label.trimStart")</span>
                         <input class="form-input" @bind="_splitTrimStart" @onfocus="@(() => SetFieldHelp("split.trimStart"))" @onmouseenter="@(() => SetFieldHelp("split.trimStart"))" />
                     </div>
                     <div class="form-row">
-                        <span class="form-label">Trim end:</span>
+                        <span class="form-label">@AppText.T("web.config.label.trimEnd")</span>
                         <input class="form-input" @bind="_splitTrimEnd" @onfocus="@(() => SetFieldHelp("split.trimEnd"))" @onmouseenter="@(() => SetFieldHelp("split.trimEnd"))" />
                     </div>
                 }
@@ -78,7 +78,7 @@
                 }
 
                 <div class="form-row">
-                    <span class="form-label">Snap:</span>
+                    <span class="form-label">@AppText.T("web.config.label.snap")</span>
                     <select class="form-input" style="width: 14ch;" @bind="_splitSnap" @onfocus="@(() => SetFieldHelp("split.snap"))" @onmouseenter="@(() => SetFieldHelp("split.snap"))">
                         <option value="@RemuxForge.Core.Models.MkvSplitSnapMode.Off">off</option>
                         <option value="@RemuxForge.Core.Models.MkvSplitSnapMode.Before">before</option>
@@ -88,122 +88,122 @@
                 </div>
 
                 @* Naming *@
-                <div class="form-section">== Naming ==</div>
+                <div class="form-section">@AppText.T("web.config.section.naming")</div>
                 <div class="form-row">
-                    <span class="form-label">Template:</span>
+                    <span class="form-label">@AppText.T("web.config.label.template")</span>
                     <input class="form-input" @bind="_splitOutputTemplate" placeholder="{source_name}.part{n:02d}.mkv" @onfocus="@(() => SetFieldHelp("split.template"))" @onmouseenter="@(() => SetFieldHelp("split.template"))" />
                 </div>
 
                 @* Opzioni *@
-                <div class="form-section">== Opzioni ==</div>
+                <div class="form-section">@AppText.T("web.config.section.options")</div>
                 <div class="form-row">
-                    <span class="form-label">Estensioni:</span>
+                    <span class="form-label">@AppText.T("web.config.label.extensions")</span>
                     <input class="form-input" @bind="_extensions" @onfocus="@(() => SetFieldHelp("split.extensions"))" @onmouseenter="@(() => SetFieldHelp("split.extensions"))" />
                 </div>
             }
             else
             {
             @* Cartelle *@
-            <div class="form-section">== Cartelle ==</div>
+            <div class="form-section">@AppText.T("web.config.section.folders")</div>
             <div class="form-row">
-                <span class="form-label">Source*:</span>
+                <span class="form-label">@AppText.T("web.config.label.sourceRequired")</span>
                 <input class="form-input" @bind="_sourceFolder" @onfocus="@(() => SetFieldHelp("remux.source"))" @onmouseenter="@(() => SetFieldHelp("remux.source"))" />
                 <span class="btn-browse" @onclick="() => BrowseFolder(0)">[ .. ]</span>
             </div>
             <div class="form-row">
-                <span class="form-label">Lingua:</span>
+                <span class="form-label">@AppText.T("web.config.label.language")</span>
                 <input class="form-input" @bind="_languageFolder" @onfocus="@(() => SetFieldHelp("remux.language"))" @onmouseenter="@(() => SetFieldHelp("remux.language"))" />
                 <span class="btn-browse" @onclick="() => BrowseFolder(1)">[ .. ]</span>
             </div>
             <div class="form-row">
-                <span class="form-label">Destinazione@(_overwrite ? "" : "*"):</span>
+                <span class="form-label">@AppText.T("web.config.label.destination")@(_overwrite ? "" : "*"):</span>
                 <input class="form-input" @bind="_destFolder" @onfocus="@(() => SetFieldHelp("remux.destination"))" @onmouseenter="@(() => SetFieldHelp("remux.destination"))" />
                 <span class="btn-browse" @onclick="() => BrowseFolder(2)">[ .. ]</span>
             </div>
             <div class="form-row">
-                <span class="ui-toggle" @onclick="() => _overwrite = !_overwrite" @onmouseenter="@(() => SetFieldHelp("remux.overwrite"))">@(_overwrite ? "[X]" : "[ ]") Sovrascrivi sorgente</span>
+                <span class="ui-toggle" @onclick="() => _overwrite = !_overwrite" @onmouseenter="@(() => SetFieldHelp("remux.overwrite"))">@(_overwrite ? "[X]" : "[ ]") @AppText.T("web.config.toggle.overwrite")</span>
             </div>
             <div class="form-row">
-                <span class="ui-toggle" @onclick="() => _recursive = !_recursive" @onmouseenter="@(() => SetFieldHelp("remux.recursive"))">@(_recursive ? "[X]" : "[ ]") Ricorsivo</span>
+                <span class="ui-toggle" @onclick="() => _recursive = !_recursive" @onmouseenter="@(() => SetFieldHelp("remux.recursive"))">@(_recursive ? "[X]" : "[ ]") @AppText.T("web.config.toggle.recursive")</span>
             </div>
 
             @* Lingua e Tracce *@
-            <div class="form-section">== Lingua e Tracce ==</div>
+            <div class="form-section">@AppText.T("web.config.section.languageTracks")</div>
             <div class="form-row">
-                <span class="form-label">Lingua target:</span>
+                <span class="form-label">@AppText.T("web.config.label.targetLanguage")</span>
                 <input class="form-input" @bind="_targetLang" @onfocus="@(() => SetFieldHelp("remux.target"))" @onmouseenter="@(() => SetFieldHelp("remux.target"))" />
             </div>
             <div class="form-row">
-                <span class="form-label">Codec audio:</span>
+                <span class="form-label">@AppText.T("web.config.label.audioCodec")</span>
                 <input class="form-input" @bind="_audioCodec" @onfocus="@(() => SetFieldHelp("remux.audioCodec"))" @onmouseenter="@(() => SetFieldHelp("remux.audioCodec"))" />
             </div>
             <div class="form-row">
-                <span class="form-label">Mantieni audio:</span>
+                <span class="form-label">@AppText.T("web.config.label.keepAudio")</span>
                 <input class="form-input" @bind="_keepSrcAudio" @onfocus="@(() => SetFieldHelp("remux.keepAudio"))" @onmouseenter="@(() => SetFieldHelp("remux.keepAudio"))" />
             </div>
             <div class="form-row">
-                <span class="form-label">Mantieni codec:</span>
+                <span class="form-label">@AppText.T("web.config.label.keepCodec")</span>
                 <input class="form-input" @bind="_keepSrcCodec" @onfocus="@(() => SetFieldHelp("remux.keepCodec"))" @onmouseenter="@(() => SetFieldHelp("remux.keepCodec"))" />
             </div>
             <div class="form-row">
-                <span class="form-label">Mantieni sub:</span>
+                <span class="form-label">@AppText.T("web.config.label.keepSub")</span>
                 <input class="form-input" @bind="_keepSrcSub" @onfocus="@(() => SetFieldHelp("remux.keepSub"))" @onmouseenter="@(() => SetFieldHelp("remux.keepSub"))" />
             </div>
             <div class="form-row">
-                <span class="ui-toggle" @onclick="() => _subOnly = !_subOnly" @onmouseenter="@(() => SetFieldHelp("remux.subOnly"))">@(_subOnly ? "[X]" : "[ ]") Solo sottotitoli</span>
-                <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioOnly = !_audioOnly" @onmouseenter="@(() => SetFieldHelp("remux.audioOnly"))">@(_audioOnly ? "[X]" : "[ ]") Solo audio</span>
+                <span class="ui-toggle" @onclick="() => _subOnly = !_subOnly" @onmouseenter="@(() => SetFieldHelp("remux.subOnly"))">@(_subOnly ? "[X]" : "[ ]") @AppText.T("web.config.toggle.subOnly")</span>
+                <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioOnly = !_audioOnly" @onmouseenter="@(() => SetFieldHelp("remux.audioOnly"))">@(_audioOnly ? "[X]" : "[ ]") @AppText.T("web.config.toggle.audioOnly")</span>
             </div>
 
             @* Sincronizzazione *@
-            <div class="form-section">== Sincronizzazione ==</div>
+            <div class="form-section">@AppText.T("web.config.section.sync")</div>
             <div class="form-row">
-                <span class="form-label">Speed:</span>
+                <span class="form-label">@AppText.T("web.config.label.speed")</span>
                 <select class="form-input" style="width: 14ch;" @bind="_speedCorrectionMode" @onfocus="@(() => SetFieldHelp("remux.speed"))" @onmouseenter="@(() => SetFieldHelp("remux.speed"))">
-                    <option value="@Options.SPEED_CORRECTION_OFF">Off</option>
-                    <option value="@Options.SPEED_CORRECTION_AUTO">Auto</option>
-                    <option value="@Options.SPEED_CORRECTION_MANUAL">Manual</option>
+                    <option value="@Options.SPEED_CORRECTION_OFF">@AppText.T("web.config.option.off")</option>
+                    <option value="@Options.SPEED_CORRECTION_AUTO">@AppText.T("web.config.option.auto")</option>
+                    <option value="@Options.SPEED_CORRECTION_MANUAL">@AppText.T("web.config.option.manual")</option>
                 </select>
-                <span style="margin-left: 1ch;">Stretch</span>
+                <span style="margin-left: 1ch;">@AppText.T("web.config.label.stretch")</span>
                 <input class="form-input" style="width: 14ch;" @bind="_manualStretchFactor" @onfocus="@(() => SetFieldHelp("remux.stretch"))" @onmouseenter="@(() => SetFieldHelp("remux.stretch"))" />
             </div>
             <div class="form-row">
-                <span class="ui-toggle" @onclick="ToggleFrameSync" @onmouseenter="@(() => SetFieldHelp("remux.framesync"))">@(_frameSync ? "[X]" : "[ ]") Frame-sync (confronto visivo)</span>
+                <span class="ui-toggle" @onclick="ToggleFrameSync" @onmouseenter="@(() => SetFieldHelp("remux.framesync"))">@(_frameSync ? "[X]" : "[ ]") @AppText.T("web.config.toggle.frameSync")</span>
             </div>
             <div class="form-row">
-                <span class="ui-toggle" @onclick="ToggleDeepAnalysis" @onmouseenter="@(() => SetFieldHelp("remux.deep"))">@(_deepAnalysis ? "[X]" : "[ ]") Deep analysis (analisi completa)</span>
+                <span class="ui-toggle" @onclick="ToggleDeepAnalysis" @onmouseenter="@(() => SetFieldHelp("remux.deep"))">@(_deepAnalysis ? "[X]" : "[ ]") @AppText.T("web.config.toggle.deepAnalysis")</span>
             </div>
             <div class="form-row">
-                <span class="form-label">Crop src:</span>
+                <span class="form-label">@AppText.T("web.config.label.cropSource")</span>
                 <input class="form-input" style="width: 18ch;" @bind="_analysisCropSourcePx" placeholder="L:R:T:B" @onfocus="@(() => SetFieldHelp("remux.cropSource"))" @onmouseenter="@(() => SetFieldHelp("remux.cropSource"))" />
-                <span style="margin-left: 2ch;">lang</span>
+                <span style="margin-left: 2ch;">@AppText.T("web.config.label.langShort")</span>
                 <input class="form-input" style="width: 18ch;" @bind="_analysisCropLanguagePx" placeholder="L:R:T:B" @onfocus="@(() => SetFieldHelp("remux.cropLang"))" @onmouseenter="@(() => SetFieldHelp("remux.cropLang"))" />
             </div>
             <div class="form-row">
-                <span class="form-label">Delay audio:</span>
+                <span class="form-label">@AppText.T("web.config.label.audioDelay")</span>
                 <input class="form-input" style="width: 8ch;" @bind="_audioDelay" @onfocus="@(() => SetFieldHelp("remux.audioDelay"))" @onmouseenter="@(() => SetFieldHelp("remux.audioDelay"))" /> <span style="margin-left: 0.5ch;">ms</span>
             </div>
             <div class="form-row">
-                <span class="form-label">Delay sub:</span>
+                <span class="form-label">@AppText.T("web.config.label.subDelay")</span>
                 <input class="form-input" style="width: 8ch;" @bind="_subDelay" @onfocus="@(() => SetFieldHelp("remux.subDelay"))" @onmouseenter="@(() => SetFieldHelp("remux.subDelay"))" /> <span style="margin-left: 0.5ch;">ms</span>
             </div>
 
             @* Matching *@
-            <div class="form-section">== Matching ==</div>
+            <div class="form-section">@AppText.T("web.config.section.matching")</div>
             <div class="form-row">
-                <span class="form-label">Pattern match:</span>
+                <span class="form-label">@AppText.T("web.config.label.matchPattern")</span>
                 <input class="form-input" @bind="_matchPattern" @onfocus="@(() => SetFieldHelp("remux.match"))" @onmouseenter="@(() => SetFieldHelp("remux.match"))" />
             </div>
             <div class="form-row">
-                <span class="form-label">Estensioni:</span>
+                <span class="form-label">@AppText.T("web.config.label.extensions")</span>
                 <input class="form-input" @bind="_extensions" @onfocus="@(() => SetFieldHelp("remux.extensions"))" @onmouseenter="@(() => SetFieldHelp("remux.extensions"))" />
             </div>
 
             @* Post-Processing audio *@
-            <div class="form-section">== Post-processing audio ==</div>
+            <div class="form-section">@AppText.T("web.config.section.audioPost")</div>
             <div class="form-row">
-                <span class="form-label">Formato audio@(_audioSourceFillEnabled ? "*" : ""):</span>
+                <span class="form-label">@AppText.T("web.config.label.audioFormat")@(_audioSourceFillEnabled ? "*" : ""):</span>
                 <select class="form-input" style="width: 12ch;" value="@_audioFormat" @onchange="OnAudioFormatChanged" @onfocus="@(() => SetFieldHelp("remux.audioFormat"))" @onmouseenter="@(() => SetFieldHelp("remux.audioFormat"))">
-                    <option value="">No</option>
+                    <option value="">@AppText.T("web.common.no")</option>
                     <option value="flac">FLAC</option>
                     <option value="lpcm">LPCM</option>
                     <option value="aac">AAC</option>
@@ -213,50 +213,50 @@
             @if (_audioFormat.Length > 0)
             {
             <div class="form-row">
-                <span class="form-label">Audio@(_audioSourceFillEnabled ? "*" : ""):</span>
+                <span class="form-label">@AppText.T("web.config.label.audioScope")@(_audioSourceFillEnabled ? "*" : ""):</span>
                 <select class="form-input" style="width: 14ch;" @bind="_audioProcessingScope" @onfocus="@(() => SetFieldHelp("remux.audioScope"))" @onmouseenter="@(() => SetFieldHelp("remux.audioScope"))">
-                    <option value="disabled">Disabilitata</option>
+                    <option value="disabled">@AppText.T("web.config.option.disabled")</option>
                     <option value="lang">Lang</option>
-                    <option value="all">Tutti</option>
+                    <option value="all">@AppText.T("web.config.option.all")</option>
                 </select>
             </div>
             }
             @if (_audioFormat.Length > 0)
             {
                 <div class="form-row">
-                    <span class="ui-toggle" @onclick="ToggleAudioSourceFill" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFill"))">@(_audioSourceFillEnabled ? "[X]" : "[ ]") Audio source fill</span>
+                    <span class="ui-toggle" @onclick="ToggleAudioSourceFill" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFill"))">@(_audioSourceFillEnabled ? "[X]" : "[ ]") @AppText.T("web.config.toggle.audioSourceFill")</span>
                 </div>
             }
             @if (_audioFormat.Length > 0 && _audioSourceFillEnabled)
             {
             <div class="form-row">
-                <span class="form-label">Soglia*:</span>
+                <span class="form-label">@AppText.T("web.config.label.thresholdRequired")</span>
                 <input class="form-input" style="width: 8ch;" @bind="_audioSourceFillThresholdMs" @onfocus="@(() => SetFieldHelp("remux.audioSourceFillThreshold"))" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillThreshold"))" /> <span style="margin-left: 0.5ch;">ms</span>
             </div>
             <div class="form-row">
-                <span class="form-label">Lingua source*:</span>
+                <span class="form-label">@AppText.T("web.config.label.sourceLanguageRequired")</span>
                 <input class="form-input" style="width: 10ch;" @bind="_audioSourceFillLanguage" @onfocus="@(() => SetFieldHelp("remux.audioSourceFillLang"))" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillLang"))" />
             </div>
             <div class="form-row">
-                <span class="form-label">Modalita*:</span>
-                <span class="ui-toggle" @onclick="() => _audioSourceFillStart = !_audioSourceFillStart" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillStart"))">@(_audioSourceFillStart ? "[X]" : "[ ]") Inizio</span>
-                <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioSourceFillEnd = !_audioSourceFillEnd" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillEnd"))">@(_audioSourceFillEnd ? "[X]" : "[ ]") Fine</span>
+                <span class="form-label">@AppText.T("web.config.label.modeRequired")</span>
+                <span class="ui-toggle" @onclick="() => _audioSourceFillStart = !_audioSourceFillStart" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillStart"))">@(_audioSourceFillStart ? "[X]" : "[ ]") @AppText.T("web.config.toggle.start")</span>
+                <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioSourceFillEnd = !_audioSourceFillEnd" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillEnd"))">@(_audioSourceFillEnd ? "[X]" : "[ ]") @AppText.T("web.config.toggle.end")</span>
                 @if (_deepAnalysis)
                 {
-                    <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioSourceFillInsertSilence = !_audioSourceFillInsertSilence" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillInsert"))">@(_audioSourceFillInsertSilence ? "[X]" : "[ ]") Insert silence</span>
+                    <span class="ui-toggle" style="margin-left: 2ch;" @onclick="() => _audioSourceFillInsertSilence = !_audioSourceFillInsertSilence" @onmouseenter="@(() => SetFieldHelp("remux.audioSourceFillInsert"))">@(_audioSourceFillInsertSilence ? "[X]" : "[ ]") @AppText.T("web.config.toggle.insertSilence")</span>
                 }
             </div>
             }
             @if ((_audioFormat == "flac" || _audioFormat == "lpcm") && _audioProcessingScope != "disabled")
             {
             <div class="form-row">
-                <span class="ui-toggle" @onclick="() => _audioDownsample24To16 = !_audioDownsample24To16" @onmouseenter="@(() => SetFieldHelp("remux.audio24"))">@(_audioDownsample24To16 ? "[X]" : "[ ]") 24bit -> 16bit</span>
+                <span class="ui-toggle" @onclick="() => _audioDownsample24To16 = !_audioDownsample24To16" @onmouseenter="@(() => SetFieldHelp("remux.audio24"))">@(_audioDownsample24To16 ? "[X]" : "[ ]") @AppText.T("web.config.toggle.audio24")</span>
             </div>
             }
             @if (_audioFormat.Length > 0 && _audioProcessingScope != "disabled")
             {
             <div class="form-row">
-                <span class="ui-toggle" @onclick="() => _audioPeakNormalize = !_audioPeakNormalize" @onmouseenter="@(() => SetFieldHelp("remux.audioNormalize"))">@(_audioPeakNormalize ? "[X]" : "[ ]") Normalizzazione</span>
+                <span class="ui-toggle" @onclick="() => _audioPeakNormalize = !_audioPeakNormalize" @onmouseenter="@(() => SetFieldHelp("remux.audioNormalize"))">@(_audioPeakNormalize ? "[X]" : "[ ]") @AppText.T("web.config.toggle.normalization")</span>
                 @if (_audioPeakNormalize)
                 {
                     <input class="form-input" style="width: 8ch;" @bind="_audioPeakTargetDb" @onfocus="@(() => SetFieldHelp("remux.audioNormalize"))" @onmouseenter="@(() => SetFieldHelp("remux.audioNormalize"))" />
@@ -265,20 +265,20 @@
             </div>
             }
             <div class="form-row">
-                <span class="form-label">Rinomina audio:</span>
+                <span class="form-label">@AppText.T("web.config.label.audioRename")</span>
                 <select class="form-input" style="width: 14ch;" @bind="_audioRenameScope" @onfocus="@(() => SetFieldHelp("remux.rename"))" @onmouseenter="@(() => SetFieldHelp("remux.rename"))">
-                    <option value="disabled">No</option>
+                    <option value="disabled">@AppText.T("web.common.no")</option>
                     <option value="lang">Lang</option>
-                    <option value="all">Tutti</option>
+                    <option value="all">@AppText.T("web.config.option.all")</option>
                 </select>
             </div>
 
             @* Post-Processing video *@
-            <div class="form-section">== Post-processing video ==</div>
+            <div class="form-section">@AppText.T("web.config.section.videoPost")</div>
             <div class="form-row">
-                <span class="form-label">Encoding video:</span>
+                <span class="form-label">@AppText.T("web.config.label.videoEncoding")</span>
                 <select class="form-input" style="width: 30ch;" @bind="_encodingProfile" @onfocus="@(() => SetFieldHelp("remux.encoding"))" @onmouseenter="@(() => SetFieldHelp("remux.encoding"))">
-                    <option value="">(nessuno)</option>
+                    <option value="">@AppText.T("web.common.none")</option>
                     @for (int i = 0; i < AppSettingsService.Instance.Settings.EncodingProfiles.Count; i++)
                     {
                         <option value="@AppSettingsService.Instance.Settings.EncodingProfiles[i].Name">@AppSettingsService.Instance.Settings.EncodingProfiles[i].Name</option>
@@ -297,8 +297,8 @@
             <div style="padding: 0.5em 1em; color: var(--color-error); white-space: pre-line;">@_validationError</div>
         }
         <div class="dialog-footer">
-            <button @onclick="Apply">OK</button>
-            <button @onclick="OnClose">Annulla</button>
+            <button @onclick="Apply">@AppText.T("web.common.ok")</button>
+            <button @onclick="OnClose">@AppText.T("web.common.cancel")</button>
         </div>
     </div>
 </div>
@@ -898,56 +898,56 @@
 
         if (!int.TryParse(_audioDelay, out _))
         {
-            errors.Add("Delay audio: valore intero non valido");
+            errors.Add(AppText.T("web.config.validation.audioDelayInt"));
         }
 
         if (!int.TryParse(_subDelay, out _))
         {
-            errors.Add("Delay sub: valore intero non valido");
+            errors.Add(AppText.T("web.config.validation.subDelayInt"));
         }
 
         if (_audioSourceFillEnabled && !int.TryParse(_audioSourceFillThresholdMs, out audioSourceFillThresholdMs))
         {
-            errors.Add("Audio source: soglia intera non valida");
+            errors.Add(AppText.T("web.config.validation.audioSourceThresholdInt"));
         }
         else if (_audioSourceFillEnabled && audioSourceFillThresholdMs <= 0)
         {
-            errors.Add("Audio source: soglia obbligatoria e maggiore di 0");
+            errors.Add(AppText.T("web.config.validation.audioSourceThresholdPositive"));
         }
 
         if (_audioSourceFillEnabled && _audioSourceFillLanguage.Trim().Length == 0)
         {
-            errors.Add("Audio source: lingua source obbligatoria");
+            errors.Add(AppText.T("web.config.validation.audioSourceLanguageRequired"));
         }
 
         if (_audioSourceFillEnabled && !_audioSourceFillStart && !_audioSourceFillEnd && !(_deepAnalysis && _audioSourceFillInsertSilence))
         {
-            errors.Add("Audio source: selezionare almeno una modalita");
+            errors.Add(AppText.T("web.config.validation.audioSourceModeRequired"));
         }
 
         if (_audioSourceFillEnabled && _audioFormat.Length == 0)
         {
-            errors.Add("Audio source: formato audio obbligatorio");
+            errors.Add(AppText.T("web.config.validation.audioSourceFormatRequired"));
         }
 
         if (_audioSourceFillEnabled && _audioProcessingScope == "disabled")
         {
-            errors.Add("Audio source: audio deve essere Lang o Tutti");
+            errors.Add(AppText.T("web.config.validation.audioSourceScopeRequired"));
         }
 
         if (!Options.TryParseAnalysisCropPx(_analysisCropSourcePx, out _, out _, out _, out _))
         {
-            errors.Add("Crop source: formato L:R:T:B non valido");
+            errors.Add(AppText.T("web.config.validation.cropSourceInvalid"));
         }
 
         if (!Options.TryParseAnalysisCropPx(_analysisCropLanguagePx, out _, out _, out _, out _))
         {
-            errors.Add("Crop lang: formato L:R:T:B non valido");
+            errors.Add(AppText.T("web.config.validation.cropLangInvalid"));
         }
 
         if (_audioFormat.Length > 0 && _audioProcessingScope != "disabled" && _audioPeakNormalize && !double.TryParse(_audioPeakTargetDb, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
         {
-            errors.Add("Normalizzazione: target dB non valido");
+            errors.Add(AppText.T("web.config.validation.normalizationTargetInvalid"));
         }
 
         if (errors.Count > 0)
@@ -968,37 +968,37 @@
         List<string> errors = new List<string>();
         if (_splitSource.Trim().Length == 0)
         {
-            errors.Add("Source: campo obbligatorio");
+            errors.Add(AppText.T("web.config.validation.sourceRequired"));
         }
 
         if (_splitSourceRaw.Trim().Length > 0 && System.IO.Directory.Exists(_splitSourceRaw.Trim()))
         {
-            errors.Add("Source raw: deve essere un file, non una cartella");
+            errors.Add(AppText.T("web.config.validation.sourceRawMustBeFile"));
         }
 
         if (_splitCutMode.Length == 0)
         {
-            errors.Add("Modalita: scegliere una modalita' di taglio");
+            errors.Add(AppText.T("web.config.validation.cutModeRequired"));
         }
 
         if (_splitCutMode == SPLIT_CUT_PATTERN && _splitPattern.Trim().Length == 0)
         {
-            errors.Add("Pattern: campo obbligatorio per la modalita' pattern");
+            errors.Add(AppText.T("web.config.validation.patternRequired"));
         }
 
         if (_splitCutMode == SPLIT_CUT_RANGES && _splitRanges.Trim().Length == 0)
         {
-            errors.Add("Ranges: campo obbligatorio per la modalita' ranges");
+            errors.Add(AppText.T("web.config.validation.rangesRequired"));
         }
 
         if (_splitCutMode == SPLIT_CUT_SPLIT_AT && _splitAt.Trim().Length == 0)
         {
-            errors.Add("Split at: campo obbligatorio per la modalita' split-at");
+            errors.Add(AppText.T("web.config.validation.splitAtRequired"));
         }
 
         if (_splitCutMode == SPLIT_CUT_TRIM && _splitTrimStart.Trim().Length == 0 && _splitTrimEnd.Trim().Length == 0)
         {
-            errors.Add("Trim: indicare trim start, trim end o entrambi");
+            errors.Add(AppText.T("web.config.validation.trimRequired"));
         }
 
         if (errors.Count > 0)
@@ -1038,333 +1038,10 @@
     /// <param name="key">Chiave campo</param>
     private void SetFieldHelp(string key)
     {
-        if (key == "split.source")
-        {
-            _fieldHelpTitle = "Source";
-            _fieldHelpText = "Obbligatorio. Seleziona un file MKV singolo oppure una cartella. Con una cartella lo scan prepara un batch usando le stesse opzioni per tutti gli MKV trovati.";
-        }
-        else if (key == "split.output")
-        {
-            _fieldHelpTitle = "Output";
-            _fieldHelpText = "Opzionale. Deve essere una cartella. Se resta vuoto, ogni output viene scritto nella cartella del file input.";
-        }
-        else if (key == "split.sourceRaw")
-        {
-            _fieldHelpTitle = "Source raw";
-            _fieldHelpText = "Opzionale e solo single-file. Serve quando l'input e' un re-encode e vuoi leggere i PTS dal sorgente originale VFR. Deve essere un file, non una cartella.";
-        }
-        else if (key == "split.recursive")
-        {
-            _fieldHelpTitle = "Ricorsivo";
-            _fieldHelpText = "Usato solo quando Source e' una cartella. Include gli MKV nelle sottocartelle durante lo scan.";
-        }
-        else if (key == "split.force")
-        {
-            _fieldHelpTitle = "Force";
-            _fieldHelpText = "Se attivo, sovrascrive output esistenti. Se disattivo, i segmenti gia' presenti vengono saltati.";
-        }
-        else if (key == "split.dryRun")
-        {
-            _fieldHelpTitle = "Dry-run";
-            _fieldHelpText = "Mostra segmenti e pipeline senza scrivere file.";
-        }
-        else if (key == "split.mode")
-        {
-            _fieldHelpTitle = "Modalita";
-            _fieldHelpText = "Obbligatoria. Le modalita' di taglio sono alternative: scegline una sola. I campi del form cambiano in base alla modalita selezionata.";
-        }
-        else if (key == "split.pattern")
-        {
-            _fieldHelpTitle = "Pattern";
-            _fieldHelpText = "Obbligatorio in modalita Pattern capitoli. Esempio: 5,5,5,6. La somma deve coincidere con il numero di capitoli del file. Il naming si gestisce solo con Template.";
-        }
-        else if (key == "split.ranges")
-        {
-            _fieldHelpTitle = "Ranges";
-            _fieldHelpText = "Obbligatorio in modalita Ranges. Intervalli espliciti separati da virgola. Esempio: 00:00:00-00:21:40,00:21:40-END.";
-        }
-        else if (key == "split.splitAt")
-        {
-            _fieldHelpTitle = "Split at";
-            _fieldHelpText = "Obbligatorio in modalita Split at. Lista di punti di taglio; genera N+1 segmenti. Esempio: 20:00,40:00.";
-        }
-        else if (key == "split.trimStart")
-        {
-            _fieldHelpTitle = "Trim start";
-            _fieldHelpText = "In modalita Trim, scarta tutto prima di questo punto. Compilabile insieme a Trim end.";
-        }
-        else if (key == "split.trimEnd")
-        {
-            _fieldHelpTitle = "Trim end";
-            _fieldHelpText = "In modalita Trim, scarta tutto dopo questo punto. Compilabile insieme a Trim start.";
-        }
-        else if (key == "split.snap")
-        {
-            _fieldHelpTitle = "Snap";
-            _fieldHelpText = "off mantiene il taglio frame-perfect. before/after/nearest spostano lo start su keyframe ed evitano la ricodifica del GOP iniziale.";
-        }
-        else if (key == "split.extensions")
-        {
-            _fieldHelpTitle = "Estensioni";
-            _fieldHelpText = "Usato nello scan batch da cartella.\n\nDefault: mkv\n\nValori multipli separati da virgola.";
-        }
-        else if (key == "split.template")
-        {
-            _fieldHelpTitle = "Template";
-            _fieldHelpText = "Opzionale. Se vuoto usa il naming automatico.\n\nDefault:\nPattern, Ranges, Split at\n  {source_name}.part{n:02d}.mkv\n\nTrim\n  {source_name}_trimmed.mkv\n\nChapters each\n  {source_name}.ch{n:02d}.mkv\n\nKeyword:\n{source_name}\n  nome file input senza estensione\n\n{n}\n  numero segmento, parte da 1\n\n{n:02d}\n  numero con padding\n\n{n+213:03d}\n  numero con offset e padding\n\n{n-1}\n  numero con offset negativo\n\n{start}\n  timestamp inizio segmento\n\n{end}\n  timestamp fine segmento\n\n{chapter_name}\n  nome primo capitolo\n\nEsempi:\n{source_name}.part{n:02d}.mkv\nBleach.S12E{n+213:03d}.mkv";
-        }
-        else if (key == "remux.source")
-        {
-            _fieldHelpTitle = "Source";
-            _fieldHelpText = "Cartella con i file MKV sorgente. Remux lavora per scan/matching episodi.";
-        }
-        else if (key == "remux.language")
-        {
-            _fieldHelpTitle = "Lingua";
-            _fieldHelpText = "Cartella con i file MKV da cui importare tracce audio/sottotitoli. Se vuota, usa Source anche come cartella lingua.";
-        }
-        else if (key == "remux.destination")
-        {
-            _fieldHelpTitle = "Destinazione";
-            _fieldHelpText = "Cartella output. In alternativa si puo' usare Sovrascrivi sorgente.";
-        }
-        else if (key == "remux.overwrite")
-        {
-            _fieldHelpTitle = "Sovrascrivi sorgente";
-            _fieldHelpText = "Scrive il risultato al posto del file sorgente. Alternativa alla cartella Destinazione.";
-        }
-        else if (key == "remux.recursive")
-        {
-            _fieldHelpTitle = "Ricorsivo";
-            _fieldHelpText = "Include sottocartelle nello scan dei file.";
-        }
-        else if (key == "remux.target")
-        {
-            _fieldHelpTitle = "Lingua target";
-            _fieldHelpText = GetLanguageHelpText("Lingue delle tracce audio/sottotitoli da importare dal file Lingua.");
-        }
-        else if (key == "remux.audioCodec")
-        {
-            _fieldHelpTitle = "Codec audio";
-            _fieldHelpText = GetAudioCodecHelpText("Filtro opzionale sui codec audio da importare dal file Lingua. Vuoto = importa tutti i codec audio della lingua target.");
-        }
-        else if (key == "remux.keepAudio")
-        {
-            _fieldHelpTitle = "Mantieni audio";
-            _fieldHelpText = GetLanguageHelpText("Lingue audio da mantenere dal Source originale. Vuoto = mantiene tutte le tracce audio source che non vengono sostituite dalla lingua importata.");
-        }
-        else if (key == "remux.keepCodec")
-        {
-            _fieldHelpTitle = "Mantieni codec";
-            _fieldHelpText = GetAudioCodecHelpText("Filtro opzionale sui codec audio da mantenere dal Source originale. Vuoto = nessun filtro codec sulle tracce audio source mantenute.");
-        }
-        else if (key == "remux.keepSub")
-        {
-            _fieldHelpTitle = "Mantieni sub";
-            _fieldHelpText = GetLanguageHelpText("Lingue sottotitoli da mantenere dal Source originale. Vuoto = mantiene tutti i sottotitoli source.");
-        }
-        else if (key == "remux.subOnly")
-        {
-            _fieldHelpTitle = "Solo sottotitoli";
-            _fieldHelpText = "Importa solo sottotitoli dal file lingua, ignorando l'audio.";
-        }
-        else if (key == "remux.audioOnly")
-        {
-            _fieldHelpTitle = "Solo audio";
-            _fieldHelpText = "Importa solo audio dal file lingua, ignorando i sottotitoli.";
-        }
-        else if (key == "remux.speed")
-        {
-            _fieldHelpTitle = "Speed";
-            _fieldHelpText = "Correzione velocita' tramite stretch temporale, senza ricodifica audio/video.\n\nAuto rileva il fattore solo quando i metadati CFR sono affidabili.\nManual applica il valore indicato in Stretch.\n\nPAL/NTSC e' solo un caso tipico, per esempio 25025/24000 o 24000/25025. In manuale puoi usare qualsiasi fattore valido.";
-        }
-        else if (key == "remux.stretch")
-        {
-            _fieldHelpTitle = "Stretch";
-            _fieldHelpText = "Fattore manuale per Speed=Manual.\n\nAccetta un numero decimale o una frazione.\n\nEsempi:\n25025/24000\n24000/25025\n1.001\n0.95904";
-        }
-        else if (key == "remux.framesync")
-        {
-            _fieldHelpTitle = "Frame-sync";
-            _fieldHelpText = "Calcola un offset fisso confrontando i tagli scena. Non corregge edit/tagli nel mezzo.";
-        }
-        else if (key == "remux.deep")
-        {
-            _fieldHelpTitle = "Deep analysis";
-            _fieldHelpText = "Analisi completa per release con scene aggiunte/rimosse. Mutuamente esclusiva con Frame-sync.\n\nSe trova solo un delay costante applica --sync senza post-processing audio. Se produce cut/insert e importi audio, serve un Formato audio per ricodificare le tracce toccate.";
-        }
-        else if (key == "remux.cropSource")
-        {
-            _fieldHelpTitle = "Crop src";
-            _fieldHelpText = "Crop manuale applicato solo ai frame del Source usati per matching visuale.\n\nFormato: L:R:T:B in pixel sul frame originale prima dello scale. Vuoto o 0:0:0:0 disabilita. Non croppa l'output finale.";
-        }
-        else if (key == "remux.cropLang")
-        {
-            _fieldHelpTitle = "Crop lang";
-            _fieldHelpText = "Crop manuale applicato solo ai frame Lingua usati per matching visuale.\n\nFormato: L:R:T:B in pixel sul frame originale prima dello scale. Vuoto o 0:0:0:0 disabilita. Non croppa l'output finale.";
-        }
-        else if (key == "remux.audioDelay")
-        {
-            _fieldHelpTitle = "Delay audio";
-            _fieldHelpText = "Offset manuale in millisecondi sommato al risultato della sincronizzazione automatica.";
-        }
-        else if (key == "remux.subDelay")
-        {
-            _fieldHelpTitle = "Delay sub";
-            _fieldHelpText = "Offset manuale in millisecondi per i sottotitoli importati.";
-        }
-        else if (key == "remux.audioSourceFill")
-        {
-            _fieldHelpTitle = "Audio source fill";
-            _fieldHelpText = "Abilita il riempimento delle parti mancanti usando una traccia audio gia' presente nel Source.\n\nCompare solo dopo aver scelto un Formato audio. Quando e' attivo richiede Soglia, Lingua source, almeno una modalita e Audio impostato su Lang o Tutti.";
-        }
-        else if (key == "remux.audioSourceFillThreshold")
-        {
-            _fieldHelpTitle = "Soglia";
-            _fieldHelpText = "Obbligatoria con Audio source fill attivo. Quando una condizione abilitata supera questa soglia, RemuxForge prende dal Source quello specifico segmento audio e lo concatena alla traccia importata dal file Lingua.\n\nNon e' un delay.";
-        }
-        else if (key == "remux.audioSourceFillLang")
-        {
-            _fieldHelpTitle = "Lingua source";
-            _fieldHelpText = GetLanguageHelpText("Lingua della traccia audio Source da cui prendere i segmenti di riempimento. Obbligatoria con Audio source fill attivo.");
-        }
-        else if (key == "remux.audioSourceFillStart")
-        {
-            _fieldHelpTitle = "Inizio";
-            _fieldHelpText = "Applica il riempimento all'inizio del file.\n\nSe il delay audio iniziale positivo supera la soglia Audio source fill, RemuxForge prende dal Source i primi N millisecondi e li antepone alla traccia importata dal file Lingua.\n\nI sottotitoli importati non vengono concatenati: mantengono il delay calcolato.";
-        }
-        else if (key == "remux.audioSourceFillEnd")
-        {
-            _fieldHelpTitle = "Fine";
-            _fieldHelpText = "Applica il riempimento alla fine della traccia audio.\n\nLa condizione e': durata traccia audio source - (durata traccia Lingua + delay applicato) > soglia.\n\nSe nel Source non c'e' una traccia audio di riferimento, usa la durata della traccia video.";
-        }
-        else if (key == "remux.audioSourceFillInsert")
-        {
-            _fieldHelpTitle = "Insert silence";
-            _fieldHelpText = "Disponibile con Deep analysis.\n\nSe Deep analysis rileva una operazione INSERT_SILENCE maggiore della soglia Audio source fill, RemuxForge non inserisce silenzio: prende dal Source il segmento audio corrispondente e lo concatena alla traccia importata.";
-        }
-        else if (key == "remux.match")
-        {
-            _fieldHelpTitle = "Pattern match";
-            _fieldHelpText = "Regex usata per abbinare episodi tra Source e Lingua. I gruppi catturati formano l'ID episodio: due file matchano quando producono lo stesso ID.\n\nEsempi:\nS(\\d+)E(\\d+)\n  Bleach.S12E08.mkv -> 12/08\n\n(\\d+)x(\\d+)\n  Bleach.12x08.mkv -> 12/08\n\n[Ee]p(?:isode)?[ ._-]?(\\d+)\n  Episode 366.mkv -> 366\n\n(\\d{3})\n  366.mkv -> 366";
-        }
-        else if (key == "remux.extensions")
-        {
-            _fieldHelpTitle = "Estensioni";
-            _fieldHelpText = "Estensioni cercate nello scan. Default: mkv. Valori multipli separati da virgola.";
-        }
-        else if (key == "remux.audioFormat")
-        {
-            _fieldHelpTitle = "Formato audio";
-            _fieldHelpText = "Formato finale per le tracce audio processate: FLAC, LPCM, AAC o Opus.\n\nAbilita le opzioni audio dipendenti. Obbligatorio per Audio source fill e per Deep analysis solo quando l'analisi produce operazioni che modificano audio.";
-        }
-        else if (key == "remux.audioScope")
-        {
-            _fieldHelpTitle = "Audio";
-            _fieldHelpText = "Sceglie quali tracce audio encodare nel formato selezionato: Lang o Tutti.\n\nObbligatorio con Audio source fill attivo. Disabilitata evita conversioni generiche; eventuali operazioni obbligatorie Deep analysis richiedono comunque il formato audio.";
-        }
-        else if (key == "remux.audio24")
-        {
-            _fieldHelpTitle = "24bit -> 16bit";
-            _fieldHelpText = "Riduce tracce 24-bit a 16-bit usando soxr VHQ e dither shibata. Disponibile solo per FLAC e LPCM.";
-        }
-        else if (key == "remux.audioNormalize")
-        {
-            _fieldHelpTitle = "Normalizzazione";
-            _fieldHelpText = "Peak normalization globale multicanale. Il target deve essere minore o uguale a 0 dB.";
-        }
-        else if (key == "remux.rename")
-        {
-            _fieldHelpTitle = "Rinomina audio";
-            _fieldHelpText = "Rinomina le tracce audio finali usando codec, layout canali e parametri effettivi. AAC e Opus non includono bit depth.";
-        }
-        else if (key == "remux.encoding")
-        {
-            _fieldHelpTitle = "Encoding video";
-            _fieldHelpText = "Profilo opzionale di ricodifica video post-merge. I profili si gestiscono da Impostazioni > Profili encoding.";
-        }
-        else
-        {
-            _fieldHelpTitle = "Campo";
-            _fieldHelpText = "Seleziona un campo per vedere dettagli e vincoli.";
-        }
-    }
-
-    /// <summary>
-    /// Restituisce help per campi lingua remux
-    /// </summary>
-    /// <param name="intro">Descrizione iniziale del campo</param>
-    /// <returns>Testo help</returns>
-    private static string GetLanguageHelpText(string intro)
-    {
-        return intro
-            + "\n\nFormato: codici separati da virgola."
-            + "\n\nAccetta codici ISO 639-2 a tre lettere riconosciuti dai metadati MKV."
-            + "\n\nComuni:"
-            + "\nita  italiano"
-            + "\neng  inglese"
-            + "\njpn  giapponese"
-            + "\nger/deu  tedesco"
-            + "\nfra/fre  francese"
-            + "\nspa  spagnolo"
-            + "\npor  portoghese"
-            + "\nrus  russo"
-            + "\nchi/zho  cinese"
-            + "\nkor  coreano"
-            + "\nara  arabo"
-            + "\nhin  hindi"
-            + "\npol  polacco"
-            + "\ntur  turco"
-            + "\nnld/dut  olandese"
-            + "\nswe  svedese"
-            + "\nnor  norvegese"
-            + "\ndan  danese"
-            + "\nfin  finlandese"
-            + "\nhun  ungherese"
-            + "\nces/cze  ceco"
-            + "\n\nSpeciali:"
-            + "\nund  undefined"
-            + "\nmul  multiple"
-            + "\nzxx  no language"
-            + "\n\nEsempi:"
-            + "\nita"
-            + "\nita,eng";
-    }
-
-    /// <summary>
-    /// Restituisce help per campi codec audio remux
-    /// </summary>
-    /// <param name="intro">Descrizione iniziale del campo</param>
-    /// <returns>Testo help</returns>
-    private static string GetAudioCodecHelpText(string intro)
-    {
-        return intro
-            + "\n\nFormato: codec o alias separati da virgola."
-            + "\n\nValori accettati:"
-            + "\nAC3, AC-3, DD"
-            + "\nEAC3, E-AC-3, DD+, DDP"
-            + "\nTRUEHD, ATMOS, MLP"
-            + "\nDTS"
-            + "\nDTS-HD, DTS-HD MA, DTS-HDMA"
-            + "\nDTS-HD HR, DTS-HDHR"
-            + "\nDTS-ES"
-            + "\nDTS:X, DTSX"
-            + "\nFLAC"
-            + "\nPCM, LPCM, WAV"
-            + "\nALAC"
-            + "\nAAC, HE-AAC"
-            + "\nMP3"
-            + "\nMP2"
-            + "\nOPUS"
-            + "\nVORBIS"
-            + "\n\nNote:"
-            + "\nDTS matcha solo il core DTS, non DTS-HD MA."
-            + "\nDTS-HD matcha DTS-HD MA e DTS-HD HR."
-            + "\nATMOS matcha TrueHD ed E-AC-3."
-            + "\n\nEsempi:"
-            + "\nE-AC-3"
-            + "\nDTS,E-AC-3"
-            + "\nDTS-HD MA";
+        string titleKey = "web.config.help." + key + ".title";
+        string textKey = "web.config.help." + key + ".text";
+        _fieldHelpTitle = AppText.T(titleKey);
+        _fieldHelpText = AppText.T(textKey);
     }
 
     /// <summary>

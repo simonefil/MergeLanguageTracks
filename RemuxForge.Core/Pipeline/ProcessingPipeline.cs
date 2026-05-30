@@ -2,6 +2,7 @@ using RemuxForge.Core.Analysis.FrameSync;
 using RemuxForge.Core.Audio;
 using RemuxForge.Core.Configuration;
 using RemuxForge.Core.Infrastructure;
+using RemuxForge.Core.Localization;
 using RemuxForge.Core.Media.Mkv;
 using RemuxForge.Core.Models;
 using RemuxForge.Core.Tools;
@@ -499,60 +500,52 @@ namespace RemuxForge.Core.Pipeline
             bool needsRemux = (needsMerge || needsFilter || needsConvert || needsAudioSourceFill);
             bool needsEncode = (opts.EncodingProfileName.Length > 0);
 
-            // Step 1: Scan sempre presente
-            steps.Add("Scan file sorgente");
+            steps.Add(AppText.T("web.pipeline.step.scanSource"));
 
-            // Step 2: Match lingua (solo merge)
             if (needsMerge)
             {
-                steps.Add("Match file lingua");
+                steps.Add(AppText.T("web.pipeline.step.matchLanguage"));
             }
 
-            // Step 3: Analisi sync (solo merge)
             if (needsMerge)
             {
-                string analyzeDetail = "Analisi";
-                if (opts.DeepAnalysis) { analyzeDetail += " + deep analysis"; }
-                else if (opts.FrameSync) { analyzeDetail += " + frame-sync"; }
+                string analyzeDetail = AppText.T("web.pipeline.step.analysis");
+                if (opts.DeepAnalysis) { analyzeDetail = AppText.T("web.pipeline.step.analysisDeep"); }
+                else if (opts.FrameSync) { analyzeDetail = AppText.T("web.pipeline.step.analysisFrameSync"); }
                 steps.Add(analyzeDetail);
             }
 
-            // Step 4: Conversione audio
             if (needsConvert)
             {
-                steps.Add("Processing audio (" + opts.AudioFormat.ToUpper() + ")");
+                steps.Add(AppText.F("web.pipeline.step.processingAudio", opts.AudioFormat.ToUpperInvariant()));
             }
 
-            // Step 5: Audio source fill
             if (needsAudioSourceFill)
             {
-                steps.Add("Audio source fill");
+                steps.Add(AppText.T("web.pipeline.step.audioSourceFill"));
             }
 
-            // Step 6: Remux
             if (needsRemux)
             {
-                string remuxDetail = "Remux";
-                if (needsMerge && needsFilter) { remuxDetail += " (merge + filtra)"; }
-                else if (needsMerge) { remuxDetail += " (merge tracce)"; }
-                else if (needsFilter) { remuxDetail += " (filtra sorgente)"; }
+                string remuxDetail = AppText.T("web.pipeline.step.remux");
+                if (needsMerge && needsFilter) { remuxDetail = AppText.T("web.pipeline.step.remuxMergeFilter"); }
+                else if (needsMerge) { remuxDetail = AppText.T("web.pipeline.step.remuxMergeTracks"); }
+                else if (needsFilter) { remuxDetail = AppText.T("web.pipeline.step.remuxFilterSource"); }
                 steps.Add(remuxDetail);
             }
 
-            // Step 7: Encoding video
             if (needsEncode)
             {
                 EncodingProfile profile = AppSettingsService.Instance.GetProfile(opts.EncodingProfileName);
-                string encDetail = "Encoding video";
-                if (profile != null) { encDetail += " (" + profile.Codec + " " + profile.RateMode + " " + profile.CrfQp + ")"; }
-                else { encDetail += " (" + opts.EncodingProfileName + ")"; }
+                string encDetail;
+                if (profile != null) { encDetail = AppText.F("web.pipeline.step.encodingVideoProfile", profile.Codec, profile.RateMode, profile.CrfQp); }
+                else { encDetail = AppText.F("web.pipeline.step.encodingVideoName", opts.EncodingProfileName); }
                 steps.Add(encDetail);
             }
 
-            // Se nessuna operazione configurata
             if (!needsRemux && !needsEncode)
             {
-                steps.Add("(nessuna operazione configurata)");
+                steps.Add(AppText.T("web.pipeline.step.noOperation"));
             }
 
             return steps;
@@ -570,51 +563,51 @@ namespace RemuxForge.Core.Pipeline
         private static List<string> GetSplitPipelineSteps(Options opts)
         {
             List<string> steps = new List<string>();
-            string sourceKind = "sorgente";
+            string sourceKind = AppText.T("web.pipeline.sourceKind.source");
             string modeDetail = "";
 
             if (opts.Split.SourcePath.Length > 0)
             {
-                if (Directory.Exists(opts.Split.SourcePath)) { sourceKind = "cartella sorgente"; }
-                else if (File.Exists(opts.Split.SourcePath)) { sourceKind = "file sorgente"; }
+                if (Directory.Exists(opts.Split.SourcePath)) { sourceKind = AppText.T("web.pipeline.sourceKind.sourceFolder"); }
+                else if (File.Exists(opts.Split.SourcePath)) { sourceKind = AppText.T("web.pipeline.sourceKind.sourceFile"); }
             }
 
-            steps.Add("Scan input split (" + sourceKind + ")");
-            steps.Add("Estrazione capitoli");
+            steps.Add(AppText.F("web.pipeline.step.splitScanInput", sourceKind));
+            steps.Add(AppText.T("web.pipeline.step.extractChapters"));
             if (opts.Split.SourceRaw.Length > 0)
             {
-                steps.Add("Estrazione PTS da source raw");
+                steps.Add(AppText.T("web.pipeline.step.extractPtsRaw"));
             }
             else
             {
-                steps.Add("Estrazione PTS dal file input");
+                steps.Add(AppText.T("web.pipeline.step.extractPtsInput"));
             }
-            steps.Add("Conteggio e verifica frame");
+            steps.Add(AppText.T("web.pipeline.step.countVerifyFrames"));
 
-            if (opts.Split.Pattern.Length > 0) { modeDetail = "pattern capitoli"; }
-            else if (opts.Split.Ranges.Length > 0) { modeDetail = "range espliciti"; }
-            else if (opts.Split.SplitAt.Length > 0) { modeDetail = "split-at"; }
-            else if (opts.Split.TrimStart.Length > 0 || opts.Split.TrimEnd.Length > 0) { modeDetail = "trim"; }
-            else if (opts.Split.ChaptersEach) { modeDetail = "un segmento per capitolo"; }
-            else { modeDetail = "modalita non configurata"; }
-            steps.Add("Costruzione segmenti (" + modeDetail + ")");
+            if (opts.Split.Pattern.Length > 0) { modeDetail = AppText.T("web.pipeline.mode.chapterPattern"); }
+            else if (opts.Split.Ranges.Length > 0) { modeDetail = AppText.T("web.pipeline.mode.explicitRanges"); }
+            else if (opts.Split.SplitAt.Length > 0) { modeDetail = AppText.T("web.pipeline.mode.splitAt"); }
+            else if (opts.Split.TrimStart.Length > 0 || opts.Split.TrimEnd.Length > 0) { modeDetail = AppText.T("web.pipeline.mode.trim"); }
+            else if (opts.Split.ChaptersEach) { modeDetail = AppText.T("web.pipeline.mode.chaptersEach"); }
+            else { modeDetail = AppText.T("web.pipeline.mode.notConfigured"); }
+            steps.Add(AppText.F("web.pipeline.step.buildSegments", modeDetail));
 
             if (opts.Split.DryRun || opts.DryRun)
             {
-                steps.Add("Dry-run: stampa segmenti senza scrivere file");
+                steps.Add(AppText.T("web.pipeline.step.dryRun"));
                 return steps;
             }
 
-            steps.Add("Lettura parametri video e codec");
+            steps.Add(AppText.T("web.pipeline.step.readVideoCodec"));
             if (opts.Split.Snap != MkvSplitSnapMode.Off && opts.Split.SourceRaw.Length == 0)
             {
-                steps.Add("Fast path con snap keyframe (" + opts.Split.Snap.ToString().ToLowerInvariant() + ")");
+                steps.Add(AppText.F("web.pipeline.step.fastSnap", opts.Split.Snap.ToString().ToLowerInvariant()));
             }
             else
             {
-                steps.Add("Slow path frame-perfect con bitstream raw");
+                steps.Add(AppText.T("web.pipeline.step.slowPath"));
             }
-            steps.Add("Rimux audio, sottotitoli e capitoli");
+            steps.Add(AppText.T("web.pipeline.step.remuxAudioSubsChapters"));
 
             return steps;
         }

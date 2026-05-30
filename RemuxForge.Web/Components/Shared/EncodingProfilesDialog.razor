@@ -1,10 +1,10 @@
 <div class="dialog-overlay visible" @onclick="OnClose">
     <div class="dialog-box" style="min-width: 65ch;" @onclick:stopPropagation="true">
-        <div class="dialog-title">Profili Encoding Video</div>
+        <div class="dialog-title">@AppText.T("web.encodingProfiles.title")</div>
         <div class="dialog-body">
 
             @* Lista profili *@
-            <div class="form-section">== Profili ==</div>
+            <div class="form-section">@AppText.T("web.encodingProfiles.profilesSection")</div>
             <div class="form-row">
                 <select class="form-input" style="width: 30ch;" @onchange="OnProfileSelected">
                     @for (int i = 0; i < _profiles.Count; i++)
@@ -13,22 +13,22 @@
                         <option value="@idx" selected="@(idx == _selectedIdx)">@_profiles[i].Name</option>
                     }
                 </select>
-                <button style="margin-left: 1ch;" @onclick="AddProfile">Nuovo</button>
-                <button style="margin-left: 1ch;" @onclick="DeleteProfile">Elimina</button>
+                <button style="margin-left: 1ch;" @onclick="AddProfile">@AppText.T("web.common.new")</button>
+                <button style="margin-left: 1ch;" @onclick="DeleteProfile">@AppText.T("web.common.delete")</button>
             </div>
 
             @if (_editing != null)
             {
                 @* Nome profilo *@
-                <div class="form-section">== Impostazioni ==</div>
+                <div class="form-section">@AppText.T("web.encodingProfiles.settingsSection")</div>
                 <div class="form-row">
-                    <span class="form-label">Nome:</span>
+                    <span class="form-label">@AppText.T("web.common.nameLabel")</span>
                     <input class="form-input" @bind="_editing.Name" />
                 </div>
 
                 @* Codec *@
                 <div class="form-row">
-                    <span class="form-label">Codec:</span>
+                    <span class="form-label">@AppText.T("web.encodingProfiles.codec")</span>
                     <select class="form-input" style="width: 20ch;" value="@_editing.Codec" @onchange="OnCodecChanged">
                         @for (int i = 0; i < EncodingDefaults.CODECS.Length; i++)
                         {
@@ -39,7 +39,7 @@
 
                 @* Preset *@
                 <div class="form-row">
-                    <span class="form-label">Preset:</span>
+                    <span class="form-label">@AppText.T("web.encodingProfiles.preset")</span>
                     <select class="form-input" style="width: 20ch;" @bind="_editing.Preset">
                         @foreach (string p in EncodingDefaults.GetPresets(_editing.Codec))
                         {
@@ -50,7 +50,7 @@
 
                 @* Tune *@
                 <div class="form-row">
-                    <span class="form-label">Tune:</span>
+                    <span class="form-label">@AppText.T("web.encodingProfiles.tune")</span>
                     <select class="form-input" style="width: 30ch;" @bind="_editing.Tune">
                         @foreach (string t in EncodingDefaults.GetTunes(_editing.Codec))
                         {
@@ -63,7 +63,7 @@
                 @if (EncodingDefaults.HasProfile(_editing.Codec))
                 {
                     <div class="form-row">
-                        <span class="form-label">Profile:</span>
+                        <span class="form-label">@AppText.T("web.encodingProfiles.profile")</span>
                         <select class="form-input" style="width: 20ch;" @bind="_editing.Profile">
                             @foreach (string pr in EncodingDefaults.GetProfiles(_editing.Codec))
                             {
@@ -75,7 +75,7 @@
 
                 @* Bit depth *@
                 <div class="form-row">
-                    <span class="form-label">Bit depth:</span>
+                    <span class="form-label">@AppText.T("web.encodingProfiles.bitDepth")</span>
                     <select class="form-input" style="width: 30ch;" @bind="_editing.BitDepth">
                         @foreach (string bd in EncodingDefaults.GetBitDepths(_editing.Codec))
                         {
@@ -86,7 +86,7 @@
 
                 @* Rate mode *@
                 <div class="form-row">
-                    <span class="form-label">Rate mode:</span>
+                    <span class="form-label">@AppText.T("web.encodingProfiles.rateMode")</span>
                     <select class="form-input" style="width: 12ch;" value="@_editing.RateMode" @onchange="OnRateModeChanged">
                         @foreach (string rm in EncodingDefaults.GetRateModes(_editing.Codec))
                         {
@@ -101,7 +101,7 @@
                     <div class="form-row">
                         <span class="form-label">@(_editing.RateMode == "qp" ? "QP:" : "CRF:")</span>
                         <input class="form-input" style="width: 6ch;" @bind="_crfQpStr" />
-                        <span style="margin-left: 1ch; color: var(--foreground2);">Range: @EncodingDefaults.GetMinCrf(_editing.Codec)-@EncodingDefaults.GetMaxCrf(_editing.Codec)</span>
+                        <span style="margin-left: 1ch; color: var(--foreground2);">@AppText.T("web.common.range"): @EncodingDefaults.GetMinCrf(_editing.Codec)-@EncodingDefaults.GetMaxCrf(_editing.Codec)</span>
                     </div>
                 }
 
@@ -109,7 +109,7 @@
                 @if (_editing.RateMode == "bitrate")
                 {
                     <div class="form-row">
-                        <span class="form-label">Bitrate (kbps):</span>
+                        <span class="form-label">@AppText.T("web.encodingProfiles.bitrate")</span>
                         <input class="form-input" style="width: 10ch;" @bind="_bitrateStr" />
                     </div>
 
@@ -117,7 +117,7 @@
                     @if (EncodingDefaults.HasMultiPass(_editing.Codec))
                     {
                         <div class="form-row">
-                            <span class="form-label">Passate:</span>
+                            <span class="form-label">@AppText.T("web.encodingProfiles.passes")</span>
                             <select class="form-input" style="width: 6ch;" @bind="_editing.Passes">
                                 <option value="1">1</option>
                                 <option value="2">2</option>
@@ -130,29 +130,29 @@
                 @if (EncodingDefaults.HasFilmGrain(_editing.Codec))
                 {
                     <div class="form-row">
-                        <span class="form-label">Film grain:</span>
+                        <span class="form-label">@AppText.T("web.encodingProfiles.filmGrain")</span>
                         <input class="form-input" style="width: 6ch;" @bind="_filmGrainStr" />
-                        <span style="margin-left: 1ch; color: var(--foreground2);">@EncodingDefaults.SVTAV1_FILM_GRAIN_MIN = disabilitato, 1-@EncodingDefaults.SVTAV1_FILM_GRAIN_MAX</span>
+                        <span style="margin-left: 1ch; color: var(--foreground2);">@AppText.F("web.encodingProfiles.filmGrainHint", EncodingDefaults.SVTAV1_FILM_GRAIN_MIN, EncodingDefaults.SVTAV1_FILM_GRAIN_MAX)</span>
                     </div>
                     <div class="form-row">
-                        <span class="ui-toggle" @onclick="() => _editing.FilmGrainDenoise = !_editing.FilmGrainDenoise">@(_editing.FilmGrainDenoise ? "[X]" : "[ ]") Film grain denoise</span>
+                        <span class="ui-toggle" @onclick="() => _editing.FilmGrainDenoise = !_editing.FilmGrainDenoise">@(_editing.FilmGrainDenoise ? "[X]" : "[ ]") @AppText.T("web.encodingProfiles.filmGrainDenoise")</span>
                     </div>
                 }
 
                 @* Extra params *@
                 <div class="form-row">
-                    <span class="form-label">Extra params:</span>
+                    <span class="form-label">@AppText.T("web.encodingProfiles.extraParams")</span>
                     <textarea class="form-input" rows="3" @bind="_editing.ExtraParams"></textarea>
                 </div>
             }
             else
             {
-                <div class="form-row" style="color: var(--foreground2);">Nessun profilo. Premere [Nuovo] per crearne uno.</div>
+                <div class="form-row" style="color: var(--foreground2);">@AppText.T("web.encodingProfiles.noProfiles")</div>
             }
         </div>
         <div class="dialog-footer">
-            <button @onclick="Save">OK</button>
-            <button @onclick="OnClose">Annulla</button>
+            <button @onclick="Save">@AppText.T("web.common.ok")</button>
+            <button @onclick="OnClose">@AppText.T("web.common.cancel")</button>
         </div>
     </div>
 </div>
@@ -363,7 +363,7 @@
         this.SaveEditing();
 
         EncodingProfile newProfile = new EncodingProfile();
-        newProfile.Name = "Nuovo profilo " + (this._profiles.Count + 1);
+        newProfile.Name = AppText.F("web.encodingProfiles.newProfileName", this._profiles.Count + 1);
         this._profiles.Add(newProfile);
         this._selectedIdx = this._profiles.Count - 1;
         this.LoadEditing();

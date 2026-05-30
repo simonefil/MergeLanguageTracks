@@ -1,4 +1,5 @@
 using RemuxForge.Core.Configuration;
+using RemuxForge.Core.Localization;
 using RemuxForge.Core.Media;
 using RemuxForge.Core.Models;
 using RemuxForge.Core.Tools;
@@ -62,6 +63,11 @@ namespace RemuxForge.Web.Components.Pages
         /// Tema corrente
         /// </summary>
         private string _currentTheme;
+
+        /// <summary>
+        /// Lingua corrente
+        /// </summary>
+        private string _currentLanguage;
 
         /// <summary>
         /// Modalita' corrente UI
@@ -178,6 +184,11 @@ namespace RemuxForge.Web.Components.Pages
         protected override void OnInitialized()
         {
             this._currentTheme = AppSettingsService.Instance.Settings.Ui.Theme;
+            this._currentLanguage = AppText.NormalizeLanguage(AppSettingsService.Instance.Settings.Ui.Language);
+            if (this._currentLanguage.Length == 0)
+            {
+                this._currentLanguage = AppText.LANG_EN;
+            }
             this._currentMode = AppSettingsService.Instance.Settings.Ui.LastMode;
             if (this._currentMode != Options.MODE_REMUX && this._currentMode != Options.MODE_SPLIT)
             {
@@ -234,6 +245,7 @@ namespace RemuxForge.Web.Components.Pages
                 // Carica tema da AppSettings e applica via JS
                 this._currentTheme = AppSettingsService.Instance.Settings.Ui.Theme;
                 await this._jsModule.InvokeVoidAsync("setTheme", AppSettingsService.Instance.Settings.Ui.Theme);
+                await this._jsModule.InvokeVoidAsync("setLanguage", this._currentLanguage);
                 this.StateHasChanged();
             }
         }
@@ -854,7 +866,7 @@ namespace RemuxForge.Web.Components.Pages
             this._contextMenuActions = new List<Action>();
 
             // Delay: sempre visibile
-            this._contextMenuItems.Add("Delay");
+            this._contextMenuItems.Add(AppText.T("web.context.delay"));
             this._contextMenuActions.Add(() =>
             {
                 this._showContextMenu = false;
@@ -864,22 +876,22 @@ namespace RemuxForge.Web.Components.Pages
             // MediaInfo sorgente
             if (mediaInfoAvailable && record.SourceFilePath.Length > 0 && System.IO.File.Exists(record.SourceFilePath))
             {
-                this._contextMenuItems.Add("MediaInfo sorgente");
-                this._contextMenuActions.Add(() => { this.OpenMediaInfo(record.SourceFilePath, "Sorgente: " + record.SourceFileName); });
+                this._contextMenuItems.Add(AppText.T("web.context.mediaInfoSource"));
+                this._contextMenuActions.Add(() => { this.OpenMediaInfo(record.SourceFilePath, AppText.F("web.mediaInfo.sourceTitle", record.SourceFileName)); });
             }
 
             // MediaInfo lingua
             if (mediaInfoAvailable && record.LangFilePath.Length > 0 && System.IO.File.Exists(record.LangFilePath))
             {
-                this._contextMenuItems.Add("MediaInfo lingua");
-                this._contextMenuActions.Add(() => { this.OpenMediaInfo(record.LangFilePath, "Lingua: " + record.LangFileName); });
+                this._contextMenuItems.Add(AppText.T("web.context.mediaInfoLanguage"));
+                this._contextMenuActions.Add(() => { this.OpenMediaInfo(record.LangFilePath, AppText.F("web.mediaInfo.languageTitle", record.LangFileName)); });
             }
 
             // MediaInfo risultato
             if (mediaInfoAvailable && record.ResultFilePath.Length > 0 && System.IO.File.Exists(record.ResultFilePath))
             {
-                this._contextMenuItems.Add("MediaInfo risultato");
-                this._contextMenuActions.Add(() => { this.OpenMediaInfo(record.ResultFilePath, "Risultato: " + record.ResultFileName); });
+                this._contextMenuItems.Add(AppText.T("web.context.mediaInfoResult"));
+                this._contextMenuActions.Add(() => { this.OpenMediaInfo(record.ResultFilePath, AppText.F("web.mediaInfo.resultTitle", record.ResultFileName)); });
             }
         }
 
@@ -1035,7 +1047,7 @@ namespace RemuxForge.Web.Components.Pages
             }
             else
             {
-                this.Orchestrator.Log("Operazione in corso: scan non avviato");
+                this.Orchestrator.Log(AppText.T("web.log.scanBusy"));
             }
         }
 
@@ -1061,11 +1073,11 @@ namespace RemuxForge.Web.Components.Pages
             }
             else if (this.Orchestrator.IsBusy)
             {
-                this.Orchestrator.Log("Operazione in corso: analisi non avviata");
+                this.Orchestrator.Log(AppText.T("web.log.analyzeBusy"));
             }
             else
             {
-                this.Orchestrator.Log("Selezionare un episodio da analizzare");
+                this.Orchestrator.Log(AppText.T("web.log.selectEpisodeAnalyze"));
             }
         }
 
@@ -1085,7 +1097,7 @@ namespace RemuxForge.Web.Components.Pages
             }
             else
             {
-                this.Orchestrator.Log("Operazione in corso: analisi batch non avviata");
+                this.Orchestrator.Log(AppText.T("web.log.analyzeBatchBusy"));
             }
         }
 
@@ -1111,7 +1123,7 @@ namespace RemuxForge.Web.Components.Pages
             }
             else
             {
-                this.Orchestrator.Log("Selezionare un episodio da skippare");
+                this.Orchestrator.Log(AppText.T("web.log.selectEpisodeSkip"));
             }
         }
 
@@ -1138,11 +1150,11 @@ namespace RemuxForge.Web.Components.Pages
             }
             else if (this.Orchestrator.IsBusy)
             {
-                this.Orchestrator.Log("Operazione in corso: merge non avviato");
+                this.Orchestrator.Log(AppText.T("web.log.mergeBusy"));
             }
             else
             {
-                this.Orchestrator.Log("Selezionare un episodio da processare");
+                this.Orchestrator.Log(AppText.T("web.log.selectEpisodeProcess"));
             }
         }
 
@@ -1171,7 +1183,7 @@ namespace RemuxForge.Web.Components.Pages
             }
             else
             {
-                this.Orchestrator.Log("Operazione in corso: merge batch non avviato");
+                this.Orchestrator.Log(AppText.T("web.log.mergeBatchBusy"));
             }
         }
 
@@ -1192,7 +1204,7 @@ namespace RemuxForge.Web.Components.Pages
             }
             else
             {
-                this.Orchestrator.Log("Nessuna operazione in corso da interrompere");
+                this.Orchestrator.Log(AppText.T("web.log.noOperationToStop"));
             }
         }
 
@@ -1399,6 +1411,42 @@ namespace RemuxForge.Web.Components.Pages
                     // Ignora errori JS durante dispose
                 }
             }
+        }
+
+        /// <summary>
+        /// Cambia lingua UI e salva in AppSettings
+        /// </summary>
+        /// <param name="language">Codice lingua</param>
+        private void ChangeLanguage(string language)
+        {
+            string normalizedLanguage = AppText.NormalizeLanguage(language);
+            if (normalizedLanguage.Length == 0)
+            {
+                return;
+            }
+
+            this._currentLanguage = normalizedLanguage;
+
+            // Salva in AppSettings
+            AppSettingsService.Instance.Settings.Ui.Language = normalizedLanguage;
+            AppSettingsService.Instance.Save();
+
+            // Aggiorna il catalogo testi della sessione corrente
+            AppText.Initialize(normalizedLanguage, normalizedLanguage);
+
+            if (this._jsModule != null)
+            {
+                try
+                {
+                    _ = this._jsModule.InvokeVoidAsync("setLanguage", normalizedLanguage);
+                }
+                catch
+                {
+                    // Ignora errori JS durante dispose
+                }
+            }
+
+            this.StateHasChanged();
         }
 
         #endregion

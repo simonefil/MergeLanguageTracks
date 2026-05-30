@@ -1,13 +1,13 @@
 <div class="progress-panel @(IsActive() ? "" : "inactive")">
     <div class="progress-line">
-        <div class="progress-label">Globale</div>
+        <div class="progress-label">@AppText.T("web.progress.global")</div>
         <div class="progress-track @(IsGlobalIndeterminate() ? "indeterminate" : "")">
             <div class="progress-fill" style="width: @(IsGlobalIndeterminate() ? 35 : GetGlobalPercent())%"></div>
         </div>
         <div class="progress-value">@BuildGlobalText()</div>
     </div>
     <div class="progress-line">
-        <div class="progress-label">Episodio</div>
+        <div class="progress-label">@AppText.T("web.progress.episode")</div>
         <div class="progress-track @(IsCurrentIndeterminate() ? "indeterminate" : "")">
             <div class="progress-fill" style="width: @(IsCurrentIndeterminate() ? 35 : GetCurrentPercent())%"></div>
         </div>
@@ -28,7 +28,7 @@
     {
         if (!IsActive())
         {
-            return "Pronto";
+            return AppText.T("web.progress.ready");
         }
 
         if (Progress.Total > 0)
@@ -48,7 +48,7 @@
 
         if (!IsActive())
         {
-            return "Nessuna operazione in corso";
+            return AppText.T("web.progress.noOperation");
         }
 
         if (Progress.CurrentEpisode.Length > 0)

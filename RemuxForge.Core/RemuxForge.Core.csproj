@@ -8,4 +8,8 @@
     <NoWarn>SYSLIB0014</NoWarn>
   </PropertyGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Localization/Resources/*.json" />
+  </ItemGroup>
+
 </Project>

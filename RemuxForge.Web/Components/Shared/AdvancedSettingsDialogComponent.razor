@@ -1,6 +1,6 @@
 <div class="dialog-overlay visible" @onclick="OnClose">
     <div class="dialog-box" style="min-width: 60ch; max-height: 80vh; overflow-y: auto;" @onclick:stopPropagation="true">
-        <div class="dialog-title">Impostazioni Avanzate</div>
+        <div class="dialog-title">@AppText.T("web.advanced.title")</div>
         <div class="dialog-body">
 
             @* Sezione opzioni utente *@
@@ -35,9 +35,9 @@
             <div style="padding: 0.5em 1em; color: var(--color-error); white-space: pre-line;">@_validationError</div>
         }
         <div class="dialog-footer">
-            <button @onclick="Save">OK</button>
-            <button @onclick="ResetDefaults">Reset Default</button>
-            <button @onclick="OnClose">Annulla</button>
+            <button @onclick="Save">@AppText.T("web.common.ok")</button>
+            <button @onclick="ResetDefaults">@AppText.T("web.advanced.resetDefault")</button>
+            <button @onclick="OnClose">@AppText.T("web.common.cancel")</button>
         </div>
     </div>
 </div>

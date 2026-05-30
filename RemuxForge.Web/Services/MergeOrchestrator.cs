@@ -1,4 +1,5 @@
 using RemuxForge.Core.Infrastructure;
+using RemuxForge.Core.Localization;
 using RemuxForge.Core.Models;
 using RemuxForge.Core.Pipeline;
 using System;
@@ -99,7 +100,7 @@ namespace RemuxForge.Web.Services
             this._progress = new ProcessingProgressState();
             this._isBusy = false;
             this._stopRequested = false;
-            this._logText = "Pronto. Premere F2 per configurare, F5 per scan.";
+            this._logText = AppText.T("web.merge.ready");
             this._selectedIndex = -1;
 
             // Abilita file log se configurato via env var
@@ -152,13 +153,13 @@ namespace RemuxForge.Web.Services
 
             if (opts == null)
             {
-                errorMessage = "Configurazione non valida";
+                errorMessage = AppText.T("validation.invalidConfig");
                 return result;
             }
 
             if (this._isBusy)
             {
-                errorMessage = "Operazione in corso: riprovare a elaborazione terminata";
+                errorMessage = AppText.T("web.merge.busyRetry");
                 return result;
             }
 
@@ -175,7 +176,7 @@ namespace RemuxForge.Web.Services
                 result = this._pipeline.Initialize(this._options);
                 if (!result)
                 {
-                    errorMessage = "Configurazione non applicabile: controllare il log";
+                    errorMessage = AppText.T("web.merge.configNotApplicable");
                 }
             }
             else
@@ -192,7 +193,7 @@ namespace RemuxForge.Web.Services
                         this._records.Clear();
                         this._selectedIndex = -1;
                     }
-                    this.AppendLog("Configurazione applicata alla pipeline: scan precedente invalidato, premere F5");
+                    this.AppendLog(AppText.T("web.merge.configAppliedScanInvalidated"));
                 }
                 else if (processingOptionsChanged)
                 {
@@ -202,16 +203,16 @@ namespace RemuxForge.Web.Services
                     }
                     if (resetCount > 0)
                     {
-                        this.AppendLog("Configurazione applicata alla pipeline: " + resetCount + " analisi precedenti scartate");
+                        this.AppendLog(AppText.F("web.merge.configAppliedAnalysisReset", resetCount));
                     }
                     else
                     {
-                        this.AppendLog("Configurazione applicata alla pipeline");
+                        this.AppendLog(AppText.T("web.merge.configApplied"));
                     }
                 }
                 else
                 {
-                    this.AppendLog("Configurazione applicata alla pipeline");
+                    this.AppendLog(AppText.T("web.merge.configApplied"));
                 }
                 this.OnRecordsChanged?.Invoke();
             }
@@ -232,29 +233,29 @@ namespace RemuxForge.Web.Services
             // Verifica parametro obbligatorio: source folder
             if (this._options.SourceFolder.Length == 0)
             {
-                this.AppendLog("Configurare prima la cartella sorgente (F2)");
+                this.AppendLog(AppText.T("web.merge.configureSourceFirst"));
                 return;
             }
 
             Thread thread = new Thread(() =>
             {
                 this.SetBusy(true);
-                this.BeginProgress("Scan", 0, true);
+                this.BeginProgress(AppText.T("web.progress.scan"), 0, true);
 
                 try
                 {
-                    this.UpdateProgress("", 0, 0, 0, "Inizializzazione", true, true);
+                    this.UpdateProgress("", 0, 0, 0, AppText.T("web.progress.initialization"), true, true);
 
                     // Inizializza pipeline con opzioni correnti (come flusso CLI)
                     if (!this._pipeline.Initialize(this._options))
                     {
-                        this.AppendLog("Errore inizializzazione pipeline");
-                        this.CompleteProgress("Errore inizializzazione");
+                        this.AppendLog(AppText.T("web.merge.pipelineInitError"));
+                        this.CompleteProgress(AppText.T("web.progress.initializationError"));
                         this.SetBusy(false);
                         return;
                     }
 
-                    this.UpdateProgress("", 0, 0, 30, "Scan file", true, true);
+                    this.UpdateProgress("", 0, 0, 30, AppText.T("web.progress.scanFiles"), true, true);
 
                     // Scan
                     List<FileProcessingRecord> scanned = this._pipeline.ScanFiles();
@@ -277,13 +278,13 @@ namespace RemuxForge.Web.Services
                     }
 
                     this.OnRecordsChanged?.Invoke();
-                    this.AppendLog("Scan completato: " + scanned.Count + " file trovati, " + pending + " pronti, " + skipped + " saltati");
-                    this.CompleteProgress("Scan completato");
+                    this.AppendLog(AppText.F("web.merge.scanCompleted", scanned.Count, pending, skipped));
+                    this.CompleteProgress(AppText.T("web.progress.scanCompleted"));
                 }
                 catch (Exception ex)
                 {
-                    this.AppendLog("Errore durante scan: " + ex.Message);
-                    this.CompleteProgress("Errore scan");
+                    this.AppendLog(AppText.F("web.merge.scanError", ex.Message));
+                    this.CompleteProgress(AppText.T("web.progress.scanError"));
                 }
 
                 this.SetBusy(false);
@@ -308,22 +309,22 @@ namespace RemuxForge.Web.Services
             Thread thread = new Thread(() =>
             {
                 this.SetBusy(true);
-                this.BeginProgress("Analisi episodio", 1, false);
+                this.BeginProgress(AppText.T("web.progress.analyzeEpisode"), 1, false);
 
                 try
                 {
-                    this.UpdateProgress(record.EpisodeId, 1, 0, 5, "Analisi", false, false);
+                    this.UpdateProgress(record.EpisodeId, 1, 0, 5, AppText.T("web.progress.analysis"), false, false);
                     this._pipeline.AnalyzeFile(record);
-                    this.UpdateProgress(record.EpisodeId, 1, 0, 85, "Comando merge", false, false);
+                    this.UpdateProgress(record.EpisodeId, 1, 0, 85, AppText.T("web.progress.mergeCommand"), false, false);
                     this._pipeline.BuildMergeCommand(record);
                     this.OnRecordsChanged?.Invoke();
-                    this.UpdateProgress(record.EpisodeId, 1, 1, 100, "Completato", false, false);
-                    this.CompleteProgress("Analisi completata");
+                    this.UpdateProgress(record.EpisodeId, 1, 1, 100, AppText.T("web.progress.completed"), false, false);
+                    this.CompleteProgress(AppText.T("web.progress.analysisCompleted"));
                 }
                 catch (Exception ex)
                 {
-                    this.AppendLog("Errore durante analisi: " + ex.Message);
-                    this.CompleteProgress("Errore analisi");
+                    this.AppendLog(AppText.F("web.merge.analysisError", ex.Message));
+                    this.CompleteProgress(AppText.T("web.progress.analysisError"));
                 }
 
                 this.SetBusy(false);
@@ -349,7 +350,7 @@ namespace RemuxForge.Web.Services
             {
                 this.SetBusy(true);
                 bool stopped = false;
-                this.BeginProgress("Analisi selezione", selected.Count, false);
+                this.BeginProgress(AppText.T("web.progress.analyzeSelection"), selected.Count, false);
 
                 try
                 {
@@ -358,28 +359,28 @@ namespace RemuxForge.Web.Services
                         if (this.IsStopRequested())
                         {
                             stopped = true;
-                            this.AppendLog("Analisi selezione interrotta dall'utente");
-                            this.CompleteProgress("Analisi interrotta");
+                            this.AppendLog(AppText.T("web.merge.analysisSelectionStopped"));
+                            this.CompleteProgress(AppText.T("web.progress.analysisStopped"));
                             break;
                         }
 
-                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i, 5, "Analisi", false, false);
+                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i, 5, AppText.T("web.progress.analysis"), false, false);
                         this._pipeline.AnalyzeFile(selected[i]);
-                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i, 85, "Comando merge", false, false);
+                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i, 85, AppText.T("web.progress.mergeCommand"), false, false);
                         this._pipeline.BuildMergeCommand(selected[i]);
                         this.OnRecordsChanged?.Invoke();
-                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i + 1, 100, "Completato", false, false);
+                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i + 1, 100, AppText.T("web.progress.completed"), false, false);
                     }
 
                     if (!stopped)
                     {
-                        this.CompleteProgress("Analisi selezione completata");
+                        this.CompleteProgress(AppText.T("web.progress.analysisSelectionCompleted"));
                     }
                 }
                 catch (Exception ex)
                 {
-                    this.AppendLog("Errore durante analisi selezione: " + ex.Message);
-                    this.CompleteProgress("Errore analisi selezione");
+                    this.AppendLog(AppText.F("web.merge.analysisSelectionError", ex.Message));
+                    this.CompleteProgress(AppText.T("web.progress.analysisSelectionError"));
                 }
 
                 this.SetBusy(false);
@@ -418,7 +419,7 @@ namespace RemuxForge.Web.Services
                     }
                 }
 
-                this.BeginProgress("Analisi batch", pending.Count, false);
+                this.BeginProgress(AppText.T("web.progress.analyzeBatch"), pending.Count, false);
 
                 try
                 {
@@ -427,28 +428,28 @@ namespace RemuxForge.Web.Services
                         if (this.IsStopRequested())
                         {
                             stopped = true;
-                            this.AppendLog("Analisi batch interrotta dall'utente");
-                            this.CompleteProgress("Analisi interrotta");
+                            this.AppendLog(AppText.T("web.merge.analysisBatchStopped"));
+                            this.CompleteProgress(AppText.T("web.progress.analysisStopped"));
                             break;
                         }
 
-                        this.UpdateProgress(pending[i].EpisodeId, i + 1, i, 5, "Analisi", false, false);
+                        this.UpdateProgress(pending[i].EpisodeId, i + 1, i, 5, AppText.T("web.progress.analysis"), false, false);
                         this._pipeline.AnalyzeFile(pending[i]);
-                        this.UpdateProgress(pending[i].EpisodeId, i + 1, i, 85, "Comando merge", false, false);
+                        this.UpdateProgress(pending[i].EpisodeId, i + 1, i, 85, AppText.T("web.progress.mergeCommand"), false, false);
                         this._pipeline.BuildMergeCommand(pending[i]);
                         this.OnRecordsChanged?.Invoke();
-                        this.UpdateProgress(pending[i].EpisodeId, i + 1, i + 1, 100, "Completato", false, false);
+                        this.UpdateProgress(pending[i].EpisodeId, i + 1, i + 1, 100, AppText.T("web.progress.completed"), false, false);
                     }
 
                     if (!stopped)
                     {
-                        this.CompleteProgress("Analisi batch completata");
+                        this.CompleteProgress(AppText.T("web.progress.analysisBatchCompleted"));
                     }
                 }
                 catch (Exception ex)
                 {
-                    this.AppendLog("Errore durante analisi batch: " + ex.Message);
-                    this.CompleteProgress("Errore analisi batch");
+                    this.AppendLog(AppText.F("web.merge.analysisBatchError", ex.Message));
+                    this.CompleteProgress(AppText.T("web.progress.analysisBatchError"));
                 }
 
                 this.SetBusy(false);
@@ -473,20 +474,20 @@ namespace RemuxForge.Web.Services
             Thread thread = new Thread(() =>
             {
                 this.SetBusy(true);
-                this.BeginProgress("Merge episodio", 1, false);
+                this.BeginProgress(AppText.T("web.progress.mergeEpisode"), 1, false);
 
                 try
                 {
-                    this.UpdateProgress(record.EpisodeId, 1, 0, 10, "Merge", false, false);
+                    this.UpdateProgress(record.EpisodeId, 1, 0, 10, AppText.T("web.progress.merge"), false, false);
                     this._pipeline.MergeFile(record);
                     this.OnRecordsChanged?.Invoke();
-                    this.UpdateProgress(record.EpisodeId, 1, 1, 100, "Completato", false, false);
-                    this.CompleteProgress("Merge completato");
+                    this.UpdateProgress(record.EpisodeId, 1, 1, 100, AppText.T("web.progress.completed"), false, false);
+                    this.CompleteProgress(AppText.T("web.progress.mergeCompleted"));
                 }
                 catch (Exception ex)
                 {
-                    this.AppendLog("Errore durante merge: " + ex.Message);
-                    this.CompleteProgress("Errore merge");
+                    this.AppendLog(AppText.F("web.merge.mergeError", ex.Message));
+                    this.CompleteProgress(AppText.T("web.progress.mergeError"));
                 }
 
                 this.SetBusy(false);
@@ -512,7 +513,7 @@ namespace RemuxForge.Web.Services
             {
                 this.SetBusy(true);
                 bool stopped = false;
-                this.BeginProgress("Merge selezione", selected.Count, false);
+                this.BeginProgress(AppText.T("web.progress.mergeSelection"), selected.Count, false);
 
                 try
                 {
@@ -521,27 +522,27 @@ namespace RemuxForge.Web.Services
                         if (this.IsStopRequested())
                         {
                             stopped = true;
-                            this.AppendLog("Merge selezione interrotto dall'utente");
-                            this.CompleteProgress("Merge interrotto");
+                            this.AppendLog(AppText.T("web.merge.mergeSelectionStopped"));
+                            this.CompleteProgress(AppText.T("web.progress.mergeStopped"));
                             break;
                         }
 
-                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i, 10, "Merge", false, false);
+                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i, 10, AppText.T("web.progress.merge"), false, false);
                         this._pipeline.MergeFile(selected[i]);
                         this.OnRecordsChanged?.Invoke();
-                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i + 1, 100, "Completato", false, false);
+                        this.UpdateProgress(selected[i].EpisodeId, i + 1, i + 1, 100, AppText.T("web.progress.completed"), false, false);
                     }
 
                     if (!stopped)
                     {
-                        this.AppendLog("Merge selezione completato.");
-                        this.CompleteProgress("Merge selezione completato");
+                        this.AppendLog(AppText.T("web.merge.mergeSelectionCompleted"));
+                        this.CompleteProgress(AppText.T("web.progress.mergeSelectionCompleted"));
                     }
                 }
                 catch (Exception ex)
                 {
-                    this.AppendLog("Errore durante merge selezione: " + ex.Message);
-                    this.CompleteProgress("Errore merge selezione");
+                    this.AppendLog(AppText.F("web.merge.mergeSelectionError", ex.Message));
+                    this.CompleteProgress(AppText.T("web.progress.mergeSelectionError"));
                 }
 
                 this.SetBusy(false);
@@ -579,7 +580,7 @@ namespace RemuxForge.Web.Services
                     }
                 }
 
-                this.BeginProgress("Merge batch", analyzed.Count, false);
+                this.BeginProgress(AppText.T("web.progress.mergeBatch"), analyzed.Count, false);
 
                 try
                 {
@@ -588,27 +589,27 @@ namespace RemuxForge.Web.Services
                         if (this.IsStopRequested())
                         {
                             stopped = true;
-                            this.AppendLog("Merge batch interrotto dall'utente");
-                            this.CompleteProgress("Merge interrotto");
+                            this.AppendLog(AppText.T("web.merge.mergeBatchStopped"));
+                            this.CompleteProgress(AppText.T("web.progress.mergeStopped"));
                             break;
                         }
 
-                        this.UpdateProgress(analyzed[i].EpisodeId, i + 1, i, 10, "Merge", false, false);
+                        this.UpdateProgress(analyzed[i].EpisodeId, i + 1, i, 10, AppText.T("web.progress.merge"), false, false);
                         this._pipeline.MergeFile(analyzed[i]);
                         this.OnRecordsChanged?.Invoke();
-                        this.UpdateProgress(analyzed[i].EpisodeId, i + 1, i + 1, 100, "Completato", false, false);
+                        this.UpdateProgress(analyzed[i].EpisodeId, i + 1, i + 1, 100, AppText.T("web.progress.completed"), false, false);
                     }
 
                     if (!stopped)
                     {
-                        this.AppendLog("Merge batch completato.");
-                        this.CompleteProgress("Merge batch completato");
+                        this.AppendLog(AppText.T("web.merge.mergeBatchCompleted"));
+                        this.CompleteProgress(AppText.T("web.progress.mergeBatchCompleted"));
                     }
                 }
                 catch (Exception ex)
                 {
-                    this.AppendLog("Errore durante merge batch: " + ex.Message);
-                    this.CompleteProgress("Errore merge batch");
+                    this.AppendLog(AppText.F("web.merge.mergeBatchError", ex.Message));
+                    this.CompleteProgress(AppText.T("web.progress.mergeBatchError"));
                 }
 
                 this.SetBusy(false);
@@ -687,7 +688,7 @@ namespace RemuxForge.Web.Services
                 this._stopRequested = true;
             }
 
-            this.AppendLog("Stop richiesto: l'operazione si fermera' al prossimo punto sicuro");
+            this.AppendLog(AppText.T("web.merge.stopRequested"));
         }
 
         /// <summary>
@@ -931,7 +932,7 @@ namespace RemuxForge.Web.Services
             else
             {
                 record.Status = FileStatus.Skipped;
-                record.SkipReason = "No match";
+                record.SkipReason = AppText.T("web.merge.skipNoMatch");
             }
         }
 
@@ -953,7 +954,7 @@ namespace RemuxForge.Web.Services
             else if (record.Status == FileStatus.Pending || record.Status == FileStatus.Analyzed || record.Status == FileStatus.Error)
             {
                 record.Status = FileStatus.Skipped;
-                record.SkipReason = "Skippato dall'utente";
+                record.SkipReason = AppText.T("web.merge.skipByUser");
             }
         }
 

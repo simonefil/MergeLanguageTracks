@@ -1,6 +1,6 @@
 <div class="dialog-overlay visible" @onclick="OnClose">
     <div class="dialog-box" style="min-width: 40ch;" @onclick:stopPropagation="true">
-        <div class="dialog-title">Pipeline</div>
+        <div class="dialog-title">@AppText.T("web.pipeline.title")</div>
         <div class="dialog-body" style="line-height: 1.6lh;">
             @for (int i = 0; i < _steps.Count; i++)
             {
@@ -8,7 +8,7 @@
             }
         </div>
         <div class="dialog-footer">
-            <button @onclick="OnClose">Chiudi</button>
+            <button @onclick="OnClose">@AppText.T("web.common.close")</button>
         </div>
     </div>
 </div>

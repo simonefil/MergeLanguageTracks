@@ -250,6 +250,7 @@ namespace RemuxForge.Core.Models
         {
             this.Theme = "nord";
             this.LastMode = Options.MODE_REMUX;
+            this.Language = "en";
         }
 
         #endregion
@@ -265,6 +266,11 @@ namespace RemuxForge.Core.Models
         /// Ultima modalita' selezionata nella UI
         /// </summary>
         public string LastMode { get; set; }
+
+        /// <summary>
+        /// Lingua UI/CLI selezionata
+        /// </summary>
+        public string Language { get; set; }
 
         #endregion
     }

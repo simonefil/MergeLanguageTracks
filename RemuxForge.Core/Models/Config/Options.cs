@@ -1,4 +1,5 @@
 using RemuxForge.Core.Configuration;
+using RemuxForge.Core.Localization;
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -17,6 +18,7 @@ namespace RemuxForge.Core.Models
         public Options()
         {
             this.Mode = "";
+            this.Language = "";
             this.Help = false;
             this.SourceFolder = "";
             this.LanguageFolder = "";
@@ -122,7 +124,7 @@ namespace RemuxForge.Core.Models
 
             if (args == null)
             {
-                options.ErrorMessage = "Argomenti non validi";
+                options.ErrorMessage = AppText.T("options.invalidArgs");
                 return options;
             }
 
@@ -153,7 +155,7 @@ namespace RemuxForge.Core.Models
 
                 if (!handled && options.ErrorMessage.Length == 0)
                 {
-                    options.ErrorMessage = "Parametro sconosciuto: -" + key;
+                    options.ErrorMessage = AppText.F("options.unknownParameter", key);
                 }
             }
 
@@ -240,7 +242,7 @@ namespace RemuxForge.Core.Models
                 {
                     if (i + 1 >= args.Length)
                     {
-                        options.ErrorMessage = "Valore mancante per --mode";
+                        options.ErrorMessage = AppText.T("options.missingModeValue");
                         return;
                     }
 
@@ -251,11 +253,11 @@ namespace RemuxForge.Core.Models
 
             if (mode.Length == 0)
             {
-                options.ErrorMessage = "Parametro obbligatorio mancante: --mode remux|split";
+                options.ErrorMessage = AppText.T("options.missingMode");
             }
             else if (mode != MODE_REMUX && mode != MODE_SPLIT)
             {
-                options.ErrorMessage = "Modalita' non valida: " + mode + ". Valori validi: remux, split";
+                options.ErrorMessage = AppText.F("options.invalidMode", mode);
             }
             else
             {
@@ -304,6 +306,18 @@ namespace RemuxForge.Core.Models
                 {
                     options.FileExtensions.Clear();
                     ParseExtensions(args[i + 1], options.FileExtensions);
+                    i += 2;
+                }
+            }
+            else if (key == "lang")
+            {
+                if (RequireValue(args, i, options))
+                {
+                    options.Language = AppText.NormalizeLanguage(args[i + 1]);
+                    if (options.Language.Length == 0)
+                    {
+                        options.ErrorMessage = AppText.F("options.invalidLanguage", args[i + 1]);
+                    }
                     i += 2;
                 }
             }
@@ -407,7 +421,7 @@ namespace RemuxForge.Core.Models
                 {
                     if (!int.TryParse(value, out delay))
                     {
-                        options.ErrorMessage = "Valore non valido per audio-delay: " + value;
+                        options.ErrorMessage = AppText.F("options.invalidIntValue", "audio-delay", value);
                     }
                     options.AudioDelay = delay;
                 }
@@ -415,7 +429,7 @@ namespace RemuxForge.Core.Models
                 {
                     if (!int.TryParse(value, out delay))
                     {
-                        options.ErrorMessage = "Valore non valido per subtitle-delay: " + value;
+                        options.ErrorMessage = AppText.F("options.invalidIntValue", "subtitle-delay", value);
                     }
                     options.SubtitleDelay = delay;
                 }
@@ -423,7 +437,7 @@ namespace RemuxForge.Core.Models
                 {
                     if (!int.TryParse(value, out delay))
                     {
-                        options.ErrorMessage = "Valore non valido per audio-source-fill-threshold-ms: " + value;
+                        options.ErrorMessage = AppText.F("options.invalidIntValue", "audio-source-fill-threshold-ms", value);
                     }
                     options.AudioSourceFillThresholdMs = delay;
                 }
@@ -440,7 +454,7 @@ namespace RemuxForge.Core.Models
                     options.SpeedCorrectionMode = NormalizeSpeedCorrectionMode(value);
                     if (options.SpeedCorrectionMode.Length == 0)
                     {
-                        options.ErrorMessage = "Modalita' speed-correction non valida: " + value + ". Valori validi: off, auto, manual";
+                        options.ErrorMessage = AppText.F("options.invalidSpeedCorrection", value);
                     }
                 }
                 else if (key == "stretch-factor")
@@ -485,7 +499,7 @@ namespace RemuxForge.Core.Models
                     }
                     else
                     {
-                        options.ErrorMessage = "Formato audio non valido: " + value + ". Valori validi: flac, lpcm, aac, opus";
+                        options.ErrorMessage = AppText.F("options.invalidAudioFormat", value);
                     }
                 }
                 else if (key == "audio-scope")
@@ -493,14 +507,14 @@ namespace RemuxForge.Core.Models
                     options.AudioProcessingScope = NormalizeScope(value);
                     if (options.AudioProcessingScope.Length == 0)
                     {
-                        options.ErrorMessage = "Scope audio non valido: " + value + ". Valori validi: disabled, lang, all";
+                        options.ErrorMessage = AppText.F("options.invalidAudioScope", value);
                     }
                 }
                 else if (key == "audio-peak-target-db")
                 {
                     if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out peakTargetDb))
                     {
-                        options.ErrorMessage = "Valore non valido per audio-peak-target-db: " + value;
+                        options.ErrorMessage = AppText.F("options.invalidIntValue", "audio-peak-target-db", value);
                     }
                     options.AudioPeakTargetDb = peakTargetDb;
                 }
@@ -509,7 +523,7 @@ namespace RemuxForge.Core.Models
                     options.AudioRenameScope = NormalizeScope(value);
                     if (options.AudioRenameScope.Length == 0)
                     {
-                        options.ErrorMessage = "Scope rinomina audio non valido: " + value + ". Valori validi: disabled, lang, all";
+                        options.ErrorMessage = AppText.F("options.invalidAudioRenameScope", value);
                     }
                 }
                 else if (key == "mkv" || key == "mkvmerge-path")
@@ -651,7 +665,7 @@ namespace RemuxForge.Core.Models
             bool result = (i + 1 < args.Length) && (!args[i + 1].StartsWith("-") || (args[i + 1].Length > 1 && char.IsDigit(args[i + 1][1])));
             if (!result)
             {
-                options.ErrorMessage = "Valore mancante per -" + NormalizeKey(args[i]);
+                options.ErrorMessage = AppText.F("options.missingValue", NormalizeKey(args[i]));
             }
 
             return result;
@@ -732,7 +746,7 @@ namespace RemuxForge.Core.Models
                 }
                 else
                 {
-                    options.ErrorMessage = "Modalita' audio-source-fill non valida: " + mode + ". Valori validi: start,end,insert-silence";
+                    options.ErrorMessage = AppText.F("options.invalidAudioSourceFillMode", mode);
                 }
             }
         }
@@ -805,7 +819,7 @@ namespace RemuxForge.Core.Models
             }
             else
             {
-                options.ErrorMessage = "--snap deve essere uno tra: off, before, after, nearest";
+                options.ErrorMessage = AppText.T("options.invalidSnap");
             }
 
             return result;
@@ -819,6 +833,11 @@ namespace RemuxForge.Core.Models
         /// Modalita' operativa obbligatoria: remux o split
         /// </summary>
         public string Mode { get; set; }
+
+        /// <summary>
+        /// Lingua richiesta da CLI (--lang)
+        /// </summary>
+        public string Language { get; set; }
 
         /// <summary>
         /// Indica se e' stato richiesto il messaggio di aiuto (-h, --help)

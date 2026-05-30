@@ -1,24 +1,24 @@
 <div class="dialog-overlay visible" @onclick="OnClose">
     <div class="dialog-box" style="min-width: 45ch;" @onclick:stopPropagation="true">
-        <div class="dialog-title">Delay: @Record.EpisodeId</div>
+        <div class="dialog-title">@AppText.F("web.delay.title", Record.EpisodeId)</div>
         <div class="dialog-body">
-            <div style="color: var(--foreground2);">Sync offset auto: @(Record.SyncOffsetMs)ms</div>
+            <div style="color: var(--foreground2);">@AppText.F("web.delay.syncOffset", Record.SyncOffsetMs)</div>
             <br />
             <div class="form-row">
-                <span class="form-label">Delay audio (ms):</span>
+                <span class="form-label">@AppText.T("web.delay.audio")</span>
                 <input class="form-input" style="width: 10ch;" @bind="_audioDelay" />
             </div>
             <br />
             <div class="form-row">
-                <span class="form-label">Delay sub (ms):</span>
+                <span class="form-label">@AppText.T("web.delay.sub")</span>
                 <input class="form-input" style="width: 10ch;" @bind="_subDelay" />
             </div>
             <br />
-            <div style="color: var(--foreground2);">Delay effettivo audio: @(Record.AudioDelayApplied)ms, sub: @(Record.SubDelayApplied)ms</div>
+            <div style="color: var(--foreground2);">@AppText.F("web.delay.effective", Record.AudioDelayApplied, Record.SubDelayApplied)</div>
         </div>
         <div class="dialog-footer">
-            <button @onclick="Apply">OK</button>
-            <button @onclick="OnClose">Annulla</button>
+            <button @onclick="Apply">@AppText.T("web.common.ok")</button>
+            <button @onclick="OnClose">@AppText.T("web.common.cancel")</button>
         </div>
     </div>
 </div>

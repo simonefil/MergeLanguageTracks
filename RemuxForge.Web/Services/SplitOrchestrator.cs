@@ -1,5 +1,6 @@
 using RemuxForge.Core.Configuration;
 using RemuxForge.Core.Infrastructure;
+using RemuxForge.Core.Localization;
 using RemuxForge.Core.Models;
 using RemuxForge.Core.Splitting;
 using System;
@@ -55,7 +56,7 @@ namespace RemuxForge.Web.Services
             this._progress = new ProcessingProgressState();
             this._isBusy = false;
             this._stopRequested = false;
-            this._logText = "Split pronto. Selezionare file o cartella sorgente.";
+            this._logText = AppText.T("web.split.ready");
             this._selectedIndex = -1;
         }
 
@@ -72,7 +73,7 @@ namespace RemuxForge.Web.Services
             errorMessage = "";
             if (options == null)
             {
-                errorMessage = "Configurazione non valida";
+                errorMessage = AppText.T("validation.invalidConfig");
                 return false;
             }
 
@@ -89,7 +90,7 @@ namespace RemuxForge.Web.Services
             {
                 this._options = options;
             }
-            this.AppendLog("Configurazione split applicata");
+            this.AppendLog(AppText.T("web.split.configApplied"));
             return true;
         }
 
@@ -121,7 +122,7 @@ namespace RemuxForge.Web.Services
         public void Stop()
         {
             this._stopRequested = true;
-            this.AppendLog("Stop richiesto");
+            this.AppendLog(AppText.T("web.split.stopRequested"));
         }
 
         /// <summary>
@@ -153,7 +154,7 @@ namespace RemuxForge.Web.Services
         /// </summary>
         private void ScanWorker()
         {
-            this.SetBusy(true, "Scan split");
+            this.SetBusy(true, AppText.T("web.progress.scanSplit"));
             try
             {
                 List<MkvSplitRecord> scanned = this.ScanSource();
@@ -162,12 +163,12 @@ namespace RemuxForge.Web.Services
                     this._records = scanned;
                     this._selectedIndex = scanned.Count > 0 ? 0 : -1;
                 }
-                this.AppendLog("Scan split completato: " + scanned.Count + " file");
+                this.AppendLog(AppText.F("web.split.scanCompleted", scanned.Count));
                 this.OnRecordsChanged?.Invoke();
             }
             catch (Exception ex)
             {
-                this.AppendLog("Errore scan split: " + ex.Message);
+                this.AppendLog(AppText.F("web.split.scanError", ex.Message));
             }
             this.SetBusy(false, "");
         }
@@ -181,7 +182,7 @@ namespace RemuxForge.Web.Services
             MkvSplitExecutionResult result;
             int successCount = 0;
             int errorCount = 0;
-            this.SetBusy(true, "Split");
+            this.SetBusy(true, AppText.T("web.progress.split"));
             this._stopRequested = false;
             ProcessRunner.SetStopRequestedCallback(this.IsStopRequested);
             ConsoleHelper.SetLogCallback((section, level, text) =>
@@ -205,41 +206,41 @@ namespace RemuxForge.Web.Services
                 {
                     if (this._stopRequested)
                     {
-                        this.UpdateRecord(i, "Stopped", false, "Stop richiesto", null);
+                        this.UpdateRecord(i, AppText.T("web.split.status.stopped"), false, AppText.T("web.split.stopRequested"), null);
                         break;
                     }
 
-                    this.UpdateRecord(i, "Running", false, "", null);
+                    this.UpdateRecord(i, AppText.T("web.split.status.running"), false, "", null);
                     result = pipeline.ExecuteFile(this._options, records[i].InputFile, records.Count > 1);
                     if (result.ExitCode == 0)
                     {
                         successCount++;
-                        this.UpdateRecord(i, "Done", true, "", result.Segments);
+                        this.UpdateRecord(i, AppText.T("web.split.status.done"), true, "", result.Segments);
                     }
                     else
                     {
                         errorCount++;
-                        this.UpdateRecord(i, "Error", false, result.ErrorMessage, result.Segments);
+                        this.UpdateRecord(i, AppText.T("web.split.status.error"), false, result.ErrorMessage, result.Segments);
                     }
                 }
 
                 if (errorCount == 0 && !this._stopRequested)
                 {
-                    this.AppendLog("Split completato: " + successCount + " file");
+                    this.AppendLog(AppText.F("web.split.completed", successCount));
                 }
                 else if (this._stopRequested)
                 {
-                    this.AppendLog("Split interrotto: " + successCount + " completati, " + errorCount + " errori");
+                    this.AppendLog(AppText.F("web.split.stoppedSummary", successCount, errorCount));
                 }
                 else
                 {
-                    this.AppendLog("Split terminato con errori: " + successCount + " completati, " + errorCount + " errori");
+                    this.AppendLog(AppText.F("web.split.errorSummary", successCount, errorCount));
                 }
             }
             catch (Exception ex)
             {
-                this.MarkRecords("Error", false, ex.Message);
-                this.AppendLog("Errore split: " + ex.Message);
+                this.MarkRecords(AppText.T("web.split.status.error"), false, ex.Message);
+                this.AppendLog(AppText.F("cli.splitError", ex.Message));
             }
             finally
             {
@@ -259,7 +260,7 @@ namespace RemuxForge.Web.Services
             SearchOption searchOption = this._options.Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
             if (source.Length == 0)
             {
-                throw new InvalidOperationException("Configurare source split");
+                throw new InvalidOperationException(AppText.T("web.split.configureSource"));
             }
 
             if (File.Exists(source))
@@ -279,7 +280,7 @@ namespace RemuxForge.Web.Services
             }
             else
             {
-                throw new FileNotFoundException("Sorgente split non trovata", source);
+                throw new FileNotFoundException(AppText.F("validation.splitSourceNotFound", source), source);
             }
 
             return result;
@@ -292,7 +293,7 @@ namespace RemuxForge.Web.Services
         {
             MkvSplitRecord record = new MkvSplitRecord();
             record.InputFile = file;
-            record.Status = "Pending";
+            record.Status = AppText.T("web.split.status.pending");
             return record;
         }
 

@@ -233,6 +233,11 @@ export function loadSavedTheme() {
     return saved || 'nord';
 }
 
+// Lingua documento
+export function setLanguage(language) {
+    document.documentElement.setAttribute('lang', language);
+}
+
 // Copia testo nella clipboard
 export function copyToClipboard(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {

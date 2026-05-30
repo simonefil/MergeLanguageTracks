@@ -1,4 +1,5 @@
 using RemuxForge.Core.Infrastructure;
+using RemuxForge.Core.Localization;
 using RemuxForge.Core.Models;
 using RemuxForge.Core.Tools;
 using System;
@@ -211,7 +212,7 @@ namespace RemuxForge.Core.Configuration
             }
             catch (Exception ex)
             {
-                ConsoleHelper.Write(LogSection.Config, LogLevel.Warning, "Errore caricamento appsettings.json: " + ex.Message);
+                ConsoleHelper.Write(LogSection.Config, LogLevel.Warning, AppText.F("settings.loadError", ex.Message));
                 this._model = new AppSettingsModel();
             }
 
@@ -236,7 +237,7 @@ namespace RemuxForge.Core.Configuration
             }
             catch (Exception ex)
             {
-                ConsoleHelper.Write(LogSection.Config, LogLevel.Warning, "Errore salvataggio appsettings.json: " + ex.Message);
+                ConsoleHelper.Write(LogSection.Config, LogLevel.Warning, AppText.F("settings.saveError", ex.Message));
             }
 
             return success;
@@ -254,55 +255,55 @@ namespace RemuxForge.Core.Configuration
             // Validazione FLAC compression level
             if (this._model.Flac.CompressionLevel < AppSettingsModel.FLAC_COMPRESSION_MIN || this._model.Flac.CompressionLevel > AppSettingsModel.FLAC_COMPRESSION_MAX)
             {
-                errors.Add("Flac CompressionLevel deve essere tra " + AppSettingsModel.FLAC_COMPRESSION_MIN + " e " + AppSettingsModel.FLAC_COMPRESSION_MAX);
+                errors.Add(AppText.F("settings.validation.range", "FLAC CompressionLevel", AppSettingsModel.FLAC_COMPRESSION_MIN, AppSettingsModel.FLAC_COMPRESSION_MAX));
             }
 
             // Validazione Opus bitrate mono
             if (this._model.Opus.Bitrate.Mono < AppSettingsModel.OPUS_BITRATE_MIN || this._model.Opus.Bitrate.Mono > AppSettingsModel.OPUS_BITRATE_MAX)
             {
-                errors.Add("Opus bitrate Mono deve essere tra " + AppSettingsModel.OPUS_BITRATE_MIN + " e " + AppSettingsModel.OPUS_BITRATE_MAX + " kbps");
+                errors.Add(AppText.F("settings.validation.rangeKbps", "Opus bitrate Mono", AppSettingsModel.OPUS_BITRATE_MIN, AppSettingsModel.OPUS_BITRATE_MAX));
             }
 
             // Validazione Opus bitrate stereo
             if (this._model.Opus.Bitrate.Stereo < AppSettingsModel.OPUS_BITRATE_MIN || this._model.Opus.Bitrate.Stereo > AppSettingsModel.OPUS_BITRATE_MAX)
             {
-                errors.Add("Opus bitrate Stereo deve essere tra " + AppSettingsModel.OPUS_BITRATE_MIN + " e " + AppSettingsModel.OPUS_BITRATE_MAX + " kbps");
+                errors.Add(AppText.F("settings.validation.rangeKbps", "Opus bitrate Stereo", AppSettingsModel.OPUS_BITRATE_MIN, AppSettingsModel.OPUS_BITRATE_MAX));
             }
 
             // Validazione Opus bitrate surround 5.1
             if (this._model.Opus.Bitrate.Surround51 < AppSettingsModel.OPUS_BITRATE_MIN || this._model.Opus.Bitrate.Surround51 > AppSettingsModel.OPUS_BITRATE_MAX)
             {
-                errors.Add("Opus bitrate Surround 5.1 deve essere tra " + AppSettingsModel.OPUS_BITRATE_MIN + " e " + AppSettingsModel.OPUS_BITRATE_MAX + " kbps");
+                errors.Add(AppText.F("settings.validation.rangeKbps", "Opus bitrate Surround 5.1", AppSettingsModel.OPUS_BITRATE_MIN, AppSettingsModel.OPUS_BITRATE_MAX));
             }
 
             // Validazione Opus bitrate surround 7.1
             if (this._model.Opus.Bitrate.Surround71 < AppSettingsModel.OPUS_BITRATE_MIN || this._model.Opus.Bitrate.Surround71 > AppSettingsModel.OPUS_BITRATE_MAX)
             {
-                errors.Add("Opus bitrate Surround 7.1 deve essere tra " + AppSettingsModel.OPUS_BITRATE_MIN + " e " + AppSettingsModel.OPUS_BITRATE_MAX + " kbps");
+                errors.Add(AppText.F("settings.validation.rangeKbps", "Opus bitrate Surround 7.1", AppSettingsModel.OPUS_BITRATE_MIN, AppSettingsModel.OPUS_BITRATE_MAX));
             }
 
             // Validazione AAC bitrate mono
             if (this._model.Aac.Bitrate.Mono < AppSettingsModel.AAC_BITRATE_MIN || this._model.Aac.Bitrate.Mono > AppSettingsModel.AAC_BITRATE_MAX)
             {
-                errors.Add("AAC bitrate Mono deve essere tra " + AppSettingsModel.AAC_BITRATE_MIN + " e " + AppSettingsModel.AAC_BITRATE_MAX + " kbps");
+                errors.Add(AppText.F("settings.validation.rangeKbps", "AAC bitrate Mono", AppSettingsModel.AAC_BITRATE_MIN, AppSettingsModel.AAC_BITRATE_MAX));
             }
 
             // Validazione AAC bitrate stereo
             if (this._model.Aac.Bitrate.Stereo < AppSettingsModel.AAC_BITRATE_MIN || this._model.Aac.Bitrate.Stereo > AppSettingsModel.AAC_BITRATE_MAX)
             {
-                errors.Add("AAC bitrate Stereo deve essere tra " + AppSettingsModel.AAC_BITRATE_MIN + " e " + AppSettingsModel.AAC_BITRATE_MAX + " kbps");
+                errors.Add(AppText.F("settings.validation.rangeKbps", "AAC bitrate Stereo", AppSettingsModel.AAC_BITRATE_MIN, AppSettingsModel.AAC_BITRATE_MAX));
             }
 
             // Validazione AAC bitrate surround 5.1
             if (this._model.Aac.Bitrate.Surround51 < AppSettingsModel.AAC_BITRATE_MIN || this._model.Aac.Bitrate.Surround51 > AppSettingsModel.AAC_BITRATE_MAX)
             {
-                errors.Add("AAC bitrate Surround 5.1 deve essere tra " + AppSettingsModel.AAC_BITRATE_MIN + " e " + AppSettingsModel.AAC_BITRATE_MAX + " kbps");
+                errors.Add(AppText.F("settings.validation.rangeKbps", "AAC bitrate Surround 5.1", AppSettingsModel.AAC_BITRATE_MIN, AppSettingsModel.AAC_BITRATE_MAX));
             }
 
             // Validazione AAC bitrate surround 7.1
             if (this._model.Aac.Bitrate.Surround71 < AppSettingsModel.AAC_BITRATE_MIN || this._model.Aac.Bitrate.Surround71 > AppSettingsModel.AAC_BITRATE_MAX)
             {
-                errors.Add("AAC bitrate Surround 7.1 deve essere tra " + AppSettingsModel.AAC_BITRATE_MIN + " e " + AppSettingsModel.AAC_BITRATE_MAX + " kbps");
+                errors.Add(AppText.F("settings.validation.rangeKbps", "AAC bitrate Surround 7.1", AppSettingsModel.AAC_BITRATE_MIN, AppSettingsModel.AAC_BITRATE_MAX));
             }
 
             // Componi messaggio errore
@@ -332,41 +333,41 @@ namespace RemuxForge.Core.Configuration
             // Verifica esistenza mkvmerge
             if (this._model.Tools.MkvMergePath.Length > 0 && !File.Exists(this._model.Tools.MkvMergePath))
             {
-                errors.Add("Percorso mkvmerge non trovato: " + this._model.Tools.MkvMergePath);
+                errors.Add(AppText.F("settings.validation.toolPathNotFound", "mkvmerge", this._model.Tools.MkvMergePath));
             }
 
             // Verifica esistenza mkvextract
             if (this._model.Tools.MkvExtractPath.Length > 0 && !File.Exists(this._model.Tools.MkvExtractPath))
             {
-                errors.Add("Percorso mkvextract non trovato: " + this._model.Tools.MkvExtractPath);
+                errors.Add(AppText.F("settings.validation.toolPathNotFound", "mkvextract", this._model.Tools.MkvExtractPath));
             }
 
             // Verifica esistenza mkvpropedit
             if (this._model.Tools.MkvPropEditPath.Length > 0 && !File.Exists(this._model.Tools.MkvPropEditPath))
             {
-                errors.Add("Percorso mkvpropedit non trovato: " + this._model.Tools.MkvPropEditPath);
+                errors.Add(AppText.F("settings.validation.toolPathNotFound", "mkvpropedit", this._model.Tools.MkvPropEditPath));
             }
 
             // Verifica esistenza ffmpeg
             if (this._model.Tools.FfmpegPath.Length > 0 && !File.Exists(this._model.Tools.FfmpegPath))
             {
-                errors.Add("Percorso ffmpeg non trovato: " + this._model.Tools.FfmpegPath);
+                errors.Add(AppText.F("settings.validation.toolPathNotFound", "ffmpeg", this._model.Tools.FfmpegPath));
             }
 
             // Verifica esistenza ffprobe
             if (this._model.Tools.FfprobePath.Length > 0 && !File.Exists(this._model.Tools.FfprobePath))
             {
-                errors.Add("Percorso ffprobe non trovato: " + this._model.Tools.FfprobePath);
+                errors.Add(AppText.F("settings.validation.toolPathNotFound", "ffprobe", this._model.Tools.FfprobePath));
             }
 
             // Verifica esistenza mediainfo
             if (this._model.Tools.MediaInfoPath.Length > 0 && !File.Exists(this._model.Tools.MediaInfoPath))
             {
-                errors.Add("Percorso mediainfo non trovato: " + this._model.Tools.MediaInfoPath);
+                errors.Add(AppText.F("settings.validation.toolPathNotFound", "mediainfo", this._model.Tools.MediaInfoPath));
             }
             else if (this._model.Tools.MediaInfoPath.Length > 0 && !MediaInfoProvider.IsCliExecutablePath(this._model.Tools.MediaInfoPath))
             {
-                errors.Add("Percorso mediainfo non valido: selezionare il binario CLI, non l'app grafica");
+                errors.Add(AppText.T("settings.validation.mediaInfoCliPath"));
             }
 
             // Componi messaggio errore
@@ -503,6 +504,7 @@ namespace RemuxForge.Core.Configuration
             if (this._model.Tools.TempFolder == null) { this._model.Tools.TempFolder = ""; }
             if (this._model.Ui.Theme == null) { this._model.Ui.Theme = "nord"; }
             if (this._model.Ui.LastMode == null) { this._model.Ui.LastMode = Options.MODE_REMUX; }
+            if (this._model.Ui.Language == null) { this._model.Ui.Language = AppText.LANG_EN; }
 
             // Assicura sotto-oggetti Advanced non null
             if (this._model.Advanced == null) { this._model.Advanced = new AdvancedConfig(); }
@@ -599,6 +601,9 @@ namespace RemuxForge.Core.Configuration
             {
                 this._model.Ui.LastMode = Options.MODE_REMUX;
             }
+
+            string normalizedLanguage = AppText.NormalizeLanguage(this._model.Ui.Language);
+            this._model.Ui.Language = normalizedLanguage.Length > 0 ? normalizedLanguage : AppText.LANG_EN;
 
             // Sanitizzazione Advanced — VideoSync
             VideoSyncConfig vs = this._model.Advanced.VideoSync;

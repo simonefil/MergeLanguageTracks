@@ -1,24 +1,24 @@
 <div class="dialog-overlay visible" @onclick="OnClose">
     <div class="dialog-box" style="min-width: 60ch;" @onclick:stopPropagation="true">
-        <div class="dialog-title">Percorsi Tool</div>
+        <div class="dialog-title">@AppText.T("web.toolPaths.title")</div>
         <div class="dialog-body">
             <div class="form-row">
                 <span class="form-label">mkvmerge:</span>
                 <input class="form-input" @bind="_mkvPath" />
                 <span class="btn-browse" @onclick="() => BrowseFolder(0)">[ .. ]</span>
-                <span style="margin-left: 0.5ch; color: var(@(_mkvFound ? "--color-ok" : "--color-error"));">@(_mkvFound ? "[OK]" : "[NON TROVATO]")</span>
+                <span style="margin-left: 0.5ch; color: var(@(_mkvFound ? "--color-ok" : "--color-error"));">@(_mkvFound ? AppText.T("web.common.statusOk") : AppText.T("web.common.statusNotFound"))</span>
             </div>
             <div class="form-row">
                 <span class="form-label">mkvextract:</span>
                 <input class="form-input" @bind="_mkvExtractPath" />
                 <span class="btn-browse" @onclick="() => BrowseFolder(4)">[ .. ]</span>
-                <span style="margin-left: 0.5ch; color: var(@(_mkvExtractFound ? "--color-ok" : "--color-error"));">@(_mkvExtractFound ? "[OK]" : "[NON TROVATO]")</span>
+                <span style="margin-left: 0.5ch; color: var(@(_mkvExtractFound ? "--color-ok" : "--color-error"));">@(_mkvExtractFound ? AppText.T("web.common.statusOk") : AppText.T("web.common.statusNotFound"))</span>
             </div>
             <div class="form-row">
                 <span class="form-label">mkvpropedit:</span>
                 <input class="form-input" @bind="_mkvPropEditPath" />
                 <span class="btn-browse" @onclick="() => BrowseFolder(5)">[ .. ]</span>
-                <span style="margin-left: 0.5ch; color: var(@(_mkvPropEditFound ? "--color-ok" : "--color-error"));">@(_mkvPropEditFound ? "[OK]" : "[NON TROVATO]")</span>
+                <span style="margin-left: 0.5ch; color: var(@(_mkvPropEditFound ? "--color-ok" : "--color-error"));">@(_mkvPropEditFound ? AppText.T("web.common.statusOk") : AppText.T("web.common.statusNotFound"))</span>
             </div>
             <div class="form-row">
                 <span class="form-label">ffmpeg:</span>
@@ -27,20 +27,20 @@
                 <span style="margin-left: 0.5ch; color: var(@(_ffmpegFound ? "--color-ok" : "--color-error"));">@(_ffmpegStatusText)</span>
                 @if (!_ffmpegFound && !_ffmpegDownloading)
                 {
-                    <span class="btn-browse" style="margin-left: 0.5ch;" @onclick="DownloadFfmpeg">[ Scarica ]</span>
+                    <span class="btn-browse" style="margin-left: 0.5ch;" @onclick="DownloadFfmpeg">@AppText.T("web.common.downloadButton")</span>
                 }
             </div>
             <div class="form-row">
                 <span class="form-label">ffprobe:</span>
                 <input class="form-input" @bind="_ffprobePath" />
                 <span class="btn-browse" @onclick="() => BrowseFolder(6)">[ .. ]</span>
-                <span style="margin-left: 0.5ch; color: var(@(_ffprobeFound ? "--color-ok" : "--color-error"));">@(_ffprobeFound ? "[OK]" : "[NON TROVATO]")</span>
+                <span style="margin-left: 0.5ch; color: var(@(_ffprobeFound ? "--color-ok" : "--color-error"));">@(_ffprobeFound ? AppText.T("web.common.statusOk") : AppText.T("web.common.statusNotFound"))</span>
             </div>
             <div class="form-row">
                 <span class="form-label">mediainfo:</span>
                 <input class="form-input" @bind="_mediaInfoPath" />
                 <span class="btn-browse" @onclick="() => BrowseFolder(2)">[ .. ]</span>
-                <span style="margin-left: 0.5ch; color: var(@(_mediaInfoFound ? "--color-ok" : "--color-error"));">@(_mediaInfoFound ? "[OK]" : "[CLI NON TROVATA]")</span>
+                <span style="margin-left: 0.5ch; color: var(@(_mediaInfoFound ? "--color-ok" : "--color-error"));">@(_mediaInfoFound ? AppText.T("web.common.statusOk") : AppText.T("web.common.statusCliNotFound"))</span>
             </div>
             <div class="form-row" style="margin-top: 0.5em;">
                 <span class="form-label">temp:</span>
@@ -53,8 +53,8 @@
             <div style="padding: 0.5em 1em; color: var(--color-error); white-space: pre-line;">@_validationError</div>
         }
         <div class="dialog-footer">
-            <button @onclick="Save">OK</button>
-            <button @onclick="OnClose">Annulla</button>
+            <button @onclick="Save">@AppText.T("web.common.ok")</button>
+            <button @onclick="OnClose">@AppText.T("web.common.cancel")</button>
         </div>
     </div>
 </div>
@@ -137,7 +137,7 @@
     /// <summary>
     /// Testo stato ffmpeg
     /// </summary>
-    private string _ffmpegStatusText = "[NON TROVATO]";
+    private string _ffmpegStatusText = AppText.T("web.common.statusNotFound");
 
     /// <summary>
     /// Flag: mediainfo trovato
@@ -207,7 +207,7 @@
         }
 
         _ffmpegFound = _ffmpegPath.Length > 0 && System.IO.File.Exists(_ffmpegPath);
-        _ffmpegStatusText = _ffmpegFound ? "[OK]" : "[NON TROVATO]";
+        _ffmpegStatusText = _ffmpegFound ? AppText.T("web.common.statusOk") : AppText.T("web.common.statusNotFound");
 
         // ffprobe
         _ffprobePath = this._toolPathResolver.ResolveFfprobePath(_ffmpegPath, false);
@@ -306,7 +306,7 @@
     private void DownloadFfmpeg()
     {
         _ffmpegDownloading = true;
-        _ffmpegStatusText = "[Download...]";
+        _ffmpegStatusText = AppText.T("web.common.downloading");
 
         Thread dlThread = new Thread(() =>
         {
@@ -319,11 +319,11 @@
                 {
                     _ffmpegPath = this._toolPathResolver.ResolveFfmpegPath(false, false);
                     _ffmpegFound = true;
-                    _ffmpegStatusText = "[OK]";
+                    _ffmpegStatusText = AppText.T("web.common.statusOk");
                 }
                 else
                 {
-                    _ffmpegStatusText = "[ERRORE]";
+                    _ffmpegStatusText = AppText.T("web.common.statusError");
                 }
                 StateHasChanged();
             });

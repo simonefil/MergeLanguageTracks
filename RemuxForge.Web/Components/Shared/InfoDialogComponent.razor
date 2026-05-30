@@ -1,18 +1,18 @@
 <div class="dialog-overlay visible" @onclick="OnClose">
     <div class="dialog-box" style="min-width: 55ch;" @onclick:stopPropagation="true">
-        <div class="dialog-title">RemuxForge - Info</div>
+        <div class="dialog-title">@AppText.T("web.info.title")</div>
         <div class="dialog-body">
             <table class="info-table">
-                <tr><td class="info-label">Nome</td><td><img src="favicon-32x32.png" alt="icon" style="vertical-align: middle; margin-right: 0.5ch;" />RemuxForge</td></tr>
-                <tr><td class="info-label">Versione</td><td>@_version</td></tr>
-                <tr><td class="info-label">Licenza</td><td>GNU General Public License v3.0</td></tr>
-                <tr><td class="info-label">Repository</td><td><a href="https://github.com/simonefil/RemuxForge" target="_blank">https://github.com/simonefil/RemuxForge</a></td></tr>
-                <tr><td class="info-label">Runtime</td><td>@_runtime</td></tr>
-                <tr><td class="info-label">Piattaforma</td><td>@_platform</td></tr>
+                <tr><td class="info-label">@AppText.T("web.info.name")</td><td><img src="favicon-32x32.png" alt="icon" style="vertical-align: middle; margin-right: 0.5ch;" />RemuxForge</td></tr>
+                <tr><td class="info-label">@AppText.T("web.info.version")</td><td>@_version</td></tr>
+                <tr><td class="info-label">@AppText.T("web.info.license")</td><td>GNU General Public License v3.0</td></tr>
+                <tr><td class="info-label">@AppText.T("web.info.repository")</td><td><a href="https://github.com/simonefil/RemuxForge" target="_blank">https://github.com/simonefil/RemuxForge</a></td></tr>
+                <tr><td class="info-label">@AppText.T("web.info.runtime")</td><td>@_runtime</td></tr>
+                <tr><td class="info-label">@AppText.T("web.info.platform")</td><td>@_platform</td></tr>
             </table>
         </div>
         <div class="dialog-footer">
-            <button @onclick="OnClose">Chiudi</button>
+            <button @onclick="OnClose">@AppText.T("web.common.close")</button>
         </div>
     </div>
 </div>

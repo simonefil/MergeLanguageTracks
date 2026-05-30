@@ -1,4 +1,5 @@
 using RemuxForge.Core.Configuration;
+using RemuxForge.Core.Localization;
 using RemuxForge.Core.Models;
 using System;
 using System.Collections.Generic;
@@ -131,14 +132,14 @@ namespace RemuxForge.Core.Infrastructure
         public static string GetStatusText(FileStatus status)
         {
             string result = "";
-            if (status == FileStatus.Pending) { result = "In attesa"; }
-            else if (status == FileStatus.Analyzing) { result = "Analisi..."; }
-            else if (status == FileStatus.Analyzed) { result = "Pronto"; }
-            else if (status == FileStatus.Processing) { result = "Merge..."; }
-            else if (status == FileStatus.Encoding) { result = "Encoding..."; }
-            else if (status == FileStatus.Done) { result = "Completato"; }
-            else if (status == FileStatus.Error) { result = "Errore"; }
-            else if (status == FileStatus.Skipped) { result = "Saltato"; }
+            if (status == FileStatus.Pending) { result = AppText.T("status.pending"); }
+            else if (status == FileStatus.Analyzing) { result = AppText.T("status.analyzing"); }
+            else if (status == FileStatus.Analyzed) { result = AppText.T("status.analyzed"); }
+            else if (status == FileStatus.Processing) { result = AppText.T("status.processing"); }
+            else if (status == FileStatus.Encoding) { result = AppText.T("status.encoding"); }
+            else if (status == FileStatus.Done) { result = AppText.T("status.done"); }
+            else if (status == FileStatus.Error) { result = AppText.T("status.error"); }
+            else if (status == FileStatus.Skipped) { result = AppText.T("status.skipped"); }
 
             return result;
         }

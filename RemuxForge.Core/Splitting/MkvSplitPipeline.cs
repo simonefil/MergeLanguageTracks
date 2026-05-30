@@ -1,4 +1,5 @@
 using RemuxForge.Core.Infrastructure;
+using RemuxForge.Core.Localization;
 using RemuxForge.Core.Models;
 using System;
 using System.Collections.Generic;
@@ -29,7 +30,7 @@ namespace RemuxForge.Core.Splitting
             files = this.ResolveInputFiles(options);
             if (files.Count == 0)
             {
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "Nessun file MKV trovato nella sorgente split");
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, AppText.T("split.noMkvFiles"));
                 return 1;
             }
 
@@ -85,14 +86,14 @@ namespace RemuxForge.Core.Splitting
                 result.Segments = segments;
                 if (result.ExitCode != 0 && result.ErrorMessage.Length == 0)
                 {
-                    result.ErrorMessage = "Errore split";
+                    result.ErrorMessage = AppText.T("split.error.generic");
                 }
             }
             catch (Exception ex)
             {
                 result.ExitCode = 1;
                 result.ErrorMessage = ex.Message;
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "Errore split: " + ex.Message);
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, AppText.F("cli.splitError", ex.Message));
             }
 
             return result;
@@ -124,7 +125,7 @@ namespace RemuxForge.Core.Splitting
             }
             else
             {
-                throw new FileNotFoundException("Sorgente split non trovata", source);
+                throw new FileNotFoundException(AppText.F("validation.splitSourceNotFound", source), source);
             }
 
             return files;
@@ -159,37 +160,37 @@ namespace RemuxForge.Core.Splitting
             inputFile = Path.GetFullPath(args.InputFile);
             if (!File.Exists(inputFile))
             {
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "ERROR: " + inputFile + " not found");
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, AppText.F("split.fileNotFound", inputFile));
                 return 1;
             }
 
             sourceRaw = args.SourceRaw.Length > 0 ? Path.GetFullPath(args.SourceRaw) : inputFile;
             if (!File.Exists(sourceRaw))
             {
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "ERROR: " + sourceRaw + " not found");
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, AppText.F("split.fileNotFound", sourceRaw));
                 return 1;
             }
 
             outputDir = args.OutputDir.Length > 0 ? args.OutputDir : Path.GetDirectoryName(inputFile);
             Directory.CreateDirectory(outputDir);
 
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Phase, "Input:      " + inputFile);
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Text, "Source raw: " + sourceRaw);
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Text, "Output:     " + outputDir);
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Phase, AppText.F("split.input", inputFile));
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Text, AppText.F("split.sourceRaw", sourceRaw));
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Text, AppText.F("split.output", outputDir));
 
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Text, "Extracting chapters...");
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Text, AppText.T("split.extractingChapters"));
             chapters = MkvSplitExternalTools.Instance.GetChapters(inputFile);
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Text, "Found " + chapters.Count + " chapters");
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Text, AppText.F("split.foundChapters", chapters.Count));
 
             sourcePts = MkvSplitExternalTools.Instance.ExtractSourcePts(sourceRaw);
             inputFrames = MkvSplitExternalTools.Instance.CountPackets(inputFile);
             if (inputFrames != sourcePts.Length)
             {
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "ERROR: frame count mismatch (source=" + sourcePts.Length + ", input=" + inputFrames + ").");
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, AppText.F("split.frameCountMismatch", sourcePts.Length, inputFrames));
                 return 1;
             }
 
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Text, "Frame count: " + inputFrames);
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Text, AppText.F("split.frameCount", inputFrames));
             duration = MkvSplitExternalTools.Instance.GetDuration(inputFile);
 
             segmentService = new MkvSplitSegmentService();
@@ -201,7 +202,7 @@ namespace RemuxForge.Core.Splitting
             resultSegments = segments;
 
             vp = MkvSplitExternalTools.Instance.GetVideoParams(inputFile);
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Text, "Video params: codec=" + vp.CodecName + " pix_fmt=" + vp.PixFmt + " cs=" + vp.ColorSpace + " cp=" + vp.ColorPrimaries + " trc=" + vp.ColorTransfer + " range=" + vp.ColorRange);
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Text, AppText.F("split.videoParams", vp.CodecName, vp.PixFmt, vp.ColorSpace, vp.ColorPrimaries, vp.ColorTransfer, vp.ColorRange));
 
             absInput = Path.GetFullPath(inputFile);
             foreach (MkvSplitSegment seg in segments)
@@ -209,7 +210,7 @@ namespace RemuxForge.Core.Splitting
                 string outPath = Path.GetFullPath(Path.Combine(outputDir, seg.File));
                 if (string.Equals(outPath, absInput, StringComparison.OrdinalIgnoreCase))
                 {
-                    ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "ERROR: segment " + seg.Num + " (" + seg.File + ") would overwrite the input file.");
+                    ConsoleHelper.Write(LogSection.Split, LogLevel.Error, AppText.F("split.segmentWouldOverwriteInput", seg.Num, seg.File));
                     return 1;
                 }
             }
@@ -217,7 +218,7 @@ namespace RemuxForge.Core.Splitting
             this.PrintSegments(segments);
             if (args.DryRun)
             {
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, "(dry run)");
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, AppText.T("split.dryRun"));
                 return 0;
             }
 
@@ -226,17 +227,17 @@ namespace RemuxForge.Core.Splitting
             if (args.Snap != MkvSplitSnapMode.Off && sameSource)
             {
                 frameRateMode = MkvSplitExternalTools.Instance.DetectFrameRateMode(inputFile);
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Text, "Frame rate mode: " + frameRateMode);
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Text, AppText.F("split.frameRateMode", frameRateMode));
                 if (frameRateMode == MkvSplitFrameRateMode.Unknown)
                 {
-                    ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "ERROR: frame rate mode is unknown; cannot use --snap fast path safely.");
+                    ConsoleHelper.Write(LogSection.Split, LogLevel.Error, AppText.T("split.frameRateUnknown"));
                     return 1;
                 }
                 canFastPath = true;
             }
             else if (args.Snap != MkvSplitSnapMode.Off && !sameSource)
             {
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, "Fast path disabled: --source-raw differs from input, forcing slow path.");
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, AppText.T("split.fastPathDisabledSourceRaw"));
             }
 
             splitter = new MkvSplitExecutor();
@@ -260,7 +261,7 @@ namespace RemuxForge.Core.Splitting
             bool hasFlac;
 
             hasFlac = MkvSplitExternalTools.Instance.HasFlacAudio(inputFile);
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Phase, "Fast path: " + (isVfr ? "VFR (timecodes v2)" : "CFR") + " + snap" + (hasFlac ? " + ffmpeg (FLAC)" : " + mkvmerge") + ".");
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Phase, AppText.F("split.fastPath", isVfr ? "VFR (timecodes v2)" : "CFR", hasFlac ? " + ffmpeg (FLAC)" : " + mkvmerge"));
 
             keyFlags = MkvSplitExternalTools.Instance.GetKeyFlags(inputFile);
             segmentService = new MkvSplitSegmentService();
@@ -274,7 +275,7 @@ namespace RemuxForge.Core.Splitting
                 }
             }
 
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Success, "Done! " + segments.Count + " segments written to " + outputDir + " (fast path)");
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Success, AppText.F("split.doneFastPath", segments.Count, outputDir));
             return 0;
         }
 
@@ -288,15 +289,15 @@ namespace RemuxForge.Core.Splitting
             List<MkvSplitFrameInfo> frameMap;
             MkvSplitSegmentService segmentService;
 
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Phase, "Slow path: extracting raw bitstream (VFR or --snap off).");
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Phase, AppText.T("split.slowPath"));
             try
             {
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Text, "Extracting raw video bitstream...");
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Text, AppText.T("split.extractingRawVideo"));
                 MkvSplitExternalTools.Instance.ExtractRawTrack(inputFile, 0, rawFile);
                 frameMap = MkvSplitExternalTools.Instance.GetFrameByteMap(rawFile);
                 if (frameMap.Count != sourcePts.Length)
                 {
-                    ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "ERROR: frame map (" + frameMap.Count + ") != source PTS (" + sourcePts.Length + ").");
+                    ConsoleHelper.Write(LogSection.Split, LogLevel.Error, AppText.F("split.frameMapMismatch", frameMap.Count, sourcePts.Length));
                     return 1;
                 }
 
@@ -319,7 +320,7 @@ namespace RemuxForge.Core.Splitting
                 }
             }
 
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Success, "Done! " + segments.Count + " segments written to " + outputDir);
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Success, AppText.F("split.done", segments.Count, outputDir));
             return 0;
         }
 
@@ -332,12 +333,12 @@ namespace RemuxForge.Core.Splitting
             string tmp;
             double sizeMb;
 
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Phase, "Segment " + seg.Num.ToString("D2", CultureInfo.InvariantCulture) + " (" + seg.File + ")");
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Phase, AppText.F("split.segment", seg.Num, seg.File));
             outPath = Path.Combine(outputDir, seg.File);
             if (File.Exists(outPath) && !force)
             {
                 sizeMb = new FileInfo(outPath).Length / 1048576.0;
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, "  SKIP: " + seg.File + " already exists (" + sizeMb.ToString("F1", CultureInfo.InvariantCulture) + " MB). Use --force to overwrite.");
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Notice, AppText.F("split.skipExists", seg.File, sizeMb.ToString("F1", CultureInfo.InvariantCulture)));
                 return true;
             }
 
@@ -350,7 +351,7 @@ namespace RemuxForge.Core.Splitting
             }
             catch (Exception ex)
             {
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, "  ERROR: " + ex.Message);
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Error, AppText.F("split.errorLine", ex.Message));
                 if (File.Exists(outPath) && !string.Equals(Path.GetFullPath(outPath), absInput, StringComparison.OrdinalIgnoreCase))
                 {
                     try { File.Delete(outPath); } catch (IOException) { }
@@ -368,13 +369,13 @@ namespace RemuxForge.Core.Splitting
         /// </summary>
         private void PrintSegments(List<MkvSplitSegment> segments)
         {
-            ConsoleHelper.Write(LogSection.Split, LogLevel.Info, "Segments:");
+            ConsoleHelper.Write(LogSection.Split, LogLevel.Info, AppText.T("split.segments"));
             foreach (MkvSplitSegment seg in segments)
             {
                 double d = seg.EndTs - seg.StartTs;
                 int min = (int)(d / 60.0);
                 double secRem = d - min * 60.0;
-                ConsoleHelper.Write(LogSection.Split, LogLevel.Text, "  " + PadRight(seg.File, 40) + "  " + MkvSplitSegmentService.SecsToTs(seg.StartTs) + " -> " + MkvSplitSegmentService.SecsToTs(seg.EndTs) + "  (" + min.ToString(CultureInfo.InvariantCulture) + ":" + secRem.ToString("00.00", CultureInfo.InvariantCulture) + ")  [" + seg.Chapters.Count + " ch, " + seg.FrameCount + " fr]");
+                ConsoleHelper.Write(LogSection.Split, LogLevel.Text, AppText.F("split.segmentLine", PadRight(seg.File, 40), MkvSplitSegmentService.SecsToTs(seg.StartTs), MkvSplitSegmentService.SecsToTs(seg.EndTs), min.ToString(CultureInfo.InvariantCulture), secRem.ToString("00.00", CultureInfo.InvariantCulture), seg.Chapters.Count, seg.FrameCount));
             }
         }
 
@@ -409,7 +410,7 @@ namespace RemuxForge.Core.Splitting
             string codec = codecName ?? "hevc";
             if (codec == "h264") { return MkvSplitCodec.H264; }
             if (codec == "hevc") { return MkvSplitCodec.Hevc; }
-            throw new ArgumentException("Unsupported video codec '" + codecName + "'. Only hevc and h264.");
+            throw new ArgumentException(AppText.F("split.unsupportedVideoCodec", codecName));
         }
 
         /// <summary>

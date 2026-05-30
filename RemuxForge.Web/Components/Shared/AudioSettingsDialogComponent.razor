@@ -1,53 +1,53 @@
 <div class="dialog-overlay visible" @onclick="OnClose">
     <div class="dialog-box" style="min-width: 40ch;" @onclick:stopPropagation="true">
-        <div class="dialog-title">Impostazioni Audio</div>
+        <div class="dialog-title">@AppText.T("web.audioSettings.title")</div>
         <div class="dialog-body">
-            <div class="form-section">== FLAC ==</div>
+            <div class="form-section">@AppText.T("web.audioSettings.flacSection")</div>
             <div class="form-row">
-                <span class="form-label">Compressione (0-12):</span>
+                <span class="form-label">@AppText.T("web.audioSettings.compression")</span>
                 <input class="form-input" style="width: 6ch;" @bind="_flacCompression" />
             </div>
 
-            <div class="form-section">== Opus (bitrate kbps) ==</div>
+            <div class="form-section">@AppText.T("web.audioSettings.opusSection")</div>
             <div class="form-row">
-                <span class="form-label">Mono (1ch):</span>
+                <span class="form-label">@AppText.T("web.audioSettings.mono")</span>
                 <input class="form-input" style="width: 8ch;" @bind="_opusMono" />
             </div>
             <div class="form-row">
-                <span class="form-label">Stereo (2ch):</span>
+                <span class="form-label">@AppText.T("web.audioSettings.stereo")</span>
                 <input class="form-input" style="width: 8ch;" @bind="_opusStereo" />
             </div>
             <div class="form-row">
-                <span class="form-label">Surround 5.1:</span>
+                <span class="form-label">@AppText.T("web.audioSettings.surround51")</span>
                 <input class="form-input" style="width: 8ch;" @bind="_opusS51" />
             </div>
             <div class="form-row">
-                <span class="form-label">Surround 7.1:</span>
+                <span class="form-label">@AppText.T("web.audioSettings.surround71")</span>
                 <input class="form-input" style="width: 8ch;" @bind="_opusS71" />
             </div>
             <div class="form-row" style="color: var(--foreground2);">
-                Range: @AppSettingsModel.OPUS_BITRATE_MIN-@AppSettingsModel.OPUS_BITRATE_MAX kbps
+                @AppText.T("web.common.range"): @AppSettingsModel.OPUS_BITRATE_MIN-@AppSettingsModel.OPUS_BITRATE_MAX kbps
             </div>
 
-            <div class="form-section">== AAC (bitrate kbps) ==</div>
+            <div class="form-section">@AppText.T("web.audioSettings.aacSection")</div>
             <div class="form-row">
-                <span class="form-label">Mono (1ch):</span>
+                <span class="form-label">@AppText.T("web.audioSettings.mono")</span>
                 <input class="form-input" style="width: 8ch;" @bind="_aacMono" />
             </div>
             <div class="form-row">
-                <span class="form-label">Stereo (2ch):</span>
+                <span class="form-label">@AppText.T("web.audioSettings.stereo")</span>
                 <input class="form-input" style="width: 8ch;" @bind="_aacStereo" />
             </div>
             <div class="form-row">
-                <span class="form-label">Surround 5.1:</span>
+                <span class="form-label">@AppText.T("web.audioSettings.surround51")</span>
                 <input class="form-input" style="width: 8ch;" @bind="_aacS51" />
             </div>
             <div class="form-row">
-                <span class="form-label">Surround 7.1:</span>
+                <span class="form-label">@AppText.T("web.audioSettings.surround71")</span>
                 <input class="form-input" style="width: 8ch;" @bind="_aacS71" />
             </div>
             <div class="form-row" style="color: var(--foreground2);">
-                Range: @AppSettingsModel.AAC_BITRATE_MIN-@AppSettingsModel.AAC_BITRATE_MAX kbps
+                @AppText.T("web.common.range"): @AppSettingsModel.AAC_BITRATE_MIN-@AppSettingsModel.AAC_BITRATE_MAX kbps
             </div>
         </div>
         @if (_validationError.Length > 0)
@@ -55,8 +55,8 @@
             <div style="padding: 0.5em 1em; color: var(--color-error); white-space: pre-line;">@_validationError</div>
         }
         <div class="dialog-footer">
-            <button @onclick="Save">OK</button>
-            <button @onclick="OnClose">Annulla</button>
+            <button @onclick="Save">@AppText.T("web.common.ok")</button>
+            <button @onclick="OnClose">@AppText.T("web.common.cancel")</button>
         </div>
     </div>
 </div>

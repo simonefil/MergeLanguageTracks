@@ -1,3 +1,4 @@
+using RemuxForge.Core.Localization;
 using RemuxForge.Core.Models;
 using System;
 using System.Collections.Generic;
@@ -30,13 +31,13 @@ namespace RemuxForge.Core.Configuration
             bool needsEncode;
             if (options == null)
             {
-                result.AddError("Configurazione non valida");
+                result.AddError(AppText.T("validation.invalidConfig"));
                 return result;
             }
 
             if (options.Mode != Options.MODE_REMUX && options.Mode != Options.MODE_SPLIT)
             {
-                result.AddError("Parametro obbligatorio mancante o non valido: --mode remux|split");
+                result.AddError(AppText.T("validation.missingInvalidMode"));
                 return result;
             }
 
@@ -53,17 +54,17 @@ namespace RemuxForge.Core.Configuration
 
             if (options.FrameSync && options.DeepAnalysis)
             {
-                result.AddError("Frame-sync e deep analysis sono mutuamente esclusivi");
+                result.AddError(AppText.T("validation.frameSyncDeepExclusive"));
             }
 
             if (options.SubOnly && options.AudioOnly)
             {
-                result.AddError("Solo sottotitoli e solo audio non possono essere attivi insieme");
+                result.AddError(AppText.T("validation.subOnlyAudioOnlyExclusive"));
             }
 
             if (options.Overwrite && options.DestinationFolder.Length > 0)
             {
-                result.AddError("Overwrite e destination non possono essere usati insieme");
+                result.AddError(AppText.T("validation.overwriteDestinationExclusive"));
             }
 
             ValidateSpeedCorrection(options, result);
@@ -78,12 +79,12 @@ namespace RemuxForge.Core.Configuration
 
             if (requireSourceFolder && !needsRemux && !needsEncode)
             {
-                result.AddError("Nessuna operazione configurata. Specificare almeno una tra: lingua target, filtri tracce, processing audio, profilo encoding");
+                result.AddError(AppText.T("validation.noOperation"));
             }
 
             if (requireSourceFolder && !options.Overwrite && options.DestinationFolder.Length == 0 && !(needsEncode && !needsRemux))
             {
-                result.AddError("Specificare destination oppure overwrite");
+                result.AddError(AppText.T("validation.destinationOrOverwrite"));
             }
 
             return result;
@@ -104,7 +105,7 @@ namespace RemuxForge.Core.Configuration
                 options.SpeedCorrectionMode != Options.SPEED_CORRECTION_AUTO &&
                 options.SpeedCorrectionMode != Options.SPEED_CORRECTION_MANUAL)
             {
-                result.AddError("Modalita' speed-correction non valida: " + options.SpeedCorrectionMode);
+                result.AddError(AppText.F("options.invalidSpeedCorrection", options.SpeedCorrectionMode));
                 return;
             }
 
@@ -113,11 +114,11 @@ namespace RemuxForge.Core.Configuration
                 // In manuale lo stretch deve essere esplicito: non si tenta inferenza automatica su VFR
                 if (options.ManualStretchFactor.Trim().Length == 0)
                 {
-                    result.AddError("La modalita' speed-correction manual richiede uno stretch factor");
+                    result.AddError(AppText.T("validation.speedManualNeedsStretch"));
                 }
                 else if (!IsValidStretchFactor(options.ManualStretchFactor))
                 {
-                    result.AddError("Stretch factor manuale non valido: " + options.ManualStretchFactor);
+                    result.AddError(AppText.F("validation.invalidManualStretch", options.ManualStretchFactor));
                 }
             }
         }
@@ -132,37 +133,37 @@ namespace RemuxForge.Core.Configuration
 
             if (options.AudioSourceFillThresholdMs < 0)
             {
-                result.AddError("audio-source-fill-threshold-ms non puo' essere negativo");
+                result.AddError(AppText.T("validation.sourceFillThresholdNegative"));
             }
 
             if (active && !needsMerge)
             {
-                result.AddError("audio-source-fill richiede una lingua target da importare");
+                result.AddError(AppText.T("validation.sourceFillNeedsTargetLanguage"));
             }
 
             if (active && (options.AudioFormat.Length == 0 || options.AudioProcessingScope == "disabled"))
             {
-                result.AddError("audio-source-fill richiede formato audio e scope audio attivo");
+                result.AddError(AppText.T("validation.sourceFillNeedsAudio"));
             }
 
             if (active && options.AudioSourceFillThresholdMs <= 0)
             {
-                result.AddError("audio-source-fill-threshold-ms deve essere maggiore di zero quando audio-source-fill e' attivo");
+                result.AddError(AppText.T("validation.sourceFillThresholdPositive"));
             }
 
             if (active && options.AudioSourceFillLanguage.Length == 0)
             {
-                result.AddError("audio-source-fill-language e' obbligatorio quando audio-source-fill e' attivo");
+                result.AddError(AppText.T("validation.sourceFillLanguageRequired"));
             }
 
             if (active && !anyMode)
             {
-                result.AddError("audio-source-fill-modes richiede almeno una modalita': start, end, insert-silence");
+                result.AddError(AppText.T("validation.sourceFillModeRequired"));
             }
 
             if (options.AudioSourceFillInsertSilence && !options.DeepAnalysis)
             {
-                result.AddError("audio-source-fill mode insert-silence richiede --deep-analysis");
+                result.AddError(AppText.T("validation.sourceFillInsertSilenceNeedsDeep"));
             }
 
             if (options.AudioSourceFillLanguage.Length > 0)
@@ -178,47 +179,47 @@ namespace RemuxForge.Core.Configuration
         {
             if (!IsValidAudioFormat(options.AudioFormat))
             {
-                result.AddError("Formato audio non valido: " + options.AudioFormat + ". Valori validi: flac, lpcm, aac, opus");
+                result.AddError(AppText.F("options.invalidAudioFormat", options.AudioFormat));
             }
 
             if (!IsValidScope(options.AudioProcessingScope))
             {
-                result.AddError("Scope audio non valido: " + options.AudioProcessingScope + ". Valori validi: disabled, lang, all");
+                result.AddError(AppText.F("options.invalidAudioScope", options.AudioProcessingScope));
             }
 
             if (!IsValidScope(options.AudioRenameScope))
             {
-                result.AddError("Scope rinomina audio non valido: " + options.AudioRenameScope + ". Valori validi: disabled, lang, all");
+                result.AddError(AppText.F("options.invalidAudioRenameScope", options.AudioRenameScope));
             }
 
             if (options.AudioFormat.Length == 0 && options.AudioProcessingScope != "disabled")
             {
-                result.AddError("audio-scope richiede audio-format");
+                result.AddError(AppText.T("validation.audioScopeRequiresFormat"));
             }
 
             if (options.AudioProcessingScope != "disabled" && options.AudioFormat.Length == 0)
             {
-                result.AddError("audio-format e' obbligatorio quando audio-scope non e' disabled");
+                result.AddError(AppText.T("validation.audioFormatRequiredWithScope"));
             }
 
             if ((options.AudioPeakNormalize || options.AudioDownsample24To16) && (options.AudioFormat.Length == 0 || options.AudioProcessingScope == "disabled"))
             {
-                result.AddError("normalizzazione e 24->16 richiedono formato audio e scope audio attivo");
+                result.AddError(AppText.T("validation.audioNormalizeNeedsFormat"));
             }
 
             if (options.AudioDownsample24To16 && options.AudioFormat != "flac" && options.AudioFormat != "lpcm")
             {
-                result.AddError("24->16 e' ammesso solo per flac e lpcm");
+                result.AddError(AppText.T("validation.audio24To16OnlyFlacLpcm"));
             }
 
             if (options.AudioPeakTargetDb > 0.0)
             {
-                result.AddError("audio-peak-target-db deve essere minore o uguale a 0");
+                result.AddError(AppText.T("validation.audioPeakTargetMaxZero"));
             }
 
             if (options.AudioPeakTargetDb < -60.0)
             {
-                result.AddError("audio-peak-target-db non puo' essere minore di -60");
+                result.AddError(AppText.T("validation.audioPeakTargetMin"));
             }
         }
 
@@ -252,12 +253,12 @@ namespace RemuxForge.Core.Configuration
 
             if (!Options.TryParseAnalysisCropPx(options.AnalysisCropSourcePx, out left, out right, out top, out bottom))
             {
-                result.AddError("analysis-crop-source-px non valido: usare L:R:T:B con interi >= 0");
+                result.AddError(AppText.T("validation.invalidAnalysisCropSource"));
             }
 
             if (!Options.TryParseAnalysisCropPx(options.AnalysisCropLanguagePx, out left, out right, out top, out bottom))
             {
-                result.AddError("analysis-crop-lang-px non valido: usare L:R:T:B con interi >= 0");
+                result.AddError(AppText.T("validation.invalidAnalysisCropLang"));
             }
         }
 
@@ -274,7 +275,7 @@ namespace RemuxForge.Core.Configuration
             }
             catch (Exception ex)
             {
-                result.AddError("Pattern match non valido: " + ex.Message);
+                result.AddError(AppText.F("validation.invalidMatchPattern", ex.Message));
             }
         }
 
@@ -287,7 +288,7 @@ namespace RemuxForge.Core.Configuration
         {
             if (options.FileExtensions.Count == 0)
             {
-                result.AddError("Indicare almeno una estensione file");
+                result.AddError(AppText.T("validation.extensionRequired"));
             }
         }
 
@@ -304,7 +305,7 @@ namespace RemuxForge.Core.Configuration
                 for (int i = 0; i < options.TargetLanguage.Count; i++)
                 {
                     // Le lingue target sono obbligatorie solo quando il merge e' effettivamente richiesto
-                    ValidateLanguage("Lingua target", options.TargetLanguage[i], result);
+                    ValidateLanguage(AppText.T("validation.labelTargetLanguage"), options.TargetLanguage[i], result);
                 }
             }
 
@@ -330,18 +331,18 @@ namespace RemuxForge.Core.Configuration
             List<string> suggestions;
             if (language == null || !Regex.IsMatch(language.ToLowerInvariant(), @"^[a-z]{2,3}$"))
             {
-                result.AddError(label + " non valida: " + language);
+                result.AddError(AppText.F("validation.languageInvalid", label, language));
                 return;
             }
 
             if (!LanguageValidator.IsValid(language))
             {
                 // Le suggestion restano warning per non nascondere l'errore principale
-                result.AddError(label + " non riconosciuta: " + language);
+                result.AddError(AppText.F("validation.languageUnknown", label, language));
                 suggestions = LanguageValidator.GetSimilar(language, 3);
                 if (suggestions.Count > 0)
                 {
-                    result.AddWarning("Forse intendevi: " + string.Join(", ", suggestions) + "?");
+                    result.AddWarning(AppText.F("validation.languageSuggestion", string.Join(", ", suggestions)));
                 }
             }
         }
@@ -357,7 +358,7 @@ namespace RemuxForge.Core.Configuration
             {
                 if (CodecMapping.GetCodecPatterns(options.AudioCodec[i]) == null)
                 {
-                    result.AddError("Codec audio non riconosciuto: " + options.AudioCodec[i] + ". Validi: " + CodecMapping.GetAllCodecNames());
+                    result.AddError(AppText.F("validation.audioCodecUnknown", options.AudioCodec[i], CodecMapping.GetAllCodecNames()));
                 }
             }
 
@@ -365,7 +366,7 @@ namespace RemuxForge.Core.Configuration
             {
                 if (CodecMapping.GetCodecPatterns(options.KeepSourceAudioCodec[i]) == null)
                 {
-                    result.AddError("Codec keep-source-audio-codec non riconosciuto: " + options.KeepSourceAudioCodec[i]);
+                    result.AddError(AppText.F("validation.keepSourceAudioCodecUnknown", options.KeepSourceAudioCodec[i]));
                 }
             }
         }
@@ -382,17 +383,17 @@ namespace RemuxForge.Core.Configuration
         {
             if (requireSourceFolder && options.SourceFolder.Length == 0)
             {
-                result.AddError("Parametro obbligatorio mancante: source");
+                result.AddError(AppText.T("validation.sourceRequired"));
             }
 
             if (validateFolderExists && options.SourceFolder.Length > 0 && !Directory.Exists(options.SourceFolder))
             {
-                result.AddError("Cartella sorgente non trovata: " + options.SourceFolder);
+                result.AddError(AppText.F("validation.sourceFolderNotFound", options.SourceFolder));
             }
 
             if (validateFolderExists && needsMerge && options.LanguageFolder.Length > 0 && !Directory.Exists(options.LanguageFolder))
             {
-                result.AddError("Cartella lingua non trovata: " + options.LanguageFolder);
+                result.AddError(AppText.F("validation.languageFolderNotFound", options.LanguageFolder));
             }
         }
 
@@ -413,13 +414,13 @@ namespace RemuxForge.Core.Configuration
 
             if (options.Split == null)
             {
-                result.AddError("Configurazione split non valida");
+                result.AddError(AppText.T("validation.invalidSplitConfig"));
                 return;
             }
 
             if (requireSourceFolder && options.Split.SourcePath.Length == 0)
             {
-                result.AddError("Parametro obbligatorio mancante: source");
+                result.AddError(AppText.T("validation.sourceRequired"));
             }
 
             if (options.Split.SourcePath.Length > 0)
@@ -429,7 +430,7 @@ namespace RemuxForge.Core.Configuration
 
                 if (validateFolderExists && !sourceIsFile && !sourceIsFolder)
                 {
-                    result.AddError("Sorgente split non trovata: " + options.Split.SourcePath);
+                    result.AddError(AppText.F("validation.splitSourceNotFound", options.Split.SourcePath));
                 }
             }
 
@@ -441,16 +442,16 @@ namespace RemuxForge.Core.Configuration
 
             if (modes == 0)
             {
-                result.AddError("Nessuna modalita' split configurata. Specificare pattern, ranges, split-at, trim-start/trim-end oppure chapters-each");
+                result.AddError(AppText.T("validation.splitModeRequired"));
             }
             else if (modes > 1)
             {
-                result.AddError("Le modalita' split sono mutuamente esclusive");
+                result.AddError(AppText.T("validation.splitModesExclusive"));
             }
 
             if (sourceIsFolder && options.Split.SourceRaw.Length > 0)
             {
-                result.AddError("source-raw e' disponibile solo per split single file");
+                result.AddError(AppText.T("validation.sourceRawSingleFileOnly"));
             }
         }
 
